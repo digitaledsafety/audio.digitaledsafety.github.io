@@ -3,28 +3,2284 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Full Frame Iframe</title>
+    <title>Web Audio Node Processor (Rete.js v2 - Tone Generator)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <base target="_top">
     <style>
-        /* Reset default browser margins and paddings */
-        html, body {
-            margin: 0;
-            padding: 0;
-            height: 100%;
+        /* Custom styles for better visual appeal */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Align to top for better content flow */
+            min-height: 100vh;
+            padding: 2rem;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
             width: 100%;
-            overflow: hidden; /* Prevent body scrollbars if iframe content has its own */
+            max-width: 1200px; /* Wider to accommodate Rete.js editor */
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .button {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .button-primary {
+            background-color: #4f46e5;
+            color: white;
+        }
+        .button-primary:hover {
+            background-color: #4338ca;
+            transform: translateY(-1px);
+        }
+        .button-secondary {
+            background-color: #e0e7ff;
+            color: #4f46e5;
+            border: 1px solid #a5b4fc;
+        }
+        .button-secondary:hover {
+            background-color: #c7d2fe;
+            transform: translateY(-1px);
+        }
+        .button-danger {
+            background-color: #ef4444;
+            color: white;
+        }
+        .button-danger:hover {
+            background-color: #dc2626;
+            transform: translateY(-1px);
+        }
+        .message-box {
+            background-color: #fffbeb;
+            color: #9a3412;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid #fcd34d;
+            margin-top: 1rem;
+            text-align: center;
+        }
+        .message-box.success {
+            background-color: #ecfdf5;
+            color: #065f46;
+            border-color: #34d399;
         }
 
-        /* Style the iframe to be full-frame */
-        iframe {
-            display: block; /* Iframes are inline by default, block helps with sizing */
+        /* Rete.js specific styles */
+        #rete {
             width: 100%;
-            height: 100%;
-            border: none; /* Remove default iframe border */
-            overflow: hidden; /* Hide iframe scrollbars if content handles its own scrolling */
+            height: 600px; /* Fixed height for the Rete.js editor */
+            border: 1px solid #e5e7eb;
+            border-radius: 0.75rem;
+            background-color: #f9fafb;
+            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.05);
+            overflow: hidden; /* Ensures content stays within bounds */
+        }
+        .node {
+            background: #ffffff;
+            border: 1px solid #d1d5db;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+            padding: 1rem;
+            color: #1f2937;
+            font-weight: 500;
+            min-width: 180px;
+            box-sizing: border-box;
+        }
+        .node.selected {
+            border-color: #4f46e5;
+            box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
+        }
+        .node .title {
+            font-weight: 600;
+            font-size: 1.125rem; /* text-lg */
+            margin-bottom: 0.75rem;
+            text-align: center;
+            color: #374151;
+        }
+        .node .input, .node .output {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        .node .input-title, .node .output-title {
+            flex-grow: 1;
+            font-size: 0.875rem; /* text-sm */
+            color: #4b5563;
+        }
+        .socket {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #9ca3af;
+            border: 2px solid #6b7280;
+            cursor: pointer;
+            transition: background 0.2s ease-in-out, border-color 0.2s ease-in-out;
+        }
+        .socket.input {
+            margin-right: 0.5rem;
+        }
+        .socket.output {
+            margin-left: 0.5rem;
+        }
+        .socket:hover {
+            background: #4f46e5;
+            border-color: #4338ca;
+        }
+        /* Custom control styling */
+        .control {
+            margin-top: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+        .control label {
+            display: block;
+            font-size: 0.875rem;
+            color: #ffffff;
+            margin-bottom: 0.25rem;
+            text-align: center;
+        }
+        .control input[type="range"] {
+            width: 100%;
+            -webkit-appearance: none;
+            height: 8px;
+            background: #d1d5db;
+            border-radius: 5px;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .2s;
+            margin-top: 0.5rem;
+        }
+        .control input[type="range"]:hover {
+            opacity: 1;
+        }
+        .control input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4f46e5;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        .control input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4f46e5;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        .control .value-display {
+            min-width: 40px;
+            text-align: center;
+            font-weight: 500;
+            color: #ffffff;
+            font-size: 0.9rem;
+            margin-top: 0.25rem;
+        }
+        .control select {
+            width: 100%;
+            padding: 0.25rem;
+            border-radius: 0.25rem;
+            border: 1px solid #d1d5db;
+            background-color: #fff;
+            color: #374151;
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
         }
     </style>
 </head>
 <body>
-    <iframe src="https://script.google.com/a/macros/digitaleducationsafety.org/s/AKfycbxkQ-AkBViTKZVambvyGunl3rm6IU4qSfNr3s9pzqo1T7dJbWjhZzhVPFZvr9Vv_v8/exec"></iframe>
+    <div class="container">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-4">Web Audio Node Processor with Rete.js v2</h1>
+
+        <div id="controls" class="flex flex-col sm:flex-row justify-center gap-4 mb-6">
+            <button id="startAudioBtn" class="button button-primary">Start Audio</button>
+            <button id="stopAudioBtn" class="button button-secondary" disabled>Stop Audio</button>
+        </div>
+
+        <div id="node-add-buttons" class="flex flex-wrap justify-center gap-3 mb-6">
+            <button id="addToneGeneratorNodeBtn" class="button button-secondary">Add Tone Generator</button>
+            <button id="addChordGeneratorNodeBtn" class="button button-secondary">Add Chord Generator</button>
+            <button id="addGainNodeBtn" class="button button-secondary">Add Gain Node</button>
+            <button id="addFilterNodeBtn" class="button button-secondary">Add Filter Node</button>
+            <button id="addDelayNodeBtn" class="button button-secondary">Add Delay Node</button>
+            <button id="addDistortionNodeBtn" class="button button-secondary">Add Distortion Node</button>
+            <button id="addCompressorNodeBtn" class="button button-secondary">Add Compressor Node</button>
+            <button id="addReverbNodeBtn" class="button button-secondary">Add Reverb Node</button>
+            <button id="addArpeggiatorNodeBtn" class="button button-secondary">Add Arpeggiator</button>
+            <button id="addLFONodeBtn" class="button button-secondary">Add LFO</button>
+            <button id="addADSREnvelopeNodeBtn" class="button button-secondary">Add ADSR Envelope</button>
+            <button id="addBitcrusherNodeBtn" class="button button-secondary">Add Bitcrusher</button>
+            <button id="clearEditorBtn" class="button button-danger" disabled>Clear Editor</button>
+        </div>
+
+        <div id="messageBox" class="message-box hidden"></div>
+
+        <div id="rete" class="relative">
+            </div>
+
+        
+    </div>
+
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/rete@2.0.0-beta.6/rete.min.js"></script>
+    <script type="text/javascript" src="https://unpkg.com/react-is@17.0.2/umd/react-is.production.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+    <script type="text/javascript" src="https://unpkg.com/styled-components@5.2.3/dist/styled-components.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/rete-area-plugin@2.0.0-beta.8/rete-area-plugin.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/rete-render-utils@2.0.0-beta.8/rete-render-utils.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/rete-react-render-plugin@2.0.0-beta.9/rete-react-render-plugin.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/rete-connection-plugin@2.0.0-beta.7/rete-connection-plugin.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/rete-context-menu-plugin@2.0.0-beta.6/rete-context-menu-plugin.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/rete-engine@2.0.0-beta.7/rete-engine.min.js"></script>
+
+    
+
+    <script>
+        // Capture global Rete.js objects into local constants after all CDN scripts have loaded
+
+        const { ClassicPreset: Classic, NodeEditor } = window.Rete;
+        const { createRoot } = window.ReactDOM;
+        const { AreaExtensions, AreaPlugin } = window.ReteAreaPlugin;
+        const { ConnectionPlugin, Presets: ConnectionPresets } = window.ReteConnectionPlugin;
+        const { DataflowEngine } = window.ReteEngine;
+        const { ReactRenderPlugin, Presets: ReactPresets } = window.ReteReactRenderPlugin
+        const { ContextMenuPlugin, Presets: ContextMenuPresets } = window.ReteContextMenuPlugin;        
+
+        // Global variables for Web Audio API
+        var audioContext;
+        const reteAudioNodes = new Map(); // Maps Rete.js node IDs to Web Audio API nodes
+
+        const CHORD_TYPES = {
+          'Major Triad': [0, 4, 7],
+          'Minor Triad': [0, 3, 7],
+          'Major 7th': [0, 4, 7, 11],
+          'Minor 7th': [0, 3, 7, 10],
+          'Diminished Triad': [0, 3, 6],
+          'Augmented Triad': [0, 4, 8],
+          'Major-Minor 7th (Dominant 7th)': [0, 4, 7, 10],
+          'Half Diminished 7th (m7b5)': [0, 3, 6, 10],
+          'Diminished 7th': [0, 3, 6, 9],
+          'Major 9th': [0, 4, 7, 11, 14], // equivalent to [0, 4, 7, 11, 2] in the next octave
+          'Minor 9th': [0, 3, 7, 10, 14], // equivalent to [0, 3, 7, 10, 2]
+          'Dominant 9th': [0, 4, 7, 10, 14], // equivalent to [0, 4, 7, 10, 2]
+          'Suspended 2nd (Sus2)': [0, 2, 7],
+          'Suspended 4th (Sus4)': [0, 5, 7]
+        };
+        
+        const ROOT_NOTES = {
+            'C3': 48, 'C#3': 49, 'D3': 50, 'D#3': 51, 'E3': 52, 'F3': 53,
+            'F#3': 54, 'G3': 55, 'G#3': 56, 'A3': 57, 'A#3': 58, 'B3': 59,
+            'C4': 60, 'C#4': 61, 'D4': 62, 'D#4': 63, 'E4': 64, 'F4': 65,
+            'F#4': 66, 'G4': 67, 'G#4': 68, 'A4': 69, 'A#4': 70, 'B4': 71
+        };
+
+        // UI Elements
+        const startAudioBtn = document.getElementById('startAudioBtn');
+        const stopAudioBtn = document.getElementById('stopAudioBtn');
+        const addToneGeneratorNodeBtn = document.getElementById('addToneGeneratorNodeBtn');
+        const addChordGeneratorNodeBtn = document.getElementById('addChordGeneratorNodeBtn'); // New Chord Generator Button
+        const addGainNodeBtn = document.getElementById('addGainNodeBtn');
+        const addFilterNodeBtn = document.getElementById('addFilterNodeBtn');
+        const addDelayNodeBtn = document.getElementById('addDelayNodeBtn');
+        const addArpeggiatorNodeBtn = document.getElementById('addArpeggiatorNodeBtn'); // New Button
+        const addLFONodeBtn = document.getElementById('addLFONodeBtn'); // New LFO button
+        const addADSREnvelopeNodeBtn = document.getElementById('addADSREnvelopeNodeBtn'); // New ADSR button
+        const addBitcrusherNodeBtn = document.getElementById('addBitcrusherNodeBtn'); // New Bitcrusher button
+        const clearEditorBtn = document.getElementById('clearEditorBtn');
+        const reteContainer = document.getElementById('rete');
+        const messageBox = document.getElementById('messageBox');
+
+        // Rete.js Editor and Engine
+        let editor;
+        let area; // AreaPlugin instance
+        let engine;
+
+        // --- Utility Functions ---
+
+        function showMessage(message, type = 'info') {
+            messageBox.textContent = message;
+            messageBox.className = `message-box ${type} block`;
+            setTimeout(() => {
+                messageBox.classList.add('hidden');
+            }, 5000);
+        }
+
+
+        /**
+         * Converts a MIDI note number to its corresponding frequency in Hz.
+         * @param {number} midiNote - The MIDI note number (e.g., 60 for C4).
+         * @returns {number} The frequency in Hz.
+         */
+        function midiToFrequency(midiNote) {
+            return 440 * Math.pow(2, (midiNote - 69) / 12);
+        }
+
+        // --- Web Audio API Management ---
+
+        /**
+         * Creates a distortion curve for a WaveShaperNode.
+         * @param {number} amount - The amount of distortion (0-100).
+         * @returns {Float32Array} The distortion curve.
+         */
+        function makeDistortionCurve(amount) {
+            const k = typeof amount === 'number' ? amount : 50;
+            const n_samples = 44100;
+            const curve = new Float32Array(n_samples);
+            const deg = Math.PI / 180;
+            for (let i = 0; i < n_samples; ++i) {
+                const x = i * 2 / n_samples - 1; // [-1, 1]
+                curve[i] = (3 + k) * x * 20 * deg / (Math.PI + k * Math.abs(x));
+            }
+            return curve;
+        }
+
+        /**
+         * Sets the distortion curve on a WaveShaperNode.
+         * @param {WaveShaperNode} waveShaperNode - The Web Audio API WaveShaperNode.
+         * @param {number} amount - The amount of distortion.
+         */
+        function setDistortionCurve(waveShaperNode, amount) {
+            if (waveShaperNode && waveShaperNode.curve) {
+                waveShaperNode.curve = makeDistortionCurve(amount);
+            }
+        }
+
+
+        // --- Web Audio API Management ---
+
+        async function startAudio() {
+            try {
+                if (!audioContext || audioContext.state === 'closed') {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+                    const processorCode = `
+                      // bitcrusher-processor.js
+                      // This file will be loaded by the AudioContext's audioWorklet.addModule()
+
+                      class BitcrusherProcessor extends AudioWorkletProcessor {
+                        // Define custom parameters that can be controlled from the main thread
+                        static get parameterDescriptors() {
+                          return [
+                            {
+                              name: 'bits',
+                              defaultValue: 8,
+                              minValue: 1,
+                              maxValue: 16,
+                              automationRate: 'a-rate' // 'a-rate' for audio-rate changes (smoother)
+                            },
+                            {
+                              name: 'sampleRateReduction', // Factor by which to reduce sample rate (e.g., 2 means half sample rate)
+                              defaultValue: 1,
+                              minValue: 1,
+                              maxValue: 100, // Or whatever max reduction you want
+                              automationRate: 'a-rate'
+                            }
+                          ];
+                        }
+
+                        constructor() {
+                          super();
+                          this.lastSample = 0; // For sample rate reduction: holds the last processed sample
+                          this.phase = 0;      // For sample rate reduction: accumulator for timing
+                        }
+
+                        process(inputs, outputs, parameters) {
+                          const input = inputs[0]; // Get the first input (assuming single input)
+                          const output = outputs[0]; // Get the first output (assuming single output)
+
+                          // Get the parameter values (they are arrays, even if constant, check first element)
+                          const bits = parameters.bits[0];
+                          const sampleRateReduction = parameters.sampleRateReduction[0];
+
+                          // Process each channel
+                          for (let channel = 0; channel < input.length; ++channel) {
+                            const inputChannel = input[channel];
+                            const outputChannel = output[channel];
+
+                            for (let i = 0; i < inputChannel.length; ++i) {
+                              let currentSample = inputChannel[i];
+
+                              // --- Bit Depth Reduction ---
+                              // Calculate the step size for quantization
+                              const step = Math.pow(0.5, bits); // e.g., 8 bits -> 2^8 = 256 levels -> step = 1/256
+                              // Quantize the sample
+                              currentSample = Math.floor(currentSample / step) * step;
+
+                              // --- Sample Rate Reduction (simple hold method) ---
+                              // Increment phase by the reduction factor. When it hits 1, process a new sample.
+                              this.phase += 1 / sampleRateReduction; // If reduction is 2, phase increases by 0.5 each sample
+                              if (this.phase >= 1) {
+                                this.phase--; // Reset phase
+                                this.lastSample = currentSample; // Store the new "processed" sample
+                              }
+                              // Output the last processed sample (either the newly processed one or the held one)
+                              outputChannel[i] = this.lastSample;
+                            }
+                          }
+                          return true; // Indicate that the processor is still active
+                        }
+                      }
+
+                      // Register the processor with a unique name
+                      registerProcessor('bitcrusher-processor', BitcrusherProcessor);
+                    `;
+
+                    const blob = new Blob([processorCode], { type: 'application/javascript' });
+                    const processorUrl = URL.createObjectURL(blob);
+
+                    await audioContext.audioWorklet.addModule(processorUrl);
+                }
+
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+
+                startAudioBtn.disabled = true;
+                stopAudioBtn.disabled = false;
+                clearEditorBtn.disabled = false;
+                showMessage('Audio context started! Nodes in the editor are now active.', 'success');
+
+                // Initialize/start audio nodes that are already in the editor
+                for (const reteNode of editor.getNodes()) {
+                    let audioNode = reteAudioNodes.get(reteNode.id);
+
+                    if (!audioNode) {
+                        // Create audio node if it doesn't exist yet
+                        switch (reteNode.label) { // Rete v2 uses `label` for the node's display name
+                            case 'Tone Generator':
+                                audioNode = audioContext.createOscillator();
+                                audioNode.frequency.value = reteNode.data.frequencyValue !== undefined ? reteNode.data.frequencyValue : 440;
+                                audioNode.type = reteNode.data.waveformType || 'sine';
+                                audioNode.started = false;
+                                break;
+                                break;
+                            case 'Chord Generator':
+                                // ChordGenerator now handles its own internal oscillators and gain
+                                audioNode = new ChordGenerator(audioContext, reteNode.id, reteNode.data);
+                                break;
+                            case 'Gain':
+                                audioNode = audioContext.createGain();
+                                audioNode.gain.value = reteNode.data.gainValue !== undefined ? reteNode.data.gainValue : 1;
+                                break;
+                            case 'Filter':
+                                audioNode = audioContext.createBiquadFilter();
+                                audioNode.type = reteNode.data.filterType || 'lowpass';
+                                audioNode.frequency.value = reteNode.data.frequencyValue !== undefined ? reteNode.data.frequencyValue : 2000;
+                                audioNode.Q.value = reteNode.data.qValue !== undefined ? reteNode.data.qValue : 1;
+                                break;
+                            case 'Delay':
+                                audioNode = audioContext.createDelay(5.0);
+                                audioNode.delayTime.value = reteNode.data.delayTimeValue !== undefined ? reteNode.data.delayTimeValue : 0.5;             
+                                break;
+                            case 'Distortion': // New Node Type
+                                audioNode = audioContext.createWaveShaper();
+                                setDistortionCurve(audioNode, reteNode.data.amount !== undefined ? reteNode.data.amount : 0);
+                                break;
+                            case 'Compressor': // New Node Type
+                                audioNode = audioContext.createDynamicsCompressor();
+                                audioNode.threshold.value = reteNode.data.threshold !== undefined ? reteNode.data.threshold : -24;
+                                audioNode.ratio.value = reteNode.data.ratio !== undefined ? reteNode.data.ratio : 12;
+                                audioNode.attack.value = reteNode.data.attack !== undefined ? reteNode.data.attack : 0.003;
+                                audioNode.release.value = reteNode.data.release !== undefined ? reteNode.data.release : 0.25;
+                                break;
+                            case 'Reverb': // New Node Type (Convolver)
+                                audioNode = audioContext.createConvolver();
+                                // IMPORTANT: For Reverb to work, you need to load an impulse response.
+                                // This requires fetching an audio file (e.g., WAV) and setting it to audioNode.buffer.
+                                // Example (requires a CORS-enabled audio file URL):
+                                // const impulseResponseUrl = 'https://webaudio.github.io/web-audio-api/samples/audio/impulse-responses/small-room.wav';
+                                // fetch(impulseResponseUrl)
+                                //     .then(response => response.arrayBuffer())
+                                //     .then(buffer => audioContext.decodeAudioData(buffer))
+                                //     .then(decodedBuffer => {
+                                //         audioNode.buffer = decodedBuffer;
+                                //         console.log('Reverb Impulse Response loaded!');
+                                //     })
+                                //     .catch(e => console.error('Error loading impulse response:', e));
+                                showMessage('Reverb node added. Remember to load an Impulse Response for it to work!', 'info');
+                                break;    
+                            case 'Arpeggiator':
+                                // Arpeggiator needs its own internal state, not just a single audio node
+                                // The node's internal `start` method will handle creating/managing oscillators
+                                audioNode = new Arpeggiator(audioContext, reteNode.id, reteNode.data);
+                                break;   
+                            case 'LFO':
+                                audioNode = new LFOGenerator(audioContext, reteNode.id, reteNode.data);
+                                break;
+                            case 'ADSR Envelope':
+                                audioNode = new ADSREnvelope(audioContext, reteNode.id, reteNode.data);
+                                break;
+                            case 'Bitcrusher':
+                                // Create an AudioWorkletNode, passing the name of the registered processor
+                                audioNode = new AudioWorkletNode(audioContext, 'bitcrusher-processor');
+                                // Set initial parameter values
+                                audioNode.parameters.get('bits').setValueAtTime(
+                                    reteNode.data.bits !== undefined ? reteNode.data.bits : 8,
+                                    audioContext.currentTime
+                                );
+                                audioNode.parameters.get('sampleRateReduction').setValueAtTime(
+                                    reteNode.data.sampleRateReduction !== undefined ? reteNode.data.sampleRateReduction : 1,
+                                    audioContext.currentTime
+                                );
+                                break;                         
+                        }
+                        if (audioNode) {
+                            reteAudioNodes.set(reteNode.id, audioNode);
+                        }
+                    }
+
+                    // Start audio nodes that need to be explicitly started (Oscillator, ChordGenerator)
+                      if ((reteNode.label === 'Tone Generator' && audioNode && audioNode.start && !audioNode.started) || (reteNode.label === 'Chord Generator' && audioNode && audioNode.start && !audioNode.started) || 
+                      (reteNode.label === 'Arpeggiator' && audioNode && audioNode.start && !audioNode.started) || 
+                      (reteNode.label === 'LFO' && audioNode && audioNode.start && !audioNode.started)) {
+                        try {
+                            audioNode.start();
+                            audioNode.started = true;
+                        } catch (e) {
+                            console.warn(`Could not start ${reteNode.label} for node ${reteNode.id}:`, e);
+                        }
+                    }
+                }
+                updateAudioGraphConnections();
+
+            } catch (error) {
+                console.error('Error starting audio context:', error);
+                showMessage(`Error starting audio context: ${error.message}.`, 'error');
+            }
+        }
+
+        async function stopAudio() {
+            // Stop all audio nodes
+            reteAudioNodes.forEach((audioNode, id) => {
+                const reteNode = editor.getNode(id); // Use editor.getNode(id) in v2
+
+                // Stop oscillators
+                if (reteNode && reteNode.label === 'Tone Generator' && audioNode.stop && audioNode.started) {
+                    try {
+                        audioNode.stop();
+                        audioNode.started = false;
+                    } catch (e) {
+                        console.warn(`Oscillator for node ${id} already stopped or could not be stopped.`, e);
+                    }
+                }
+                // Stop arpeggiator
+                if (reteNode && reteNode.label === 'Arpeggiator' && audioNode.stop && audioNode.started) {
+                    try {
+                        audioNode.stop();
+                        audioNode.started = false;
+                    } catch (e) {
+                        console.warn(`Arpeggiator for node ${id} could not be stopped.`, e);
+                    }
+                }
+                
+                // Disconnect each main audio node from the graph (for Arpeggiator, this would be its master gain)
+                try {
+                    // For Arpeggiator, we disconnect its master output. Other nodes are direct Web Audio nodes.
+                    if (audioNode.mainOutput) { // Arpeggiator has a mainOutput
+                        audioNode.mainOutput.disconnect();
+                    } else if (audioNode.disconnect) { // Regular Web Audio nodes
+                        audioNode.disconnect();
+                    }
+                } catch (e) {
+                    console.warn("Error disconnecting audio node:", e);
+                }
+            });
+            reteAudioNodes.clear(); // Clear the map
+
+            if (audioContext && audioContext.state !== 'closed') {
+                await audioContext.close();
+                console.log('AudioContext closed.');
+                audioContext = null;
+            }
+
+            startAudioBtn.disabled = false;
+            stopAudioBtn.disabled = true;
+            showMessage('Audio stopped.', 'info');
+        }
+
+
+        async function updateAudioGraphConnections() {
+            if (!audioContext || !editor) return;
+
+            // 1. Disconnect all existing connections in the Web Audio graph
+            reteAudioNodes.forEach(audioNode => {
+                try {
+                    if (audioNode.mainOutput) {
+                        audioNode.mainOutput.disconnect();
+                    } else if (audioNode.disconnect) {
+                        audioNode.disconnect();
+                    }
+                } catch (e) {
+                    console.warn("Error disconnecting audio node:", e);
+                }
+            });
+
+            // 2. Reconnect based on Rete.js editor's connections
+            for (const connection of editor.getConnections()) {
+                const sourceNode = editor.getNode(connection.source);
+                const targetNode = editor.getNode(connection.target);
+
+                // Handle AUDIO connections
+                if (connection.sourceOutput == audioSocket.name && connection.targetInput == audioSocket.name) {
+
+                    let sourceAudioNode = reteAudioNodes.get(sourceNode.id);
+                    let targetAudioNode = reteAudioNodes.get(targetNode.id);
+
+                    // Ensure we get the actual AudioNode for connection (from internal classes' mainOutput)
+                    if (sourceAudioNode && sourceAudioNode.mainOutput && (
+                      sourceNode.label === 'Arpeggiator' || 
+                      sourceNode.label === 'Chord Generator' || 
+                      sourceNode.label === 'LFO' || 
+                      sourceNode.label === 'ADSR Envelope'
+                    )) {
+                        sourceAudioNode = sourceAudioNode.mainOutput;
+                    }
+                    
+                    if (sourceAudioNode && targetAudioNode) {
+                        try {
+                            sourceAudioNode.connect(targetAudioNode);
+                            console.log(`Audio connected: ${sourceNode.label} to ${targetNode.label}`);
+                        } catch (e) {
+                            console.error(`Error connecting audio from ${sourceNode.label} to ${targetNode.label}:`, e);
+                        }
+                    }
+                }
+                // Handle MIDI connections
+                else if (connection.sourceOutput == midiSocket.name && connection.targetInput == midiSocket.name) {
+                    const sourceMidiNode = reteAudioNodes.get(connection.source);
+                    const targetMidiNode = reteAudioNodes.get(connection.target);
+
+                    if (sourceMidiNode && targetMidiNode && sourceMidiNode.addMidiOutputListener && targetMidiNode.receiveMidiNotes) {
+                        // Create a specific listener for this connection
+                        const listener = (midiNotes) => {
+                            targetMidiNode.receiveMidiNotes(midiNotes);
+                        };
+                        // Store the listener on the connection object for later removal
+                        connection._midiListener = listener;
+                        sourceMidiNode.addMidiOutputListener(listener);
+                        // console.log(`MIDI connected: ${sourceNode.label} to ${targetNode.label}`);
+                    }
+                }
+            }
+
+            // 3. Connect any Rete.js audio nodes that have outputs but no outgoing AUDIO connections to the destination.
+            for (const reteNode of editor.getNodes()) {
+                const audioNode = reteAudioNodes.get(reteNode.id);
+                const hasAudioOutputs = Object.keys(reteNode.outputs).some(key => reteNode.outputs[key].socket === audioSocket);
+
+                if (hasAudioOutputs) {
+                    const hasOutgoingAudioConnection = editor.getConnections().some(conn => 
+                        conn.source === reteNode.id && conn.sourceOutput.socket === audioSocket);
+
+                    if (!hasOutgoingAudioConnection && audioContext && audioContext.state === 'running') {
+                        if (audioNode) {
+                            try {
+                                if ((
+                                  reteNode.label === 'Arpeggiator' || 
+                                  reteNode.label === 'Chord Generator' || 
+                                  reteNode.label === 'LFO' || 
+                                  reteNode.label === 'ADSR Envelope'
+                                ) && audioNode.mainOutput) {
+                                    audioNode.mainOutput.connect(audioContext.destination);
+                                    // console.log(`Connected ${reteNode.label} to destination.`);
+                                } else if (audioNode.connect) {
+                                    audioNode.connect(audioContext.destination);
+                                }
+                            }
+                            catch (e) {
+                                console.error(`Error connecting ${reteNode.label} to destination:`, e);
+                            }
+                        }
+                    }
+                }
+
+                // 4. For Arpeggiator nodes, ensure they are started/stopped based on their tempoSource
+                if (reteNode.label === 'Arpeggiator' && audioNode instanceof Arpeggiator) {
+                    // Check if audio context is running to decide if Arpeggiator should be active
+                    if (audioContext && audioContext.state === 'running') {
+                        // Re-evaluate and potentially restart the arpeggiator's internal timer
+                        audioNode.updateParameter('tempoSource', reteNode.data.tempoSource, true);
+                    } else {
+                        // If audio context is not running, ensure arpeggiator is stopped
+                        audioNode.stop();
+                    }
+                }
+            }
+        }
+
+        async function updateAudioGraphConnectionsOld() {
+            if (!audioContext || !editor) return;
+
+            // 1. Disconnect all existing connections in the Web Audio graph
+            reteAudioNodes.forEach(audioNode => {
+                try {
+                    if (audioNode.mainOutput) { // Arpeggiator has a mainOutput
+                        audioNode.mainOutput.disconnect();
+                    } else if (audioNode.disconnect) { // Regular Web Audio nodes
+                        audioNode.disconnect();
+                    }
+                } catch (e) {
+                    console.warn("Error disconnecting audio node:", e);
+                }
+            });
+
+            // 2. Reconnect based on Rete.js editor's connections
+            for (const connection of editor.getConnections()) { // Use editor.getConnections() in v2
+                const sourceNode = editor.getNode(connection.source);
+                const targetNode = editor.getNode(connection.target);
+
+                // Get the actual Web Audio nodes
+                let sourceAudioNode = reteAudioNodes.get(sourceNode.id);
+                let targetAudioNode = reteAudioNodes.get(targetNode.id);
+
+                // If source is an Arpeggiator, use its mainOutput for connection
+                if ((sourceNode.label === 'Arpeggiator' ||  sourceNode.label === 'Chord Generator') && sourceAudioNode && sourceAudioNode.mainOutput) {
+                    sourceAudioNode = sourceAudioNode.mainOutput;
+                }
+
+
+                if (sourceAudioNode && targetAudioNode) {
+                    try {
+                        sourceAudioNode.connect(targetAudioNode);
+                    } catch (e) {
+                        console.error(`Error connecting ${sourceNode.label} to ${targetNode.label}:`, e);
+                    }
+                }
+            }
+
+            // 3. Connect any Rete.js nodes that have outputs but no outgoing connections to the destination
+            for (const reteNode of editor.getNodes()) {
+                const hasOutputs = Object.keys(reteNode.outputs).length > 0;
+
+                if (hasOutputs) {
+                    const hasOutgoingConnection = editor.getConnections().some(conn => conn.source === reteNode.id);
+
+                    if (!hasOutgoingConnection) {
+                        let audioNode = reteAudioNodes.get(reteNode.id);
+                        if (audioNode) {
+                            try {
+                                if ((reteNode.label === 'Arpeggiator' || reteNode.label === 'Chord Generator') && audioNode.mainOutput) {
+                                    audioNode.mainOutput.connect(audioContext.destination);
+                                } else if (audioNode.connect) {
+                                    audioNode.connect(audioContext.destination);
+                                }
+                            }
+                            catch (e) {
+                                console.error(`Error connecting ${reteNode.label} to destination:`, e);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+
+        // --- Rete.js v2 Setup ---
+
+        // Define Schemes for type safety (even in plain JS, helps define structure)
+        // This is crucial for Rete.js v2
+        class WebAudioNode extends Classic.Node {
+            constructor(label) {
+                super(label);
+                // Position is now part of the node data itself in v2
+                this.width = 200; // Fixed width for consistent rendering
+                this.height = 150; // Will be adjusted by content
+                this.data = {}; // Store custom data like frequency, gain, etc.
+            }
+        }
+
+        class WebAudioConnection extends Classic.Connection { }
+
+        // Define a custom control for sliders
+        class SliderControl extends Classic.Control {
+            constructor(id, label, min, max, step, initialValue, onValueChange) {
+                super(id);
+                this.label = label;
+                this.min = min;
+                this.max = max;
+                this.step = step;
+                this.value = initialValue; // Rete v2 controls directly hold their value
+                this.onValueChange = onValueChange;
+            }
+        }
+
+        // Define a custom control for dropdowns
+        class SelectControl extends Classic.Control {
+            constructor(id, label, options, initialValue, onValueChange) {
+                super(id);
+                this.label = label;
+                this.options = options;
+                this.value = initialValue;
+                this.onValueChange = onValueChange;
+            }
+        }
+
+        // Define a custom control for buttons
+        class ButtonControl extends Classic.Control {
+            constructor(id, label, onClick) {
+                super(id);
+                this.label = label;
+                this.onClick = onClick;
+            }
+        }
+
+        // Define the common Audio Socket
+        const audioSocket = new Classic.Socket('audio');
+        const midiSocket = new Classic.Socket('midi');
+
+        // --- New ChordGenerator Internal Class ---
+        class ChordGenerator {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+                this.started = false;
+                this.oscillators = [];
+                this.gainNodes = []; // Individual gain nodes for each oscillator within the chord
+
+                this.mainOutput = this.audioContext.createGain();
+                this.mainOutput.gain.value = 0.5; // Default volume for chord
+
+                this.setupNotesAndChords();
+                this.updateParameter('chordType', this.data.chordType || 'Major Triad');
+                this.updateParameter('rootNote', this.data.rootNote || 'C4');
+                this.updateParameter('octaveRange', this.data.octaveRange || 0);
+                this.updateParameter('waveformType', this.data.waveformType || 'sine');
+            }
+
+            setupNotesAndChords() {
+                this.chordTypes = CHORD_TYPES;
+                this.rootNotes = ROOT_NOTES;
+            }
+
+            /**
+             * Returns an array of MIDI notes for the current chord, adjusted by octave.
+             * @returns {number[]} Array of MIDI note numbers.
+             */
+            getChordNotes() {
+                const chordIntervals = this.chordTypes[this.data.chordType] || this.chordTypes['Major Triad'];
+                const rootMidi = this.rootNotes[this.data.rootNote] || this.rootNotes['C4'];
+                const octaveAdjustment = (this.data.octaveRange || 0) * 12;
+
+                return chordIntervals.map(interval => rootMidi + interval + octaveAdjustment);
+            }
+
+            start() {
+                if (this.started) {
+                    this.stop(); // Stop existing oscillators before starting new ones
+                }
+
+                const notesToPlay = this.getChordNotes();
+                this.oscillators = [];
+                this.gainNodes = [];
+
+                notesToPlay.forEach(midiNote => {
+                    const freq = midiToFrequency(midiNote);
+                    const osc = this.audioContext.createOscillator();
+                    const gain = this.audioContext.createGain();
+
+                    osc.frequency.value = freq;
+                    osc.type = this.data.waveformType || 'sine';
+                    gain.gain.value = 1 / notesToPlay.length; // Distribute volume evenly
+
+                    osc.connect(gain);
+                    gain.connect(this.mainOutput);
+
+                    osc.start();
+                    this.oscillators.push(osc);
+                    this.gainNodes.push(gain);
+                });
+
+                this.started = true;
+            }
+
+            stop() {
+                this.oscillators.forEach(osc => {
+                    try {
+                        osc.stop();
+                        osc.disconnect();
+                    } catch (e) {
+                        console.warn('Oscillator could not be stopped or disconnected:', e);
+                    }
+                });
+                this.gainNodes.forEach(gain => gain.disconnect());
+                this.oscillators = [];
+                this.gainNodes = [];
+                this.started = false;
+            }
+
+            /**
+             * Updates a parameter and potentially restarts the sound if necessary.
+             * @param {string} paramName - The name of the parameter to update (e.g., 'frequencyValue', 'waveformType').
+             * @param {*} value - The new value for the parameter.
+             */
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+                if (this.started) {
+                    // For chord parameters or waveform, we need to restart the oscillators
+                    if (['chordType', 'rootNote', 'octaveRange', 'waveformType'].includes(paramName)) {
+                        this.start(); // Restart to apply new chord structure/waveform
+                    }
+                }
+            }
+        }
+
+
+        // Custom Node Component classes for Rete.js v2
+        class ToneGeneratorNode extends WebAudioNode {
+            constructor() {
+                super('Tone Generator');
+
+                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
+
+                this.data.frequencyValue = 440;
+                this.addControl('frequency', new SliderControl('freqSlider', 'Frequency (Hz)', 50, 2000, 1, this.data.frequencyValue, (val) => {
+                    this.data.frequencyValue = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.frequency) {
+                        audioNode.frequency.value = val;
+                    }
+                    //area.update('node', this.id); // Trigger re-render to update control value display
+                }));
+
+                this.data.waveformType = 'sine';
+                this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveformType, (val) => {
+                    this.data.waveformType = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.type) {
+                        audioNode.type = val;
+                    }
+                    //area.update('node', this.id); // Trigger re-render
+                }));
+            }
+        }
+
+        class ChordGeneratorNode extends WebAudioNode {
+            constructor() {
+                super('Chord Generator');
+
+                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
+
+                // Initialize default data values for the new controls
+                this.data.chordType = 'Major Triad';
+                this.data.rootNote = 'C4';
+                this.data.octaveRange = 0;
+                this.data.waveformType = 'sine';
+
+                this.addControl('chordType', new SelectControl('chordTypeSelect', 'Chord Type', Object.keys(CHORD_TYPES), this.data.chordType, (val) => {
+                    this.data.chordType = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof ChordGenerator) {
+                        audioNode.updateParameter('chordType', val);
+                    }
+                }));
+
+                this.addControl('rootNote', new SelectControl('rootNoteSelect', 'Root Note', Object.keys(ROOT_NOTES), this.data.rootNote, (val) => {
+                    this.data.rootNote = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof ChordGenerator) {
+                        audioNode.updateParameter('rootNote', val);
+                    }
+                }));
+
+                this.addControl('octaveRange', new SliderControl('octaveRangeSlider', 'Octave Offset', -2, 2, 1, this.data.octaveRange, (val) => {
+                    this.data.octaveRange = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof ChordGenerator) {
+                        audioNode.updateParameter('octaveRange', val);
+                    }
+                }));
+
+                this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveformType, (val) => {
+                    this.data.waveformType = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof ChordGenerator) {
+                        audioNode.updateParameter('waveformType', val);
+                    }
+                }));
+            }
+        }
+
+
+        class GainNode extends WebAudioNode {
+            constructor() {
+                super('Gain');
+
+                this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
+                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
+
+                this.data.gainValue = 1;
+                this.addControl('gain', new SliderControl('gainSlider', 'Gain', 0, 5, 0.01, this.data.gainValue, (val) => {
+                    this.data.gainValue = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.gain) {
+                        audioNode.gain.value = val;
+                    }
+                    //area.update('node', this.id);
+                }));
+            }
+        }
+
+        class FilterNode extends WebAudioNode {
+            constructor() {
+                super('Filter');
+
+                this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
+                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
+
+                this.data.frequencyValue = 2000;
+                this.addControl('frequency', new SliderControl('filterFreqSlider', 'Frequency (Hz)', 20, 20000, 10, this.data.frequencyValue, (val) => {
+                    this.data.frequencyValue = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.frequency) {
+                        audioNode.frequency.value = val;
+                    }
+                    //area.update('node', this.id);
+                }));
+
+                this.data.qValue = 1;
+                this.addControl('q', new SliderControl('qSlider', 'Q', 0.1, 10, 0.1, this.data.qValue, (val) => {
+                    this.data.qValue = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.Q) {
+                        audioNode.Q.value = val;
+                    }
+                    //area.update('node', this.id);
+                }));
+
+                this.data.filterType = 'lowpass';
+                this.addControl('filterType', new SelectControl('filterTypeSelect', 'Type', ['lowpass', 'highpass', 'bandpass', 'notch'], this.data.filterType, (val) => {
+                    this.data.filterType = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.type) {
+                        audioNode.type = val;
+                    }
+                    //area.update('node', this.id);
+                }));
+            }
+        }
+
+        class DelayNode extends WebAudioNode {
+            constructor() {
+                super('Delay');
+
+                this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
+                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
+
+                this.data.delayTimeValue = 0.5;
+                this.addControl('delayTime', new SliderControl('delayTimeSlider', 'Delay Time (s)', 0, 5, 0.01, this.data.delayTimeValue, (val) => {
+                    this.data.delayTimeValue = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.delayTime) {
+                        audioNode.delayTime.value = val;
+                    }
+                    //area.update('node', this.id);
+                }));
+            }
+        }
+
+        // --- New Arpeggiator Node ---
+        // Internal class to manage the Web Audio API aspects of the Arpeggiator
+        class Arpeggiator {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data; // Reference to the Rete.js node's data
+                this.started = false;
+                this.intervalId = null;
+                this.currentNoteIndex = 0;
+                this.oscillators = [];
+                this.gainNodes = [];
+
+                // Master gain for the Arpeggiator output
+                this.mainOutput = this.audioContext.createGain();
+                this.mainOutput.gain.value = 0.5; // Default volume for arpeggiator
+
+                this.setupNotesAndChords();
+            }
+
+            setupNotesAndChords() {
+                // Chord definitions: MIDI offsets from root
+                this.chordTypes = CHORD_TYPES;
+
+                // Root note MIDI numbers
+                this.rootNotes = ROOT_NOTES;
+            }
+
+            getArpeggioNotes() {
+                const rootMidi = this.rootNotes[this.data.rootNote] || 60; // Default to C4
+                const chordOffsets = this.chordTypes[this.data.chordType] || this.chordTypes['Major Triad'];
+                const octaveRange = this.data.octaveRange || 1; // Number of octaves to span
+                const arpeggioNotes = [];
+
+                for (let oct = 0; oct < octaveRange; oct++) {
+                    chordOffsets.forEach(offset => {
+                        arpeggioNotes.push(rootMidi + offset + (oct * 12));
+                    });
+                }
+
+                // First, ensure the base set of notes is sorted in ascending order.
+                // This is crucial for 'Converge' and 'Diverge' to work correctly.
+                const sortedNotes = [...arpeggioNotes].sort((a, b) => a - b);
+                let patternResult = []; // This will hold the sequence of notes for the arpeggio
+
+                switch (this.data.arpeggioPattern) {
+                    case 'Down':
+                        patternResult = [...sortedNotes].reverse();
+                        break;
+
+                    case 'Up-Down':
+                        // Plays notes up, then down without repeating the highest/lowest notes
+                        const reversedUpdown = [...sortedNotes].reverse();
+                        patternResult = sortedNotes.concat(reversedUpdown.slice(1, -1));
+                        break;
+
+                    case 'Converge':
+                        // Starts from the lowest and highest notes, moving towards the middle
+                        let lowIdxConverge = 0;
+                        let highIdxConverge = sortedNotes.length - 1;
+                        while (lowIdxConverge <= highIdxConverge) {
+                            if (lowIdxConverge === highIdxConverge) {
+                                patternResult.push(sortedNotes[lowIdxConverge]);
+                            } else {
+                                patternResult.push(sortedNotes[lowIdxConverge]);
+                                patternResult.push(sortedNotes[highIdxConverge]);
+                            }
+                            lowIdxConverge++;
+                            highIdxConverge--;
+                        }
+                        break;
+
+                    case 'Diverge':
+                        // Starts from the middle notes, moving outwards towards the lowest and highest
+                        const lenDiverge = sortedNotes.length;
+                        let midLowIdxDiverge = Math.floor((lenDiverge - 1) / 2);
+                        let midHighIdxDiverge = Math.ceil((lenDiverge - 1) / 2);
+
+                        // If odd number of notes, the single middle note plays first
+                        if (lenDiverge % 2 !== 0) {
+                            patternResult.push(sortedNotes[midLowIdxDiverge]);
+                            midLowIdxDiverge--;
+                            midHighIdxDiverge++;
+                        }
+
+                        // Now, add notes outwards from the middle
+                        while (midLowIdxDiverge >= 0 && midHighIdxDiverge < lenDiverge) {
+                            patternResult.push(sortedNotes[midLowIdxDiverge]);
+                            patternResult.push(sortedNotes[midHighIdxDiverge]);
+                            midLowIdxDiverge--;
+                            midHighIdxDiverge++;
+                        }
+                        break;
+
+                    case 'Random':
+                        // Shuffles the notes into a random order
+                        patternResult = [...sortedNotes]; // Create a copy to shuffle
+                        for (let i = patternResult.length - 1; i > 0; i--) {
+                            const j = Math.floor(Math.random() * (i + 1));
+                            [patternResult[i], patternResult[j]] = [patternResult[j], patternResult[i]]; // Swap
+                        }
+                        break;
+
+                    case 'Root-5th':
+                        // This pattern prioritizes the root (lowest) and its perfect 5th (7 semitones above).
+                        // It's implemented as "Outside-In" for simplicity within the reordering context,
+                        // as generating precise 5ths not present in `arpeggioNotes` would require more complex logic.
+                        // It plays lowest, highest, then second-lowest, second-highest, etc.
+                        let lowIdxRoot5th = 0;
+                        let highIdxRoot5th = sortedNotes.length - 1;
+                        while (lowIdxRoot5th <= highIdxRoot5th) {
+                            if (lowIdxRoot5th === highIdxRoot5th) {
+                                patternResult.push(sortedNotes[lowIdxRoot5th]);
+                            } else {
+                                patternResult.push(sortedNotes[lowIdxRoot5th]);
+                                patternResult.push(sortedNotes[highIdxRoot5th]);
+                            }
+                            lowIdxRoot5th++;
+                            highIdxRoot5th--;
+                        }
+                        // Note: This is functionally the same as 'Converge' in terms of final note order,
+                        // but 'Root-5th' often implies specific interval generation beyond simple reordering.
+                        // If you need a more strict 'Root-5th' (e.g., C-G-C'-G'), the arpeggiator logic
+                        // would need to generate notes based on intervals from the root, not just reorder.
+                        break;
+
+                    case 'Chord Following':
+                        // In the context of an arpeggiator that plays notes sequentially,
+                        // "Chord Following" often means simply playing the notes of the held chord
+                        // in their natural (ascending) order.
+                        // If "Chord Following" meant playing all notes *simultaneously* at each step,
+                        // the arpeggiator's core playback loop would need to be re-designed to handle arrays of notes.
+                        patternResult = sortedNotes; // Plays the entire chord in ascending order
+                        // Comment: If this pattern is selected, the arpeggiator effectively acts as a chord repeater,
+                        // playing all held notes together (if your arpeggiator's playNextNote logic supports it for a single step)
+                        // or just sequentially playing them as 'Up'. For sequential playback, it's identical to 'Up'.
+                        break;
+
+                    case 'Melodic':
+                        // A common "melodic" pattern is to go up, then come back down partway, or a zig-zag.
+                        // Here's one interpretation: Play ascending, then descend from the second highest note down to the lowest.
+                        if (sortedNotes.length === 0) {
+                            patternResult = [];
+                        } else if (sortedNotes.length === 1) {
+                            patternResult = [...sortedNotes];
+                        } else {
+                            // Ascending part
+                            patternResult = [...sortedNotes];
+
+                            // Descending part from the second highest note down to the lowest
+                            for (let i = sortedNotes.length - 2; i >= 0; i--) {
+                                patternResult.push(sortedNotes[i]);
+                            }
+                        }
+                        // Example: [C, E, G, C'] -> [C, E, G, C', G, E, C]
+                        break;
+
+                    default: // 'Up' pattern
+                        patternResult = sortedNotes;
+                        break;
+                }
+
+                return patternResult;
+            }
+
+            scheduleNote(midiNote, durationSeconds) {
+                if (!this.audioContext) return;
+
+                const frequency = midiToFrequency(midiNote);
+                const osc = this.audioContext.createOscillator();
+                const gainNode = this.audioContext.createGain();
+
+                osc.type = this.data.waveformType || 'sine'; // Use waveform from node data
+                osc.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+
+                // Simple ADSR-like envelope (Attack and Release)
+                const attackTime = 0.01;
+                const releaseTime = 0.1;
+                const rampTime = 0.001;
+
+                gainNode.gain.setValueAtTime(0, this.audioContext.currentTime); // Start at 0
+                gainNode.gain.linearRampToValueAtTime(0.3, this.audioContext.currentTime + attackTime); // Attack
+
+                let myRampTime = this.audioContext.currentTime + durationSeconds - releaseTime;
+                // Error when myRampTime less than 0.001
+                gainNode.gain.exponentialRampToValueAtTime(rampTime, ((myRampTime < rampTime) ? rampTime : myRampTime)); // Release
+                gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + durationSeconds); // Turn off
+
+                osc.connect(gainNode);
+                gainNode.connect(this.mainOutput); // Connect to arpeggiator's main output
+
+                osc.start(this.audioContext.currentTime);
+                osc.stop(this.audioContext.currentTime + durationSeconds);
+
+                // Clean up nodes after they stop
+                osc.onended = () => {
+                    osc.disconnect();
+                    gainNode.disconnect();
+                };
+            }
+
+            start() {
+                if (this.started || !this.audioContext) return;
+
+                this.started = true;
+                this.currentNoteIndex = 0;
+
+                const notes = this.getArpeggioNotes();
+                const bpm = this.data.bpm || 120;
+                const noteDurationMap = {
+                    '1': 1, '1/2': 2, '1/4': 1, '1/8': 0.5, '1/16': 0.25, '1/32': 0.125
+                };
+                const noteValue = noteDurationMap[this.data.noteDuration] || 0.25; // Default to 1/16th note
+
+                const secondsPerBeat = 60 / bpm;
+                const intervalMs = (secondsPerBeat * noteValue) * 1000;
+
+                const playNextNote = () => {
+                    if (!this.started) { // Check if arpeggiator is still active
+                        clearInterval(this.intervalId);
+                        return;
+                    }
+                    if (notes.length === 0) return;
+
+                    const midiNote = notes[this.currentNoteIndex];
+                    this.scheduleNote(midiNote, secondsPerBeat * noteValue); // Use noteValue as duration
+
+                    this.currentNoteIndex = (this.currentNoteIndex + 1) % notes.length;
+                };
+
+                // Play first note immediately, then schedule interval
+                playNextNote();
+                this.intervalId = setInterval(playNextNote, intervalMs);
+
+                console.log(`Arpeggiator started with BPM: ${bpm}, Note Duration: ${this.data.noteDuration}`);
+            }
+
+            stop() {
+                if (!this.started) return;
+                clearInterval(this.intervalId);
+                this.intervalId = null;
+                this.started = false;
+                console.log('Arpeggiator stopped.');
+            }
+
+            // Method to update parameters dynamically (called from Rete.js control changes)
+            updateParameter(param, value) {
+                this.data[param] = value;
+                if (this.started) {
+                    // Restart arpeggiator to apply new tempo/notes/pattern
+                    this.stop();
+                    this.start();
+                }
+            }
+        }
+
+        class ArpeggiatorNode extends WebAudioNode {
+            constructor() {
+                super('Arpeggiator');
+                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
+
+                this.data.bpm = 120;
+                this.addControl('bpm', new SliderControl('arpBpm', 'BPM', 60, 240, 1, this.data.bpm, (val) => {
+                    this.data.bpm = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('bpm', val);
+                }));
+
+                this.data.noteDuration = '1/16';
+                this.addControl('noteDuration', new SelectControl('arpNoteDuration', 'Note Duration', ['1', '1/2', '1/4', '1/8', '1/16', '1/32'], this.data.noteDuration, (val) => {
+                    this.data.noteDuration = val;
+                    const audioNode = reteAudioNodes.get(this.id); 
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('noteDuration', val);
+                }));
+
+                this.data.chordType = 'Major Triad';
+                this.addControl('chordType', new SelectControl('arpChordType', 'Chord Type', Object.keys(CHORD_TYPES), this.data.chordType, (val) => {
+                    this.data.chordType = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('chordType', val);
+                }));
+
+                this.data.rootNote = 'C4'; // MIDI note C4
+                // Generate root note options dynamically for select control
+                const rootNoteOptions = Object.keys(ROOT_NOTES);
+                this.addControl('rootNote', new SelectControl('arpRootNote', 'Root Note', rootNoteOptions, this.data.rootNote, (val) => {
+                    this.data.rootNote = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('rootNote', val);
+                }));
+
+                this.data.arpeggioPattern = 'Up';
+                this.addControl('arpeggioPattern', new SelectControl('arpPattern', 'Pattern', ['Up', 'Down', 'Up-Down', 'Converge', 'Diverge', 'Random', 'Root-5th', 'Chord Following', 'Melodic'], this.data.arpeggioPattern, (val) => {
+                    this.data.arpeggioPattern = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('arpeggioPattern', val);
+                }));
+
+                this.data.octaveRange = 1;
+                this.addControl('octaveRange', new SliderControl('arpOctaveRange', 'Octaves', 1, 3, 1, this.data.octaveRange, (val) => {
+                    this.data.octaveRange = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('octaveRange', val);
+                }));
+
+                this.data.waveformType = 'sine';
+                this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveformType, (val) => {
+                    this.data.waveformType = val;
+                    // Arpeggiator's internal oscillators will pick this up
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('waveformType', val);
+                }));
+            }
+        }
+
+
+
+        // --- New Effects Nodes ---
+
+        class DistortionNode extends WebAudioNode {
+            constructor() {
+                super('Distortion');
+                this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
+                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
+
+                this.data.amount = 0; // 0-100%
+                this.addControl('amount', new SliderControl('distortionAmount', 'Amount (%)', 0, 100, 1, this.data.amount, (val) => {
+                    this.data.amount = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    setDistortionCurve(audioNode, val); // Call helper to set curve
+                }));
+            }
+        }
+
+        class CompressorNode extends WebAudioNode {
+            constructor() {
+                super('Compressor');
+                this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
+                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
+
+                this.data.threshold = -24; // dB
+                this.addControl('threshold', new SliderControl('compThreshold', 'Threshold (dB)', -60, 0, 1, this.data.threshold, (val) => {
+                    this.data.threshold = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.threshold) audioNode.threshold.value = val;
+                }));
+
+                this.data.ratio = 12; // 1 to 20
+                this.addControl('ratio', new SliderControl('compRatio', 'Ratio', 1, 20, 0.1, this.data.ratio, (val) => {
+                    this.data.ratio = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.ratio) audioNode.ratio.value = val;
+                }));
+
+                this.data.attack = 0.003; // seconds
+                this.addControl('attack', new SliderControl('compAttack', 'Attack (s)', 0, 1, 0.001, this.data.attack, (val) => {
+                    this.data.attack = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.attack) audioNode.attack.value = val;
+                }));
+
+                this.data.release = 0.25; // seconds
+                this.addControl('release', new SliderControl('compRelease', 'Release (s)', 0, 1, 0.001, this.data.release, (val) => {
+                    this.data.release = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.release) audioNode.release.value = val;
+                }));
+            }
+        }
+
+        class ReverbNode extends WebAudioNode {
+            constructor() {
+                super('Reverb');
+                this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
+                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
+
+                // IMPORTANT: For Reverb (ConvolverNode) to produce an audible effect,
+                // you must load an impulse response audio file into its buffer.
+                // This typically involves fetching a .wav file and decoding it.
+                // Due to limitations of a single HTML file without a server or
+                // a small, publicly accessible, CORS-enabled impulse response URL,
+                // this example does NOT load an impulse response by default.
+                //
+                // To make it work, you would do something like this in startAudio()
+                // or when the node is created:
+                //
+                // const impulseResponseUrl = 'YOUR_IMPULSE_RESPONSE_URL.wav'; // e.g., from a web server or CDN
+                // fetch(impulseResponseUrl)
+                //     .then(response => response.arrayBuffer())
+                //     .then(buffer => audioContext.decodeAudioData(buffer))
+                //     .then(decodedBuffer => {
+                //         const audioNode = reteAudioNodes.get(this.id);
+                //         if (audioNode instanceof ConvolverNode) {
+                //             audioNode.buffer = decodedBuffer;
+                //             console.log('Reverb Impulse Response loaded!');
+                //         }
+                //     })
+                //     .catch(e => console.error('Error loading impulse response:', e));
+                //
+                // You can find free impulse responses online (search for "free impulse response WAV").
+                // Ensure the URL you use is CORS-enabled if serving from a different domain.
+            }
+        }
+
+        // --- New Ambient and Lofi Nodes ---
+
+        // LFO (Low-Frequency Oscillator) Class
+        class LFOGenerator {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+                this.started = false;
+
+                this.oscillator = this.audioContext.createOscillator();
+                this.mainOutput = this.audioContext.createGain(); // Output for modulation or audible signal
+                this.mainOutput.gain.value = this.data.amount || 0.5; // Modulation amount / amplitude
+
+                this.oscillator.connect(this.mainOutput);
+
+                this.updateParameter('frequency', this.data.frequency || 5, false);
+                this.updateParameter('waveformType', this.data.waveformType || 'sine', false);
+                this.updateParameter('amount', this.data.amount || 0.5, false); // Initialize amount
+            }
+
+            start() {
+                if (this.started) return;
+                try {
+                    this.oscillator.start(0);
+                    this.started = true;
+                    console.log(`LFO ${this.reteNodeId} started.`);
+                } catch (e) {
+                    console.warn(`Could not start LFO ${this.reteNodeId}:`, e);
+                }
+            }
+
+            stop() {
+                if (!this.started) return;
+                try {
+                    this.oscillator.stop(0);
+                    this.oscillator.disconnect();
+                    this.mainOutput.disconnect();
+                    // Recreate oscillator if it needs to be started again later
+                    this.oscillator = this.audioContext.createOscillator();
+                    this.oscillator.connect(this.mainOutput);
+                    this.oscillator.type = this.data.waveformType;
+                    this.oscillator.frequency.value = this.data.frequency;
+                    
+                    this.started = false;
+                    console.log(`LFO ${this.reteNodeId} stopped.`);
+                } catch (e) {
+                    console.warn(`Could not stop LFO ${this.reteNodeId}:`, e);
+                }
+            }
+
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+                if (paramName === 'frequency' && this.oscillator) {
+                    this.oscillator.frequency.value = value;
+                } else if (paramName === 'waveformType' && this.oscillator) {
+                    this.oscillator.type = value;
+                } else if (paramName === 'amount' && this.mainOutput) {
+                    this.mainOutput.gain.value = value;
+                }
+                // If LFO is running and waveform type changes, it needs to be stopped and restarted
+                if (paramName === 'waveformType' && this.started) {
+                    this.stop();
+                    this.start();
+                }
+            }
+        }
+
+        class LFONode extends WebAudioNode {
+            constructor() {
+                super('LFO');
+                this.addOutput('audio', new Classic.Output(audioSocket, 'LFO Out')); // Can be used for modulation
+
+                this.data.frequency = 5;
+                this.addControl('frequency', new SliderControl('lfoFreq', 'Frequency (Hz)', 0.1, 20, 0.1, this.data.frequency, (val) => {
+                    this.data.frequency = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof LFOGenerator) audioNode.updateParameter('frequency', val);
+                }));
+
+                this.data.waveformType = 'sine';
+                this.addControl('waveform', new SelectControl('lfoWaveform', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveformType, (val) => {
+                    this.data.waveformType = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof LFOGenerator) audioNode.updateParameter('waveformType', val);
+                }));
+
+                this.data.amount = 0.5; // Amplitude of the LFO output
+                this.addControl('amount', new SliderControl('lfoAmount', 'Amount', 0, 1, 0.01, this.data.amount, (val) => {
+                    this.data.amount = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof LFOGenerator) audioNode.updateParameter('amount', val);
+                }));
+            }
+        }
+
+        // ADSR Envelope Class
+        class ADSREnvelope {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+                this.started = false; // Indicates if an envelope is currently active
+
+                this.mainOutput = this.audioContext.createGain();
+                this.mainOutput.gain.value = 0; // Starts at 0
+
+                this.updateParameter('attack', this.data.attack || 0.1, false);
+                this.updateParameter('decay', this.data.decay || 0.1, false);
+                this.updateParameter('sustain', this.data.sustain || 0.5, false);
+                this.updateParameter('release', this.data.release || 0.2, false);
+            }
+
+            // This method would be called by a trigger (e.g., MIDI Note On)
+            trigger() {
+                if (!this.audioContext || this.audioContext.state !== 'running') return;
+
+                const now = this.audioContext.currentTime;
+                const gain = this.mainOutput.gain;
+
+                // Cancel any ongoing ramps
+                gain.cancelScheduledValues(now);
+                gain.setValueAtTime(gain.value, now); // Set value at current time to avoid clicks if re-triggered
+
+                // Attack
+                gain.linearRampToValueAtTime(1.0, now + this.data.attack);
+                // Decay
+                gain.linearRampToValueAtTime(this.data.sustain, now + this.data.attack + this.data.decay);
+
+                this.started = true;
+                console.log(`ADSR ${this.reteNodeId} triggered.`);
+            }
+
+            // This method would be called by a trigger (e.g., MIDI Note Off)
+            release() {
+                if (!this.audioContext || this.audioContext.state !== 'running' || !this.started) return;
+
+                const now = this.audioContext.currentTime;
+                const gain = this.mainOutput.gain;
+
+                // Cancel any ongoing ramps
+                gain.cancelScheduledValues(now);
+                gain.setValueAtTime(gain.value, now); // Set value at current time
+
+                // Release
+                gain.linearRampToValueAtTime(0, now + this.data.release);
+
+                // Set a flag or listener to indicate when the envelope is fully off
+                gain.onended = () => {
+                    this.started = false;
+                    gain.onended = null;
+                };
+                // It might be more robust to use a timeout if onended isn't reliable for gain nodes
+                setTimeout(() => {
+                    this.started = false;
+                }, this.data.release * 1000 + 50); // Small buffer
+                
+                console.log(`ADSR ${this.reteNodeId} released.`);
+            }
+
+            // ADSR nodes generally don't have a 'stop' method in the same way as oscillators
+            // because they just shape a signal. However, if we're generating a test tone
+            // within the ADSR itself, we might need a 'stop'. For now, `release()` acts as
+            // the signal to end the envelope.
+            stop() {
+                this.release(); // Ensure envelope goes to 0
+            }
+
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+            }
+        }
+
+        class ADSREnvelopeNode extends WebAudioNode {
+            constructor() {
+                super('ADSR Envelope');
+                this.addOutput('audio', new Classic.Output(audioSocket, 'Envelope Out')); // This outputs a gain value
+
+                this.data.attack = 0.1;
+                this.addControl('attack', new SliderControl('adsrAttack', 'Attack (s)', 0.01, 2, 0.01, this.data.attack, (val) => {
+                    this.data.attack = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof ADSREnvelope) audioNode.updateParameter('attack', val);
+                }));
+
+                this.data.decay = 0.1;
+                this.addControl('decay', new SliderControl('adsrDecay', 'Decay (s)', 0.01, 2, 0.01, this.data.decay, (val) => {
+                    this.data.decay = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof ADSREnvelope) audioNode.updateParameter('decay', val);
+                }));
+
+                this.data.sustain = 0.5;
+                this.addControl('sustain', new SliderControl('adsrSustain', 'Sustain', 0, 1, 0.01, this.data.sustain, (val) => {
+                    this.data.sustain = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof ADSREnvelope) audioNode.updateParameter('sustain', val);
+                }));
+
+                this.data.release = 0.2;
+                this.addControl('release', new SliderControl('adsrRelease', 'Release (s)', 0.01, 5, 0.01, this.data.release, (val) => {
+                    this.data.release = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof ADSREnvelope) audioNode.updateParameter('release', val);
+                }));
+
+                this.addControl('triggerBtn', new ButtonControl('triggerButton', 'Trigger', () => {
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof ADSREnvelope) {
+                        audioNode.trigger();
+                        // Automatically release after a short time for a full envelope
+                        setTimeout(() => {
+                            audioNode.release();
+                        }, (this.data.attack + this.data.decay + 0.1) * 1000); // Trigger release after A+D phase plus a bit
+                    }
+                }));
+            }
+        }
+
+        class BitcrusherNode extends WebAudioNode {
+            constructor() {
+                super('Bitcrusher');
+                this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
+                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
+
+                // The actual AudioWorkletNode will be created in startAudio().
+                // this.audioNode will be assigned there.
+                this.audioNode = null; // Placeholder for the live Web Audio API node
+
+                this.data.bits = 8;
+                this.addControl('bits', new SliderControl('bits', 'Bit Depth', 1, 16, 1, this.data.bits, (val) => {
+                    this.data.bits = val;
+                    const liveAudioNode = reteAudioNodes.get(this.id); // Assuming reteAudioNodes maps Rete node IDs to live audio nodes
+                    if (liveAudioNode && liveAudioNode.parameters) {
+                        // Use setValueAtTime for smooth automation of AudioParam
+                        liveAudioNode.parameters.get('bits').setValueAtTime(val, audioContext.currentTime);
+                    }
+                }));
+
+                this.data.sampleRateReduction = 1;
+                this.addControl('sampleRateReduction', new SliderControl('sampleRateReduction', 'Sample Rate Reduction', 1, 20, 1, this.data.sampleRateReduction, (val) => {
+                    this.data.sampleRateReduction = val;
+                    const liveAudioNode = reteAudioNodes.get(this.id);
+                    if (liveAudioNode && liveAudioNode.parameters) {
+                        liveAudioNode.parameters.get('sampleRateReduction').setValueAtTime(val, audioContext.currentTime);
+                    }
+                }));
+            }
+        }
+
+
+        // Custom HTML rendering for Rete.js v2 Nodes (plain JS DOM manipulation)
+        class CustomNodeComponent {
+            constructor(node) {
+                this.node = node; // Store the Rete node instance
+
+                // Manually create and append elements for inputs, outputs, and controls
+                this.el = document.createElement('div');
+                this.el.className = 'custom-controls';
+                //this.el.innerHTML = `<div class="title">${node.label}</div>`;
+
+                /*
+                // Add inputs
+                for (const key in node.inputs) {
+                    const input = node.inputs[key];
+                    const inputEl = document.createElement('div');
+                    inputEl.className = 'input';
+                    inputEl.innerHTML = `
+                        <div class="socket input" data-socket-key="${key}" data-type="input"></div>
+                        <div class="input-title">${input.label}</div>
+                    `;
+                    this.el.appendChild(inputEl);
+                }
+                */
+
+                // Add controls
+                for (const key in node.controls) {
+                    const control = node.controls[key];
+                    const controlEl = document.createElement('div');
+                    controlEl.className = 'control';
+
+                    if (control instanceof SliderControl) {
+                        controlEl.innerHTML = `
+                            <label>${control.label}</label>
+                            <input type="range" min="${control.min}" max="${control.max}" step="${control.step}" value="${control.value}">
+                            <span class="value-display">${control.value.toFixed(2)}</span>
+                        `;
+                        const slider = controlEl.querySelector('input');
+                        const valueDisplay = controlEl.querySelector('.value-display');
+
+                        slider.oninput = (e) => {
+                            const newValue = parseFloat(e.target.value);
+                            control.value = newValue; // Update control's internal value
+                            valueDisplay.textContent = newValue.toFixed(2);
+                            control.onValueChange(newValue); // Trigger custom callback
+                            // The onValueChange already calls area.update('node', this.node.id); in the node classes
+                            // No need to call it again here.
+                        };
+                        // Initialize value display
+                        valueDisplay.textContent = control.value.toFixed(2);
+                    } else if (control instanceof SelectControl) {
+                        const optionsHtml = control.options.map(opt => `<option value="${opt}">${opt}</option>`).join('');
+                        controlEl.innerHTML = `
+                            <label>${control.label}</label>
+                            <select>${optionsHtml}</select>
+                        `;
+                        const select = controlEl.querySelector('select');
+                        select.value = control.value;
+
+                        select.onchange = () => {
+                            const newValue = select.value;
+                            control.value = newValue;
+                            control.onValueChange(newValue);
+                            // The onValueChange already calls area.update('node', this.node.id); in the node classes
+                        };
+                    } else if (control instanceof ButtonControl) {
+                        controlEl.innerHTML = `<button class="button button-secondary w-full">${control.label}</button>`;
+                        const button = controlEl.querySelector('button');
+                        button.onclick = control.onClick;
+                    }
+
+                    this.el.appendChild(controlEl);
+                }
+
+                /*
+                // Add outputs
+                for (const key in node.outputs) {
+                    const output = node.outputs[key];
+                    const outputEl = document.createElement('div');
+                    outputEl.className = 'output';
+                    outputEl.innerHTML = `
+                        <div class="output-title">${output.label}</div>
+                        <div class="socket output" data-socket-key="${key}" data-type="output"></div>
+                    `;
+                    this.el.appendChild(outputEl);
+                }
+                */
+
+
+                
+                // Prevent dragging when clicking on sockets
+                const sockets = this.el.querySelectorAll('.socket');
+                sockets.forEach(socket => {
+                    socket.addEventListener('pointerdown', e => {
+                        e.stopPropagation();
+                    });
+                });
+
+                // Prevent dragging when clicking on controls
+                const controls = this.el.querySelectorAll('.control');
+                controls.forEach(controlEl => {
+                    controlEl.addEventListener('pointerdown', e => {
+                        e.stopPropagation();
+                    });
+                });
+                
+
+            }
+
+            // Required for AreaPlugin to handle node position and drag
+            // When the node is translated, Rete.js will update the position.
+            // This is just a placeholder for the actual DOM element for rendering.
+            setNode(node) {
+                // In v2, the node view is separate from the node data.
+                // This method could be used to update the view if the node data changes.
+                // For direct DOM manipulation, you'd typically handle updates in the constructor or a dedicated update method.
+                // The `area.update('node', node.id)` in control callbacks helps re-render the view if needed.
+            }
+        }
+
+
+        async function createEditor() {
+            // Rete.js v2: Define schemes
+            const schemes = {
+                Node: WebAudioNode,
+                Connection: WebAudioConnection,
+                Socket: Classic.Socket
+            };
+
+            // NodeEditor is correctly destructured from window.Rete
+            editor = new NodeEditor(schemes);
+            // DataflowEngine is correctly destructured from window.ReteEngine
+            engine = new DataflowEngine(schemes); 
+
+            // Rete.js v2: AreaPlugin is instantiated and then other plugins are added to it
+            area = new AreaPlugin(reteContainer);
+
+            /*
+            area = new AreaPlugin(reteContainer, { // Pass the config object here
+                pointerdown: (context) => {
+                    console.log(context);
+                    // Allow dragging ONLY if the click was NOT on a socket
+                    return !context.event.target.closest('.socket');
+                }
+            });
+            */
+
+
+            const connection = new ConnectionPlugin();
+            // Corrected: ContextMenuPlugin is instantiated with the editor instance, and then its preset is added
+            //const contextMenu = new ContextMenuPlugin(editor); 
+
+            const reactRender = new ReactRenderPlugin({ createRoot });
+
+            const contextMenu = new ContextMenuPlugin({
+                items: ContextMenuPresets.classic.setup([
+                    ['Tone Generator', () => new ToneGeneratorNode()],
+                    ['Chord Generator', () => new ChordGeneratorNode()], // Add Chord Generator to Context Menu
+                    ['Gain', () => new GainNode()],
+                    ['Filter', () => new FilterNode()],
+                    ['Delay', () => new DelayNode()],
+                    ['Distortion', () => new DistortionNode()],   // New Context Menu Item
+                    ['Compressor', () => new CompressorNode()],   // New Context Menu Item
+                    ['Reverb', () => new ReverbNode()],            // New Context Menu Item
+                    ['Arpeggiator', () => new ArpeggiatorNode()], // Add Arpeggiator to context menu
+                    ['LFO', () => new LFONode()], // New: LFO
+                    ['ADSR Envelope', () => new ADSREnvelopeNode()], // New: ADSR
+                    ['Bitcrusher', () => new BitcrusherNode()], // New: Bitcrusher
+
+                ])
+            });
+            
+            // Rete.js v2: Add presets to connection and contextMenu plugins
+            connection.addPreset(ConnectionPresets.classic.setup());
+            
+            // Corrected: ContextMenuPresets.classic.setup expects an object with an 'items' property.
+            /*contextMenu.addPreset(ContextMenuPresets.classic.setup({
+                items: [
+                    ['Tone Generator', () => new ToneGeneratorNode()],
+                    ['Gain', () => new GainNode()],
+                    ['Filter', () => new FilterNode()],
+                    ['Delay', () => new DelayNode()]
+                ]
+            }));*/
+
+            // Rete.js v2: Register plugins with the AreaPlugin
+            editor.use(area);
+
+            area.use(connection);
+            area.use(reactRender);
+            area.use(contextMenu); // Use the instantiated contextMenu plugin
+
+            reactRender.addPreset(ReactPresets.classic.setup({ area }));
+            reactRender.addPreset(ReactPresets.contextMenu.setup())
+
+            //AreaExtensions.simpleNodesOrder(area);
+            //AreaExtensions.showInputControl(area)
+
+            //AreaExtensions.selectableNodes(area, AreaExtensions.selector(), {
+            //  accumulating: AreaExtensions.accumulateOnCtrl(),
+            //});
+
+            // Rete.js v2: Register custom node rendering (plain JS DOM manipulation)
+            area.addPipe((context) => {
+              //console.log(context);
+                if (context.type === 'render' && context.data.type === 'node') {
+                    // Check if node data is valid and it's a known node type
+                    if (context.data.payload instanceof WebAudioNode) {
+                        const nodeView = new CustomNodeComponent(context.data.payload);
+                        let elements = context.data.element.children[0].getElementsByClassName("control");
+                        while(elements.length > 0){
+                          elements[0].parentNode.removeChild(elements[0]);
+                        } 
+                        context.data.element.children[0].style.height = "auto";
+                        context.data.element.children[0].appendChild(nodeView.el); // Append the custom node's DOM element
+                    }
+                }
+                // Handle socket rendering for custom nodes
+                if (context.type === 'render' && context.data.type === 'socket') {
+                     // Get the parent node's element
+                    const nodeEl = context.data.element.closest('.node');
+                    //console.log(nodeEl);
+                    if (nodeEl) {
+                        // Find the socket element within the custom node's rendered HTML
+                        const socketType = context.data.side === 'input' ? 'input' : 'output';
+                        const socketKey = context.data.key;
+                        const customSocketEl = nodeEl.querySelector(`.socket.${socketType}[data-socket-key="${socketKey}"]`);
+                        if (customSocketEl) {
+                            //console.log(customSocketEl);
+                            // Rete's AreaPlugin expects the actual socket DOM element
+                            // We need to return the custom one so Rete can attach its event listeners and styles
+                            context.data.element = customSocketEl;
+                            // Optionally, ensure the custom socket has the correct Rete-generated classes
+                            customSocketEl.classList.add('socket'); // Ensure base socket class is present
+                            customSocketEl.classList.add(socketType); // Ensure input/output class is present
+                        } else {
+                            console.warn(`Custom socket element not found for ${socketType} ${socketKey}`);
+                            return false; // Prevent Rete from trying to render a missing socket
+                        }
+                    }
+                }
+                return context;
+            });
+
+
+            // Rete.js v2: Events are handled differently via pipes
+            editor.addPipe(async (context) => {
+
+                if (context.type === 'nodecreate' && context.data instanceof WebAudioNode) {
+                    if(!audioContext) {
+                        console.warn('AudioContext not active, Nodes will be created when "Start Audio" is clicked.');
+                        showMessage(`AudioContext not active, Nodes will be created when "Start Audio" is clicked.`, 'error');
+                        return context;
+                    }
+
+                    const reteNode = context.data;
+                    let audioNode;
+                    switch (reteNode.label) {
+                        case 'Tone Generator':
+                      
+                                audioNode = audioContext.createOscillator();
+                                audioNode.frequency.value = reteNode.data.frequencyValue;
+                                audioNode.type = reteNode.data.waveformType;
+                                audioNode.started = false;
+                            break;
+                        case 'Chord Generator':
+                         
+                                audioNode = new ChordGenerator(audioContext, reteNode.id, reteNode.data);
+                            break;
+                        case 'Gain':
+                           
+                                audioNode = audioContext.createGain();
+                                audioNode.gain.value = reteNode.data.gainValue;
+                            
+                            break;
+                        case 'Filter':
+                            
+                                audioNode = audioContext.createBiquadFilter();
+                                audioNode.type = reteNode.data.filterType;
+                                audioNode.frequency.value = reteNode.data.frequencyValue;
+                                audioNode.Q.value = reteNode.data.qValue;
+                            
+                            break;
+                        case 'Delay':
+                            
+                                audioNode = audioContext.createDelay(5.0);
+                                audioNode.delayTime.value = reteNode.data.delayTimeValue;
+                            
+                            break;
+                        case 'Distortion':
+                            
+                                audioNode = audioContext.createWaveShaper();
+                                setDistortionCurve(audioNode, reteNode.data.amount);
+                            
+                            break;
+                        case 'Compressor':
+                          
+                              audioNode = audioContext.createDynamicsCompressor();
+                              audioNode.threshold.value = reteNode.data.threshold;
+                              audioNode.ratio.value = reteNode.data.ratio;
+                              audioNode.attack.value = reteNode.data.attack;
+                              audioNode.release.value = reteNode.data.release;
+                            
+                            break;
+                        case 'Reverb':
+                            audioNode = audioContext.createConvolver();
+                            // Impulse response loading logic goes here if applicable
+                            break;
+                        case 'Arpeggiator':
+                            audioNode = new Arpeggiator(audioContext, reteNode.id, reteNode.data);
+                            //audioNodeInstance = new Arpeggiator(audioContext, reteNode.id, reteNode.data);
+                            break;
+                        case 'LFO': // New LFO case
+                            audioNode = new LFOGenerator(audioContext, reteNode.id, reteNode.data);
+                            break;
+                        case 'ADSR Envelope': // New ADSR case
+                            audioNode = new ADSREnvelope(audioContext, reteNode.id, reteNode.data);
+                            break;
+                        case 'Bitcrusher': // New Bitcrusher case
+                            // *** This is the new part for the AudioWorkletNode ***
+                            // The `bitcrusher-processor.js` module must be loaded beforehand
+                            // (e.g., in window.onload, using audioContext.audioWorklet.addModule()).
+                            try {
+                                audioNode = new AudioWorkletNode(audioContext, 'bitcrusher-processor');
+                                // Set initial parameters from the Rete.js node's data
+                                audioNode.parameters.get('bits').setValueAtTime(
+                                    reteNode.data.bits !== undefined ? reteNode.data.bits : 8,
+                                    audioContext.currentTime
+                                );
+                                audioNode.parameters.get('sampleRateReduction').setValueAtTime(
+                                    reteNode.data.sampleRateReduction !== undefined ? reteNode.data.sampleRateReduction : 1,
+                                    audioContext.currentTime
+                                );
+                                console.log(`Bitcrusher AudioWorkletNode created for Rete Node ID: ${reteNode.id}`);
+                            } catch (e) {
+                                console.error('Error creating Bitcrusher AudioWorkletNode:', e);
+                                showMessage('Error creating Bitcrusher node. Is the module loaded?', 'error');
+                                audioNode = null; // Set to null if creation fails
+                            }
+                            break;
+                    }
+
+                    if (audioNode) {
+                        reteAudioNodes.set(reteNode.id, audioNode);
+                        showMessage(`${reteNode.label} node added to editor.`, 'info');
+                        if (audioContext && audioContext.state === 'running') {
+                            updateAudioGraphConnections();
+                        }
+                    } else {
+                        showMessage(`${reteNode.label} node added to editor. Audio node will be active on "Start Audio".`, 'info');
+                    }
+                } else if (context.type === 'noderemove') {
+                    const node = context.data;
+                    const audioNode = reteAudioNodes.get(node.id);
+                    if (audioNode) {
+                        // Stop Tone Generators
+                        if (node.label === 'Tone Generator' && audioNode.stop && audioNode.started) {
+                            try {
+                                audioNode.stop();
+                                audioNode.started = false;
+                            } catch (e) {
+                                console.warn(`Oscillator for node ${node.id} already stopped or could not be stopped.`, e);
+                            }
+                        }
+                        // Stop Arpeggiator
+                        if (node.label === 'Arpeggiator' && audioNode.stop && audioNode.started) {
+                            try {
+                                audioNode.stop();
+                                audioNode.started = false;
+                            } catch (e) {
+                                console.warn(`Arpeggiator for node ${node.id} could not be stopped.`, e);
+                            }
+                        }
+                        // Disconnect audio nodes (Tone Generator, Gain, Filter, Delay)
+                        // For Arpeggiator, disconnect its main output
+                        try {
+                            if (audioNode.mainOutput) {
+                                audioNode.mainOutput.disconnect();
+                            } else if (audioNode.disconnect) {
+                                audioNode.disconnect();
+                            }
+                        } catch(e) {
+                            console.warn("Error disconnecting node on remove:", e);
+                        }
+                        reteAudioNodes.delete(node.id);
+                        showMessage(`${node.label} node removed from editor.`, 'info');
+                        if (audioContext && audioContext.state === 'running') {
+                            updateAudioGraphConnections();
+                        }
+                    }
+                } else if (context.type === 'connectioncreate') {
+                    // Connection has been added to editor model, update audio graph
+                    if (audioContext && audioContext.state === 'running') {
+                        updateAudioGraphConnections();
+                    }
+                    showMessage('Connection created.', 'info');
+                } else if (context.type === 'connectionremove') {
+                    // Connection has been removed from editor model, update audio graph
+                    if (audioContext && audioContext.state === 'running') {
+                        updateAudioGraphConnections();
+                    }
+                    showMessage('Connection removed.', 'info');
+                } else if (context.type === 'nodeeditorrendered') {
+                     // This event fires after the initial editor rendering
+                    AreaExtensions.zoomAt(area, editor.getNodes());
+                }
+                return context;
+            });
+
+            // Set initial position for new nodes
+            const addNode = async (node) => {
+                const existingNodesCount = editor.getNodes().length;
+                node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+                await editor.addNode(node);
+            };
+
+            // Rete.js v2: Zoom at all nodes after editor is rendered
+            AreaExtensions.simpleNodesOrder(area); // Ensure nodes are ordered correctly for rendering
+
+            // Initial setup for empty editor (e.g., zoom to fit an empty area or default view)
+            AreaExtensions.zoomAt(area, editor.getNodes());
+
+            // Process the graph on changes (optional, for engine processing if needed)
+            // For Web Audio, we manually manage connections, so engine is less critical for "processing"
+            // editor.addPipe(async (context) => {
+            //     if (['nodecreate', 'noderemove', 'connectioncreate', 'connectionremove'].includes(context.type)) {
+            //         await engine.abort();
+            //         await engine.process(editor.toJSON());
+            //     }
+            //     return context;
+            // });
+        }
+
+        // --- Event Listeners for UI Buttons ---
+        startAudioBtn.addEventListener('click', startAudio);
+        stopAudioBtn.addEventListener('click', stopAudio);
+        clearEditorBtn.addEventListener('click', stopAudio); // Clear editor also stops audio
+
+        addToneGeneratorNodeBtn.addEventListener('click', async () => {
+            const node = new ToneGeneratorNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+        });
+
+        addChordGeneratorNodeBtn.addEventListener('click', async () => {
+            const node = new ChordGeneratorNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false; // Enable clear button after adding node
+        });
+
+
+        addGainNodeBtn.addEventListener('click', async () => {
+            const node = new GainNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+        });
+
+        addFilterNodeBtn.addEventListener('click', async () => {
+            const node = new FilterNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+        });
+
+        addDelayNodeBtn.addEventListener('click', async () => {
+            const node = new DelayNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+        });
+
+        // New Effects Node Buttons
+        addDistortionNodeBtn.addEventListener('click', async () => {
+            const node = new DistortionNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false;
+        });
+
+        addCompressorNodeBtn.addEventListener('click', async () => {
+            const node = new CompressorNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false;
+        });
+
+        addReverbNodeBtn.addEventListener('click', async () => {
+            const node = new ReverbNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false;
+        });
+
+
+        addArpeggiatorNodeBtn.addEventListener('click', async () => {
+            const node = new ArpeggiatorNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false;
+        });
+
+        addLFONodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new LFONode());
+            clearEditorBtn.disabled = false;
+        });
+
+        addADSREnvelopeNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new ADSREnvelopeNode());
+            clearEditorBtn.disabled = false;
+        });
+
+        addBitcrusherNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new BitcrusherNode());
+            clearEditorBtn.disabled = false;
+        });
+
+
+        // Initialize editor on window load
+        window.onload = async () => {
+
+            stopAudioBtn.disabled = true;
+            clearEditorBtn.disabled = true;
+
+            await createEditor();
+            showMessage('Editor ready. Add nodes and then click "Start Audio" to hear sound.', 'info');
+        };
+    </script>
 </body>
 </html>
