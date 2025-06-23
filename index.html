@@ -224,6 +224,7 @@
             <button id="addLFONodeBtn" class="button button-secondary">Add LFO</button>
             <button id="addADSREnvelopeNodeBtn" class="button button-secondary">Add ADSR Envelope</button>
             <button id="addBitcrusherNodeBtn" class="button button-secondary">Add Bitcrusher</button>
+            <button id="addFMOscillatorNodeBtn" class="button button-secondary">Add FM Oscillator</button> <!-- New Button -->
             <button id="clearEditorBtn" class="button button-danger" disabled>Clear Editor</button>
         </div>
 
@@ -300,6 +301,7 @@
         const addLFONodeBtn = document.getElementById('addLFONodeBtn'); // New LFO button
         const addADSREnvelopeNodeBtn = document.getElementById('addADSREnvelopeNodeBtn'); // New ADSR button
         const addBitcrusherNodeBtn = document.getElementById('addBitcrusherNodeBtn'); // New Bitcrusher button
+        const addFMOscillatorNodeBtn = document.getElementById('addFMOscillatorNodeBtn'); // New FM Oscillator button
         const clearEditorBtn = document.getElementById('clearEditorBtn');
         const reteContainer = document.getElementById('rete');
         const messageBox = document.getElementById('messageBox');
@@ -642,10 +644,11 @@
 
                     // Ensure we get the actual AudioNode for connection (from internal classes' mainOutput)
                     if (sourceAudioNode && sourceAudioNode.mainOutput && (
-                      sourceNode.label === 'Arpeggiator' || 
-                      sourceNode.label === 'Chord Generator' || 
-                      sourceNode.label === 'LFO' || 
-                      sourceNode.label === 'ADSR Envelope'
+                      sourceNode.label === 'Arpeggiator' ||
+                      sourceNode.label === 'Chord Generator' ||
+                      sourceNode.label === 'LFO' ||
+                      sourceNode.label === 'ADSR Envelope' ||
+                      sourceNode.label === 'FM Oscillator' // Added FM Oscillator
                     )) {
                         sourceAudioNode = sourceAudioNode.mainOutput;
                     }
@@ -690,10 +693,11 @@
                         if (audioNode) {
                             try {
                                 if ((
-                                  reteNode.label === 'Arpeggiator' || 
-                                  reteNode.label === 'Chord Generator' || 
-                                  reteNode.label === 'LFO' || 
-                                  reteNode.label === 'ADSR Envelope'
+                                  reteNode.label === 'Arpeggiator' ||
+                                  reteNode.label === 'Chord Generator' ||
+                                  reteNode.label === 'LFO' ||
+                                  reteNode.label === 'ADSR Envelope' ||
+                                  reteNode.label === 'FM Oscillator' // Added FM Oscillator
                                 ) && audioNode.mainOutput) {
                                     audioNode.mainOutput.connect(audioContext.destination);
                                     // console.log(`Connected ${reteNode.label} to destination.`);
@@ -1499,6 +1503,214 @@
 
         // --- New Ambient and Lofi Nodes ---
 
+        // --- FM Oscillator ---
+        class FMOscillator {
+            constructor(audioContext, reteNodeId, data = {}) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = { // Default values
+                    carrierFrequency: data.carrierFrequency || 440,
+                    modulatorMode: data.modulatorMode || 'Ratio', // 'Ratio' or 'Frequency'
+                    modulatorValue: data.modulatorValue || 1, // Ratio or Hz
+                    modulationIndex: data.modulationIndex || 100,
+                    carrierWaveform: data.carrierWaveform || 'sine',
+                    modulatorWaveform: data.modulatorWaveform || 'sine',
+                    mainGain: data.mainGain || 0.5 // Overall gain for the FM output
+                };
+                this.started = false;
+
+                // Carrier Oscillator
+                this.carrierOsc = this.audioContext.createOscillator();
+                this.carrierOsc.type = this.data.carrierWaveform;
+                this.carrierOsc.frequency.setValueAtTime(this.data.carrierFrequency, this.audioContext.currentTime);
+
+                // Modulator Oscillator
+                this.modulatorOsc = this.audioContext.createOscillator();
+                this.modulatorOsc.type = this.data.modulatorWaveform;
+                this._updateModulatorFrequency(); // Set initial modulator frequency
+
+                // Modulation Index Gain Node
+                // This gain node controls the amplitude of the modulator, which determines the FM depth (modulation index)
+                this.modIndexGain = this.audioContext.createGain();
+                this.modIndexGain.gain.setValueAtTime(this.data.modulationIndex, this.audioContext.currentTime);
+
+                // Main Output Gain Node for this FM Oscillator
+                this.mainOutput = this.audioContext.createGain();
+                this.mainOutput.gain.setValueAtTime(this.data.mainGain, this.audioContext.currentTime);
+
+                // Connections:
+                // Modulator Osc -> Mod Index Gain (scales modulator amplitude)
+                this.modulatorOsc.connect(this.modIndexGain);
+                // Mod Index Gain -> Carrier Osc Frequency (modulates carrier frequency)
+                this.modIndexGain.connect(this.carrierOsc.frequency); // Modulator's output directly modulates the carrier's frequency AudioParam
+                // Carrier Osc -> Main Output Gain
+                this.carrierOsc.connect(this.mainOutput);
+
+                console.log(`FMOscillator ${this.reteNodeId} created with data:`, this.data);
+            }
+
+            _updateModulatorFrequency() {
+                let modFreq;
+                if (this.data.modulatorMode === 'Ratio') {
+                    modFreq = this.data.carrierFrequency * this.data.modulatorValue;
+                } else { // 'Frequency'
+                    modFreq = this.data.modulatorValue;
+                }
+                this.modulatorOsc.frequency.setValueAtTime(modFreq, this.audioContext.currentTime);
+            }
+
+            start() {
+                if (this.started) return;
+                try {
+                    this.carrierOsc.start(0);
+                    this.modulatorOsc.start(0);
+                    this.started = true;
+                    console.log(`FMOscillator ${this.reteNodeId} started.`);
+                } catch (e) {
+                    console.warn(`Could not start FMOscillator ${this.reteNodeId}:`, e);
+                }
+            }
+
+            stop() {
+                if (!this.started) return;
+                try {
+                    this.carrierOsc.stop(0);
+                    this.modulatorOsc.stop(0);
+                    // It's good practice to disconnect nodes when stopping to free up resources,
+                    // especially if they are to be recreated or not used immediately.
+                    this.modulatorOsc.disconnect();
+                    this.modIndexGain.disconnect();
+                    this.carrierOsc.disconnect();
+                    this.mainOutput.disconnect(); // Disconnect main output as well
+
+                    // Recreate oscillators for potential restart, maintaining their state (important for Rete)
+                    // Carrier
+                    this.carrierOsc = this.audioContext.createOscillator();
+                    this.carrierOsc.type = this.data.carrierWaveform;
+                    this.carrierOsc.frequency.setValueAtTime(this.data.carrierFrequency, this.audioContext.currentTime);
+                    // Modulator
+                    this.modulatorOsc = this.audioContext.createOscillator();
+                    this.modulatorOsc.type = this.data.modulatorWaveform;
+                    this._updateModulatorFrequency();
+                    // ModIndexGain (its value is persistent, just needs reconnection)
+                    // mainOutput (its value is persistent, just needs reconnection)
+
+                    // Re-establish connections
+                    this.modulatorOsc.connect(this.modIndexGain);
+                    this.modIndexGain.connect(this.carrierOsc.frequency);
+                    this.carrierOsc.connect(this.mainOutput);
+
+                    this.started = false;
+                    console.log(`FMOscillator ${this.reteNodeId} stopped and nodes reset.`);
+                } catch (e) {
+                    console.warn(`Could not properly stop FMOscillator ${this.reteNodeId}:`, e);
+                }
+            }
+
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+                const now = this.audioContext.currentTime;
+
+                switch (paramName) {
+                    case 'carrierFrequency':
+                        this.carrierOsc.frequency.setValueAtTime(value, now);
+                        // If modulator is in ratio mode, its absolute frequency also changes
+                        if (this.data.modulatorMode === 'Ratio') {
+                            this._updateModulatorFrequency();
+                        }
+                        break;
+                    case 'modulatorMode':
+                        // Carrier frequency might need to be passed if mode changes to Ratio
+                        this._updateModulatorFrequency();
+                        break;
+                    case 'modulatorValue':
+                        this._updateModulatorFrequency();
+                        break;
+                    case 'modulationIndex':
+                        this.modIndexGain.gain.setValueAtTime(value, now);
+                        break;
+                    case 'carrierWaveform':
+                        this.carrierOsc.type = value;
+                        break;
+                    case 'modulatorWaveform':
+                        this.modulatorOsc.type = value;
+                        break;
+                    case 'mainGain':
+                        this.mainOutput.gain.setValueAtTime(value, now);
+                        break;
+                }
+                // console.log(`FMOscillator ${this.reteNodeId} param ${paramName} updated to ${value}`);
+            }
+        }
+        // --- End FM Oscillator ---
+
+        class FMOscillatorNode extends WebAudioNode {
+            constructor() {
+                super('FM Oscillator');
+                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
+
+                this.data.carrierFrequency = 440;
+                this.addControl('carrierFrequency', new SliderControl('fmCarrierFreq', 'Carrier Hz', 20, 5000, 1, this.data.carrierFrequency, (val) => {
+                    this.data.carrierFrequency = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof FMOscillator) audioNode.updateParameter('carrierFrequency', val);
+                    // Potentially update modulatorValue display if in Ratio mode - more complex UI update
+                }));
+
+                this.data.modulatorMode = 'Ratio'; // 'Ratio' or 'Frequency'
+                this.addControl('modulatorMode', new SelectControl('fmModMode', 'Modulator Mode', ['Ratio', 'Frequency'], this.data.modulatorMode, (val) => {
+                    this.data.modulatorMode = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof FMOscillator) audioNode.updateParameter('modulatorMode', val);
+                    // TODO: Optionally update the label/range of modulatorValue control if needed
+                    // This would require more direct DOM manipulation of the control's label/input elements
+                    // or a more advanced custom control rendering that reacts to this change.
+                }));
+
+                // Initial modulator value - its meaning depends on the mode
+                this.data.modulatorValue = 1;
+                this.addControl('modulatorValue', new SliderControl('fmModVal', 'Mod Value (Ratio/Hz)', 0.1, 20, 0.01, this.data.modulatorValue, (val) => {
+                    // Note: The range might need dynamic adjustment based on mode for better usability.
+                    // For simplicity, using a generic range here.
+                    // If mode is 'Frequency', max might be 5000Hz. If 'Ratio', max might be 20.
+                    this.data.modulatorValue = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof FMOscillator) audioNode.updateParameter('modulatorValue', val);
+                }));
+                // Consider how to make the 'Mod Value' label and range dynamic based on 'Modulator Mode'.
+                // For now, it's a generic "Mod Value (Ratio/Hz)".
+
+                this.data.modulationIndex = 100;
+                this.addControl('modulationIndex', new SliderControl('fmModIndex', 'Mod Index', 0, 1000, 1, this.data.modulationIndex, (val) => {
+                    this.data.modulationIndex = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof FMOscillator) audioNode.updateParameter('modulationIndex', val);
+                }));
+
+                this.data.carrierWaveform = 'sine';
+                this.addControl('carrierWaveform', new SelectControl('fmCarrierWave', 'Carrier Wave', ['sine', 'square', 'sawtooth', 'triangle'], this.data.carrierWaveform, (val) => {
+                    this.data.carrierWaveform = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof FMOscillator) audioNode.updateParameter('carrierWaveform', val);
+                }));
+
+                this.data.modulatorWaveform = 'sine';
+                this.addControl('modulatorWaveform', new SelectControl('fmModulatorWave', 'Modulator Wave', ['sine', 'square', 'sawtooth', 'triangle'], this.data.modulatorWaveform, (val) => {
+                    this.data.modulatorWaveform = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof FMOscillator) audioNode.updateParameter('modulatorWaveform', val);
+                }));
+
+                this.data.mainGain = 0.5; // Default gain for the FM output
+                 this.addControl('mainGain', new SliderControl('fmMainGain', 'Output Gain', 0, 1, 0.01, this.data.mainGain, (val) => {
+                    this.data.mainGain = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof FMOscillator) audioNode.updateParameter('mainGain', val);
+                }));
+            }
+        }
+
+
         // LFO (Low-Frequency Oscillator) Class
         class LFOGenerator {
             constructor(audioContext, reteNodeId, data) {
@@ -1915,7 +2127,7 @@
                     ['LFO', () => new LFONode()], // New: LFO
                     ['ADSR Envelope', () => new ADSREnvelopeNode()], // New: ADSR
                     ['Bitcrusher', () => new BitcrusherNode()], // New: Bitcrusher
-
+                    ['FM Oscillator', () => new FMOscillatorNode()] // New: FM Oscillator
                 ])
             });
             
@@ -2087,40 +2299,51 @@
                                 audioNode = null; // Set to null if creation fails
                             }
                             break;
+                        case 'FM Oscillator': // <<<< NEW CASE for FM Oscillator NODE CREATE >>>>
+                            audioNode = new FMOscillator(audioContext, reteNode.id, reteNode.data);
+                            break;
                     }
 
                     if (audioNode) {
                         reteAudioNodes.set(reteNode.id, audioNode);
                         showMessage(`${reteNode.label} node added to editor.`, 'info');
+                        // Start the node if it's supposed to start and audio context is running
+                        if (audioContext && audioContext.state === 'running' && audioNode.start && !audioNode.started) {
+                            try {
+                                audioNode.start();
+                                // Note: FMOscillator's start() method sets its 'started' property.
+                                // For ToneGenerator, ChordGenerator, Arpeggiator, LFO, their own start() methods also handle 'started'.
+                            } catch (e) {
+                                console.warn(`Could not automatically start ${reteNode.label} for node ${reteNode.id}:`, e);
+                            }
+                        }
                         if (audioContext && audioContext.state === 'running') {
-                            updateAudioGraphConnections();
+                             updateAudioGraphConnections();
                         }
                     } else {
-                        showMessage(`${reteNode.label} node added to editor. Audio node will be active on "Start Audio".`, 'info');
+                        if(reteNode.label !== 'Reverb') { // Reverb doesn't create an audioNode immediately if no impulse is loaded.
+                            showMessage(`${reteNode.label} node added to editor. Audio node will be active on "Start Audio".`, 'info');
+                        }
                     }
                 } else if (context.type === 'noderemove') {
                     const node = context.data;
                     const audioNode = reteAudioNodes.get(node.id);
                     if (audioNode) {
-                        // Stop Tone Generators
-                        if (node.label === 'Tone Generator' && audioNode.stop && audioNode.started) {
+                        // Generic stop for nodes that have it and are started
+                        if (audioNode.stop && audioNode.started) {
                             try {
                                 audioNode.stop();
-                                audioNode.started = false;
+                                // audioNode.started is managed by the node's own stop method
                             } catch (e) {
-                                console.warn(`Oscillator for node ${node.id} already stopped or could not be stopped.`, e);
+                                console.warn(`Error stopping ${node.label} (node ID: ${node.id}):`, e);
                             }
+                        } else if (node.label === 'ADSR Envelope' && audioNode.stop) {
+                            // ADSR has a stop that calls release, doesn't use 'started' the same way
+                             audioNode.stop();
                         }
-                        // Stop Arpeggiator
-                        if (node.label === 'Arpeggiator' && audioNode.stop && audioNode.started) {
-                            try {
-                                audioNode.stop();
-                                audioNode.started = false;
-                            } catch (e) {
-                                console.warn(`Arpeggiator for node ${node.id} could not be stopped.`, e);
-                            }
-                        }
-                        // Disconnect audio nodes (Tone Generator, Gain, Filter, Delay)
+
+
+                        // Disconnect audio nodes
                         // For Arpeggiator, disconnect its main output
                         try {
                             if (audioNode.mainOutput) {
@@ -2268,6 +2491,15 @@
 
         addBitcrusherNodeBtn.addEventListener('click', async () => {
             await editor.addNode(new BitcrusherNode());
+            clearEditorBtn.disabled = false;
+        });
+
+        addFMOscillatorNodeBtn.addEventListener('click', async () => { // <<<< NEW EVENT LISTENER >>>>
+            const node = new FMOscillatorNode();
+            const existingNodesCount = editor.getNodes().length;
+            // Basic positioning, can be improved
+            node.position = { x: 50 + (existingNodesCount % 5) * 250, y: 100 + Math.floor(existingNodesCount / 5) * 220 };
+            await editor.addNode(node);
             clearEditorBtn.disabled = false;
         });
 
