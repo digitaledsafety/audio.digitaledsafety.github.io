@@ -643,27 +643,50 @@
                     let targetAudioNode = reteAudioNodes.get(targetNode.id);
 
                     // Ensure we get the actual AudioNode for connection (from internal classes' mainOutput)
+                    let actualSourceOutput = sourceAudioNode;
                     if (sourceAudioNode && sourceAudioNode.mainOutput && (
-                      sourceNode.label === 'Arpeggiator' ||
-                      sourceNode.label === 'Chord Generator' ||
-                      sourceNode.label === 'LFO' ||
-                      sourceNode.label === 'ADSR Envelope' ||
-                      sourceNode.label === 'FM Oscillator' // Added FM Oscillator
+                        sourceNode.label === 'Arpeggiator' ||
+                        sourceNode.label === 'Chord Generator' ||
+                        sourceNode.label === 'LFO' ||
+                        sourceNode.label === 'ADSR Envelope' ||
+                        sourceNode.label === 'FM Oscillator'
                     )) {
-                        sourceAudioNode = sourceAudioNode.mainOutput;
+                        actualSourceOutput = sourceAudioNode.mainOutput;
+                    }
+
+                    // Get target Rete node and its actual Web Audio instance
+                    const targetReteNode = editor.getNode(connection.target);
+                    const targetAudioNodeInstance = reteAudioNodes.get(connection.target);
+
+                    // CV Connections for FM Oscillator
+                    if (targetReteNode && targetReteNode.label === 'FM Oscillator' && targetAudioNodeInstance instanceof FMOscillator) {
+                        if (connection.targetInput.key === 'carrierFreqCV') {
+                            actualSourceOutput.connect(targetAudioNodeInstance.carrierOsc.frequency);
+                            console.log(`CV connected: ${sourceNode.label} to FM Oscillator Carrier Frequency`);
+                            continue; // Connection handled, skip further audio connection logic for this one
+                        } else if (connection.targetInput.key === 'modValueCV') {
+                            actualSourceOutput.connect(targetAudioNodeInstance.modulatorOsc.frequency);
+                            console.log(`CV connected: ${sourceNode.label} to FM Oscillator Modulator Value`);
+                            continue;
+                        } else if (connection.targetInput.key === 'modIndexCV') {
+                            actualSourceOutput.connect(targetAudioNodeInstance.modIndexGain.gain);
+                            console.log(`CV connected: ${sourceNode.label} to FM Oscillator Modulation Index`);
+                            continue;
+                        }
                     }
                     
-                    if (sourceAudioNode && targetAudioNode) {
+                    // Regular Audio Connections (if not a handled CV connection above)
+                    if (actualSourceOutput && targetAudioNode) { // targetAudioNode is the general Web Audio node for the target
                         try {
-                            sourceAudioNode.connect(targetAudioNode);
-                            console.log(`Audio connected: ${sourceNode.label} to ${targetNode.label}`);
+                            actualSourceOutput.connect(targetAudioNode);
+                            // console.log(`Audio connected: ${sourceNode.label} to ${targetNode.label}`);
                         } catch (e) {
                             console.error(`Error connecting audio from ${sourceNode.label} to ${targetNode.label}:`, e);
                         }
                     }
                 }
                 // Handle MIDI connections
-                else if (connection.sourceOutput == midiSocket.name && connection.targetInput == midiSocket.name) {
+                else if (connection.sourceOutput.socket === midiSocket && connection.targetInput.socket === midiSocket) { // Check socket instances
                     const sourceMidiNode = reteAudioNodes.get(connection.source);
                     const targetMidiNode = reteAudioNodes.get(connection.target);
 
@@ -1647,8 +1670,16 @@
         class FMOscillatorNode extends WebAudioNode {
             constructor() {
                 super('FM Oscillator');
+
+                // Inputs for CV modulation
+                this.addInput('carrierFreqCV', new Classic.Input(audioSocket, 'Carrier Hz CV', true));
+                this.addInput('modValueCV', new Classic.Input(audioSocket, 'Modulator Val CV', true)); // For modulator freq/ratio
+                this.addInput('modIndexCV', new Classic.Input(audioSocket, 'Mod Index CV', true));
+
+                // Audio Output
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
 
+                // --- Controls ---
                 this.data.carrierFrequency = 440;
                 this.addControl('carrierFrequency', new SliderControl('fmCarrierFreq', 'Carrier Hz', 20, 5000, 1, this.data.carrierFrequency, (val) => {
                     this.data.carrierFrequency = val;
