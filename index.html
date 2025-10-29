@@ -161,6 +161,16 @@
             transition: opacity .2s;
             margin-top: 0.5rem;
         }
+        .control input[type="text"] {
+            width: 100%;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            border: 1px solid #d1d5db;
+            background-color: #fff;
+            color: #374151;
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }
         .control input[type="range"]:hover {
             opacity: 1;
         }
@@ -213,6 +223,8 @@
 
         <div id="node-add-buttons" class="flex flex-wrap justify-center gap-3 mb-6">
             <button id="addToneGeneratorNodeBtn" class="button button-secondary">Add Tone Generator</button>
+            <button id="addNoiseGeneratorNodeBtn" class="button button-secondary">Add Noise Generator</button>
+            <button id="addWavePlayerNodeBtn" class="button button-secondary">Add Wave Player</button>
             <button id="addChordGeneratorNodeBtn" class="button button-secondary">Add Chord Generator</button>
             <button id="addGainNodeBtn" class="button button-secondary">Add Gain Node</button>
             <button id="addFilterNodeBtn" class="button button-secondary">Add Filter Node</button>
@@ -292,6 +304,8 @@
         const startAudioBtn = document.getElementById('startAudioBtn');
         const stopAudioBtn = document.getElementById('stopAudioBtn');
         const addToneGeneratorNodeBtn = document.getElementById('addToneGeneratorNodeBtn');
+        const addNoiseGeneratorNodeBtn = document.getElementById('addNoiseGeneratorNodeBtn');
+        const addWavePlayerNodeBtn = document.getElementById('addWavePlayerNodeBtn');
         const addChordGeneratorNodeBtn = document.getElementById('addChordGeneratorNodeBtn'); // New Chord Generator Button
         const addGainNodeBtn = document.getElementById('addGainNodeBtn');
         const addFilterNodeBtn = document.getElementById('addFilterNodeBtn');
@@ -467,6 +481,22 @@
                                 audioNode.type = reteNode.data.waveformType || 'sine';
                                 audioNode.started = false;
                                 break;
+                            case 'Noise Generator':
+                                const bufferSize = 2 * audioContext.sampleRate;
+                                const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+                                const output = noiseBuffer.getChannelData(0);
+                                for (let i = 0; i < bufferSize; i++) {
+                                    output[i] = Math.random() * 2 - 1;
+                                }
+                                audioNode = audioContext.createBufferSource();
+                                audioNode.buffer = noiseBuffer;
+                                audioNode.loop = true;
+                                audioNode.started = false;
+                                break;
+                            case 'Wave Player':
+                                // Wave Player doesn't create an audio node on initial setup,
+                                // it's created when a file is loaded and played.
+                                audioNode = new WavePlayer(audioContext, reteNode.id, reteNode.data);
                                 break;
                             case 'Chord Generator':
                                 // ChordGenerator now handles its own internal oscillators and gain
@@ -544,7 +574,7 @@
                     }
 
                     // Start audio nodes that need to be explicitly started (Oscillator, ChordGenerator)
-                      if ((reteNode.label === 'Tone Generator' && audioNode && audioNode.start && !audioNode.started) || (reteNode.label === 'Chord Generator' && audioNode && audioNode.start && !audioNode.started) || 
+                      if ((reteNode.label === 'Tone Generator' && audioNode && audioNode.start && !audioNode.started) || (reteNode.label === 'Noise Generator' && audioNode && audioNode.start && !audioNode.started) || (reteNode.label === 'Chord Generator' && audioNode && audioNode.start && !audioNode.started) ||
                       (reteNode.label === 'Arpeggiator' && audioNode && audioNode.start && !audioNode.started) || 
                       (reteNode.label === 'LFO' && audioNode && audioNode.start && !audioNode.started)) {
                         try {
@@ -569,7 +599,7 @@
                 const reteNode = editor.getNode(id); // Use editor.getNode(id) in v2
 
                 // Stop oscillators
-                if (reteNode && reteNode.label === 'Tone Generator' && audioNode.stop && audioNode.started) {
+                if (reteNode && (reteNode.label === 'Tone Generator' || reteNode.label === 'Noise Generator') && audioNode.stop && audioNode.started) {
                     try {
                         audioNode.stop();
                         audioNode.started = false;
@@ -838,6 +868,15 @@
             }
         }
 
+        class TextControl extends Classic.Control {
+            constructor(id, label, initialValue, onValueChange) {
+                super(id);
+                this.label = label;
+                this.value = initialValue;
+                this.onValueChange = onValueChange;
+            }
+        }
+
         // Define the common Audio Socket
         const audioSocket = new Classic.Socket('audio');
         const midiSocket = new Classic.Socket('midi');
@@ -965,6 +1004,75 @@
                         audioNode.type = val;
                     }
                     //area.update('node', this.id); // Trigger re-render
+                }));
+            }
+        }
+
+        class NoiseGeneratorNode extends WebAudioNode {
+            constructor() {
+                super('Noise Generator');
+                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
+            }
+        }
+
+        class WavePlayer {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+                this.audioBuffer = null;
+                this.mainOutput = this.audioContext.createGain();
+                this.loadAudio();
+            }
+
+            async loadAudio() {
+                if (!this.data.audioUrl) return;
+                try {
+                    const response = await fetch(this.data.audioUrl);
+                    const arrayBuffer = await response.arrayBuffer();
+                    this.audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+                    showMessage('Audio loaded successfully!', 'success');
+                } catch (e) {
+                    console.error('Error loading audio:', e);
+                    showMessage(`Error loading audio: ${e.message}`, 'error');
+                }
+            }
+
+            play() {
+                if (!this.audioBuffer || !this.audioContext) return;
+                const source = this.audioContext.createBufferSource();
+                source.buffer = this.audioBuffer;
+                source.connect(this.mainOutput);
+                source.start(0);
+            }
+
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+                if (paramName === 'audioUrl') {
+                    this.loadAudio();
+                }
+            }
+        }
+
+        class WavePlayerNode extends WebAudioNode {
+            constructor() {
+                super('Wave Player');
+                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
+
+                this.data.audioUrl = 'https://webaudio.github.io/web-audio-api/samples/audio/impulse-responses/small-room.wav';
+                this.addControl('audioUrl', new TextControl('audioUrl', 'Audio URL', this.data.audioUrl, (val) => {
+                    this.data.audioUrl = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof WavePlayer) {
+                        audioNode.updateParameter('audioUrl', val);
+                    }
+                }));
+
+                this.addControl('play', new ButtonControl('playButton', 'Play', () => {
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof WavePlayer) {
+                        audioNode.play();
+                    }
                 }));
             }
         }
@@ -1816,6 +1924,17 @@
                         controlEl.innerHTML = `<button class="button button-secondary w-full">${control.label}</button>`;
                         const button = controlEl.querySelector('button');
                         button.onclick = control.onClick;
+                    } else if (control instanceof TextControl) {
+                        controlEl.innerHTML = `
+                            <label>${control.label}</label>
+                            <input type="text" value="${control.value}" class="w-full p-2 border border-gray-300 rounded mt-1 bg-white text-gray-900">
+                        `;
+                        const input = controlEl.querySelector('input');
+                        input.oninput = (e) => {
+                            const newValue = e.target.value;
+                            control.value = newValue;
+                            control.onValueChange(newValue);
+                        };
                     }
 
                     this.el.appendChild(controlEl);
@@ -1904,6 +2023,8 @@
             const contextMenu = new ContextMenuPlugin({
                 items: ContextMenuPresets.classic.setup([
                     ['Tone Generator', () => new ToneGeneratorNode()],
+                    ['Noise Generator', () => new NoiseGeneratorNode()],
+                    ['Wave Player', () => new WavePlayerNode()],
                     ['Chord Generator', () => new ChordGeneratorNode()], // Add Chord Generator to Context Menu
                     ['Gain', () => new GainNode()],
                     ['Filter', () => new FilterNode()],
@@ -2012,6 +2133,21 @@
                                 audioNode.type = reteNode.data.waveformType;
                                 audioNode.started = false;
                             break;
+                        case 'Noise Generator':
+                            const bufferSize = 2 * audioContext.sampleRate;
+                            const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+                            const output = noiseBuffer.getChannelData(0);
+                            for (let i = 0; i < bufferSize; i++) {
+                                output[i] = Math.random() * 2 - 1;
+                            }
+                            audioNode = audioContext.createBufferSource();
+                            audioNode.buffer = noiseBuffer;
+                            audioNode.loop = true;
+                            audioNode.started = false;
+                            break;
+                            case 'Wave Player':
+                                audioNode = new WavePlayer(audioContext, reteNode.id, reteNode.data);
+                                break;
                         case 'Chord Generator':
                          
                                 audioNode = new ChordGenerator(audioContext, reteNode.id, reteNode.data);
@@ -2103,7 +2239,7 @@
                     const audioNode = reteAudioNodes.get(node.id);
                     if (audioNode) {
                         // Stop Tone Generators
-                        if (node.label === 'Tone Generator' && audioNode.stop && audioNode.started) {
+                        if ((node.label === 'Tone Generator' || node.label === 'Noise Generator') && audioNode.stop && audioNode.started) {
                             try {
                                 audioNode.stop();
                                 audioNode.started = false;
@@ -2190,6 +2326,22 @@
             const existingNodesCount = editor.getNodes().length;
             node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
             await editor.addNode(node);
+        });
+
+        addNoiseGeneratorNodeBtn.addEventListener('click', async () => {
+            const node = new NoiseGeneratorNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false; // Enable clear button after adding node
+        });
+
+        addWavePlayerNodeBtn.addEventListener('click', async () => {
+            const node = new WavePlayerNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false; // Enable clear button after adding node
         });
 
         addChordGeneratorNodeBtn.addEventListener('click', async () => {
