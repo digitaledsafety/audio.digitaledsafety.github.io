@@ -360,7 +360,7 @@
                 return;
             }
             const workspaces = getWorkspaces();
-            const data = editor.toJSON();
+            const data = editor.export();
             workspaces[name] = data;
             localStorage.setItem('rete-workspaces', JSON.stringify(workspaces));
             populateWorkspacesDropdown();
@@ -386,7 +386,7 @@
             }
 
             await editor.clear();
-            await editor.fromJSON(data);
+            await editor.import(data);
 
             if (wasAudioRunning) {
                 await startAudio();
