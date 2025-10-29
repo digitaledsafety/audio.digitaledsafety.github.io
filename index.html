@@ -216,46 +216,78 @@
     <div class="container">
         <h1 class="text-3xl font-bold text-center text-gray-800 mb-4">Web Audio Node Processor with Rete.js v2</h1>
 
-        <div id="controls" class="flex flex-col sm:flex-row justify-center gap-4 mb-6">
-            <button id="startAudioBtn" class="button button-primary">Start Audio</button>
-            <button id="stopAudioBtn" class="button button-secondary" disabled>Stop Audio</button>
-        </div>
+        <div id="main-controls" class="flex flex-wrap items-start justify-center gap-4 mb-6 p-4 bg-gray-50 rounded-lg shadow-inner">
 
-        <div id="recording-controls" class="flex flex-col sm:flex-row justify-center gap-4 mb-6">
-            <button id="recordBtn" class="button button-danger">Record</button>
-            <button id="stopRecordBtn" class="button button-secondary" disabled>Stop Recording</button>
-            <button id="playRecordBtn" class="button button-secondary" disabled>Play Recording</button>
-            <button id="stopPlaybackBtn" class="button button-secondary" disabled>Stop Playback</button>
-            <button id="downloadRecordBtn" class="button button-secondary" disabled>Download Recording</button>
-        </div>
+            <!-- Audio Controls -->
+            <div id="audio-controls" class="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
+                <button id="startAudioBtn" class="button button-primary">▶️ Start Audio</button>
+                <button id="stopAudioBtn" class="button button-secondary" disabled>⏹️ Stop Audio</button>
+            </div>
 
-        <div id="workspace-controls" class="flex flex-col sm:flex-row justify-center gap-4 mb-6">
-            <input type="text" id="workspaceName" placeholder="Workspace Name" class="p-2 border rounded">
-            <button id="saveWorkspaceBtn" class="button button-primary">Save</button>
-            <select id="workspaceSelector" class="p-2 border rounded"></select>
-            <button id="loadWorkspaceBtn" class="button button-secondary">Load</button>
-            <button id="deleteWorkspaceBtn" class="button button-danger">Delete</button>
-            <button id="exportWorkspaceBtn" class="button button-secondary">Export</button>
-            <input type="file" id="importWorkspaceInput" style="display: none;">
-            <button id="importWorkspaceBtn" class="button button-secondary">Import</button>
-        </div>
+            <!-- Recording Controls -->
+            <div id="recording-controls" class="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
+                <button id="recordBtn" class="button button-danger">⏺️ Record</button>
+                <button id="stopRecordBtn" class="button button-secondary" disabled>⏹️ Stop</button>
+                <button id="playRecordBtn" class="button button-secondary" disabled>▶️ Play</button>
+                <!-- Dropdown for additional recording actions -->
+                <div class="relative inline-block text-left">
+                    <button id="recordingActionsToggle" class="button button-secondary">...</button>
+                    <div id="recordingActionsDropdown" class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-10">
+                        <div class="py-1" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
+                            <button id="stopPlaybackBtn" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem" disabled>⏹️ Stop Playback</button>
+                            <button id="downloadRecordBtn" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem" disabled>💾 Download</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-        <div id="node-add-buttons" class="flex flex-wrap justify-center gap-3 mb-6">
-            <button id="addToneGeneratorNodeBtn" class="button button-secondary">Add Tone Generator</button>
-            <button id="addNoiseGeneratorNodeBtn" class="button button-secondary">Add Noise Generator</button>
-            <button id="addWavePlayerNodeBtn" class="button button-secondary">Add Wave Player</button>
-            <button id="addChordGeneratorNodeBtn" class="button button-secondary">Add Chord Generator</button>
-            <button id="addGainNodeBtn" class="button button-secondary">Add Gain Node</button>
-            <button id="addFilterNodeBtn" class="button button-secondary">Add Filter Node</button>
-            <button id="addDelayNodeBtn" class="button button-secondary">Add Delay Node</button>
-            <button id="addDistortionNodeBtn" class="button button-secondary">Add Distortion Node</button>
-            <button id="addCompressorNodeBtn" class="button button-secondary">Add Compressor Node</button>
-            <button id="addReverbNodeBtn" class="button button-secondary">Add Reverb Node</button>
-            <button id="addArpeggiatorNodeBtn" class="button button-secondary">Add Arpeggiator</button>
-            <button id="addLFONodeBtn" class="button button-secondary">Add LFO</button>
-            <button id="addADSREnvelopeNodeBtn" class="button button-secondary">Add ADSR Envelope</button>
-            <button id="addBitcrusherNodeBtn" class="button button-secondary">Add Bitcrusher</button>
-            <button id="clearEditorBtn" class="button button-danger" disabled>Clear Editor</button>
+            <!-- Workspace Controls -->
+            <div id="workspace-controls" class="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
+                <input type="text" id="workspaceName" placeholder="Workspace" class="p-2 border rounded-md text-sm w-32">
+                <button id="saveWorkspaceBtn" class="button button-primary">💾 Save</button>
+                <!-- Dropdown for workspace management -->
+                <div class="relative inline-block text-left">
+                    <button id="workspaceActionsToggle" class="button button-secondary">📂 Manage</button>
+                    <div id="workspaceActionsDropdown" class="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-10">
+                        <div class="p-2" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
+                            <select id="workspaceSelector" class="w-full p-2 border rounded-md mb-2"></select>
+                            <button id="loadWorkspaceBtn" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md" role="menuitem">🔄 Load Selected</button>
+                            <button id="deleteWorkspaceBtn" class="block w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50 rounded-md mt-1" role="menuitem">🗑️ Delete Selected</button>
+                            <hr class="my-2">
+                            <button id="exportWorkspaceBtn" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md" role="menuitem">📤 Export to File</button>
+                            <input type="file" id="importWorkspaceInput" style="display: none;">
+                            <button id="importWorkspaceBtn" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md" role="menuitem">📥 Import from File</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Node Addition Controls -->
+            <div id="node-add-controls" class="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
+                <!-- Dropdown for adding nodes -->
+                <div class="relative inline-block text-left">
+                    <button id="addNodeToggle" class="button button-primary">➕ Add Node</button>
+                    <div id="addNodeDropdown" class="origin-top-left absolute left-0 mt-2 w-64 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-10">
+                        <div class="grid grid-cols-2 gap-2 p-2" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
+                            <button id="addToneGeneratorNodeBtn" class="button button-secondary w-full text-xs">🔊 Tone Gen</button>
+                            <button id="addNoiseGeneratorNodeBtn" class="button button-secondary w-full text-xs">🌫️ Noise Gen</button>
+                            <button id="addWavePlayerNodeBtn" class="button button-secondary w-full text-xs">🎵 Wave Player</button>
+                            <button id="addChordGeneratorNodeBtn" class="button button-secondary w-full text-xs">🎼 Chord Gen</button>
+                            <button id="addGainNodeBtn" class="button button-secondary w-full text-xs">🎚️ Gain</button>
+                            <button id="addFilterNodeBtn" class="button button-secondary w-full text-xs">📉 Filter</button>
+                            <button id="addDelayNodeBtn" class="button button-secondary w-full text-xs">⏳ Delay</button>
+                            <button id="addDistortionNodeBtn" class="button button-secondary w-full text-xs">🎸 Distortion</button>
+                            <button id="addCompressorNodeBtn" class="button button-secondary w-full text-xs">📊 Compressor</button>
+                            <button id="addReverbNodeBtn" class="button button-secondary w-full text-xs">🏞️ Reverb</button>
+                            <button id="addArpeggiatorNodeBtn" class="button button-secondary w-full text-xs">🎹 Arpeggiator</button>
+                            <button id="addLFONodeBtn" class="button button-secondary w-full text-xs">🌊 LFO</button>
+                            <button id="addADSREnvelopeNodeBtn" class="button button-secondary w-full text-xs">✉️ ADSR</button>
+                            <button id="addBitcrusherNodeBtn" class="button button-secondary w-full text-xs">👾 Bitcrusher</button>
+                        </div>
+                    </div>
+                </div>
+                <button id="clearEditorBtn" class="button button-danger" disabled>🗑️ Clear All</button>
+            </div>
         </div>
 
         <div id="messageBox" class="message-box hidden"></div>
@@ -2753,21 +2785,80 @@
             populateWorkspacesDropdown();
             showMessage('Editor ready. Add nodes and then click "Start Audio" to hear sound.', 'info');
 
+            // --- Dropdown Logic ---
+            const setupDropdown = (toggleId, dropdownId) => {
+                const toggle = document.getElementById(toggleId);
+                const dropdown = document.getElementById(dropdownId);
+                toggle.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    // Close other dropdowns
+                    document.querySelectorAll('[id$="Dropdown"]').forEach(d => {
+                        if (d.id !== dropdownId) d.classList.add('hidden');
+                    });
+                    dropdown.classList.toggle('hidden');
+                });
+            };
+
+            setupDropdown('recordingActionsToggle', 'recordingActionsDropdown');
+            setupDropdown('workspaceActionsToggle', 'workspaceActionsDropdown');
+            setupDropdown('addNodeToggle', 'addNodeDropdown');
+
+            // Close dropdowns if clicking outside
+            document.addEventListener('click', (e) => {
+                document.querySelectorAll('[id$="Dropdown"]').forEach(d => {
+                    if (!d.contains(e.target)) {
+                        d.classList.add('hidden');
+                    }
+                });
+            });
+
+
+            // --- Workspace Button Logic ---
             document.getElementById('saveWorkspaceBtn').addEventListener('click', saveWorkspace);
-            document.getElementById('loadWorkspaceBtn').addEventListener('click', loadWorkspace);
-            document.getElementById('deleteWorkspaceBtn').addEventListener('click', deleteWorkspace);
-            document.getElementById('exportWorkspaceBtn').addEventListener('click', exportWorkspace);
-            document.getElementById('importWorkspaceBtn').addEventListener('click', () => document.getElementById('importWorkspaceInput').click());
+            document.getElementById('loadWorkspaceBtn').addEventListener('click', () => {
+                loadWorkspace();
+                document.getElementById('workspaceActionsDropdown').classList.add('hidden'); // Close dropdown
+            });
+            document.getElementById('deleteWorkspaceBtn').addEventListener('click', () => {
+                deleteWorkspace();
+                document.getElementById('workspaceActionsDropdown').classList.add('hidden');
+            });
+            document.getElementById('exportWorkspaceBtn').addEventListener('click', () => {
+                exportWorkspace();
+                document.getElementById('workspaceActionsDropdown').classList.add('hidden');
+            });
+            document.getElementById('importWorkspaceBtn').addEventListener('click', () => {
+                document.getElementById('importWorkspaceInput').click();
+                document.getElementById('workspaceActionsDropdown').classList.add('hidden');
+            });
             document.getElementById('importWorkspaceInput').addEventListener('change', importWorkspace);
 
+
+            // --- Recording Button Logic ---
             recordBtn.addEventListener('click', startRecording);
             stopRecordBtn.addEventListener('click', stopRecording);
             playRecordBtn.addEventListener('click', playRecording);
-            downloadRecordBtn.addEventListener('click', downloadRecording);
-            stopPlaybackBtn.addEventListener('click', stopPlayback);
+            downloadRecordBtn.addEventListener('click', () => {
+                downloadRecording();
+                document.getElementById('recordingActionsDropdown').classList.add('hidden');
+            });
+            stopPlaybackBtn.addEventListener('click', () => {
+                stopPlayback();
+                document.getElementById('recordingActionsDropdown').classList.add('hidden');
+            });
 
+            // --- Node Addition & Editor ---
+            // Close dropdown after adding a node
+            document.getElementById('addNodeDropdown').addEventListener('click', (e) => {
+                if (e.target.tagName === 'BUTTON') {
+                    document.getElementById('addNodeDropdown').classList.add('hidden');
+                }
+            });
+
+
+            // --- Initial State ---
             stopAudioBtn.disabled = true;
-            clearEditorBtn.disabled = true;            
+            clearEditorBtn.disabled = true;
         };
     </script>
 </body>
