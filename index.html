@@ -336,6 +336,107 @@
 
         // --- Utility Functions ---
 
+        function editorToJSON() {
+            const nodes = [];
+            for (const node of editor.getNodes()) {
+                nodes.push({
+                    id: node.id,
+                    label: node.label,
+                    data: node.data,
+                    position: area.nodeViews.get(node.id).position
+                });
+            }
+
+            const connections = [];
+            for (const conn of editor.getConnections()) {
+                const sourceNode = editor.getNode(conn.source);
+                const targetNode = editor.getNode(conn.target);
+                
+                const sourceOutputKey = Object.keys(sourceNode.outputs).find(key => sourceNode.outputs[key] === conn.sourceOutput);
+                const targetInputKey = Object.keys(targetNode.inputs).find(key => targetNode.inputs[key] === conn.targetInput);
+
+                if (sourceOutputKey && targetInputKey) {
+                    connections.push({
+                        id: conn.id,
+                        source: conn.source,
+                        sourceOutput: sourceOutputKey,
+                        target: conn.target,
+                        targetInput: targetInputKey
+                    });
+                }
+            }
+
+            return { nodes, connections };
+        }
+
+        async function editorFromJSON(json) {
+            await editor.clear();
+
+            const nodeConstructors = {
+                'Tone Generator': ToneGeneratorNode,
+                'Noise Generator': NoiseGeneratorNode,
+                'Wave Player': WavePlayerNode,
+                'Chord Generator': ChordGeneratorNode,
+                'Gain': GainNode,
+                'Filter': FilterNode,
+                'Delay': DelayNode,
+                'Distortion': DistortionNode,
+                'Compressor': CompressorNode,
+                'Reverb': ReverbNode,
+                'Arpeggiator': ArpeggiatorNode,
+                'LFO': LFONode,
+                'ADSR Envelope': ADSREnvelopeNode,
+                'Bitcrusher': BitcrusherNode
+            };
+
+            // Create nodes first
+            for (const nodeData of json.nodes) {
+                const Constructor = nodeConstructors[nodeData.label];
+                if (Constructor) {
+                    const node = new Constructor();
+                    node.id = nodeData.id;
+                    
+                    // Critical: Overwrite the default data with saved data
+                    node.data = { ...node.data, ...nodeData.data };
+
+                    await editor.addNode(node);
+                    await area.translate(node.id, nodeData.position);
+                    
+                    // Re-apply control values to the controls themselves after creation
+                    for (const key in node.controls) {
+                        const control = node.controls[key];
+                         if (node.data.hasOwnProperty(key)) {
+                             control.value = node.data[key];
+                        }
+                    }
+                    area.update('node', node.id);
+
+
+                } else {
+                    console.warn(`Node type "${nodeData.label}" not found.`);
+                }
+            }
+
+            // Then create connections
+            for (const connData of json.connections) {
+                const sourceNode = editor.getNode(connData.source);
+                const targetNode = editor.getNode(connData.target);
+
+                if (sourceNode && targetNode) {
+                    const sourceOutput = sourceNode.outputs[connData.sourceOutput];
+                    const targetInput = targetNode.inputs[connData.targetInput];
+                    
+                    if (sourceOutput && targetInput) {
+                        await editor.addConnection(new Classic.Connection(sourceNode, sourceOutput, targetNode, targetInput));
+                    } else {
+                         console.warn(`Could not find socket for connection:`, connData);
+                    }
+                } else {
+                    console.warn(`Could not find nodes for connection:`, connData);
+                }
+            }
+        }        
+
         function getWorkspaces() {
             const workspaces = localStorage.getItem('rete-workspaces');
             return workspaces ? JSON.parse(workspaces) : {};
@@ -360,7 +461,7 @@
                 return;
             }
             const workspaces = getWorkspaces();
-            const data = await editor.export();
+            const data = editorToJSON();
             workspaces[name] = data;
             localStorage.setItem('rete-workspaces', JSON.stringify(workspaces));
             populateWorkspacesDropdown();
@@ -385,8 +486,7 @@
                 await stopAudio();
             }
 
-            await editor.clear();
-            await editor.import(data);
+            await editorFromJSON(data);
 
             if (wasAudioRunning) {
                 await startAudio();
@@ -409,7 +509,7 @@
         }
 
         function exportWorkspace() {
-            const data = editor.toJSON();
+            const data = editorToJSON();
             const json = JSON.stringify(data, null, 2);
             const blob = new Blob([json], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
@@ -433,8 +533,8 @@
                     if (wasAudioRunning) {
                         await stopAudio();
                     }
-                    await editor.clear();
-                    await editor.fromJSON(data);
+                    
+                    await editorFromJSON(data);
                     if (wasAudioRunning) {
                         await startAudio();
                     }
