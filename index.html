@@ -221,6 +221,14 @@
             <button id="stopAudioBtn" class="button button-secondary" disabled>Stop Audio</button>
         </div>
 
+        <div id="recording-controls" class="flex flex-col sm:flex-row justify-center gap-4 mb-6">
+            <button id="recordBtn" class="button button-danger">Record</button>
+            <button id="stopRecordBtn" class="button button-secondary" disabled>Stop Recording</button>
+            <button id="playRecordBtn" class="button button-secondary" disabled>Play Recording</button>
+            <button id="stopPlaybackBtn" class="button button-secondary" disabled>Stop Playback</button>
+            <button id="downloadRecordBtn" class="button button-secondary" disabled>Download Recording</button>
+        </div>
+
         <div id="workspace-controls" class="flex flex-col sm:flex-row justify-center gap-4 mb-6">
             <input type="text" id="workspaceName" placeholder="Workspace Name" class="p-2 border rounded">
             <button id="saveWorkspaceBtn" class="button button-primary">Save</button>
@@ -328,11 +336,23 @@
         const clearEditorBtn = document.getElementById('clearEditorBtn');
         const reteContainer = document.getElementById('rete');
         const messageBox = document.getElementById('messageBox');
+        const recordBtn = document.getElementById('recordBtn');
+        const stopRecordBtn = document.getElementById('stopRecordBtn');
+        const playRecordBtn = document.getElementById('playRecordBtn');
+        const downloadRecordBtn = document.getElementById('downloadRecordBtn');
+        const stopPlaybackBtn = document.getElementById('stopPlaybackBtn');
+
 
         // Rete.js Editor and Engine
         let editor;
         let area; // AreaPlugin instance
         let engine;
+        let mediaRecorder;
+        let recordedChunks = [];
+        let recordedAudioUrl = null;
+        let masterGain;
+        let mediaStreamDestination;
+        let loopSource;
 
         // --- Utility Functions ---
 
@@ -601,6 +621,12 @@
             try {
                 if (!audioContext || audioContext.state === 'closed') {
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    masterGain = audioContext.createGain();
+                    masterGain.connect(audioContext.destination);
+
+                    mediaStreamDestination = audioContext.createMediaStreamDestination();
+                    masterGain.connect(mediaStreamDestination);
+
 
                     const processorCode = `
                       // bitcrusher-processor.js
@@ -814,6 +840,83 @@
             }
         }
 
+        function startRecording() {
+            if (audioContext && mediaStreamDestination) {
+                recordedChunks = [];
+                mediaRecorder = new MediaRecorder(mediaStreamDestination.stream);
+
+                mediaRecorder.ondataavailable = event => {
+                    if (event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+                    recordedAudioUrl = URL.createObjectURL(blob);
+                    playRecordBtn.disabled = false;
+                    downloadRecordBtn.disabled = false;
+                };
+
+                mediaRecorder.start();
+                recordBtn.disabled = true;
+                stopRecordBtn.disabled = false;
+                showMessage('Recording started.', 'info');
+            } else {
+                showMessage('Audio context not started. Cannot record.', 'error');
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                recordBtn.disabled = false;
+                stopRecordBtn.disabled = true;
+                showMessage('Recording stopped.', 'info');
+            }
+        }
+
+        function playRecording() {
+            if (recordedAudioUrl && audioContext) {
+                if (loopSource) {
+                    loopSource.stop();
+                }
+                fetch(recordedAudioUrl)
+                    .then(response => response.arrayBuffer())
+                    .then(arrayBuffer => audioContext.decodeAudioData(arrayBuffer))
+                    .then(audioBuffer => {
+                        loopSource = audioContext.createBufferSource();
+                        loopSource.buffer = audioBuffer;
+                        loopSource.loop = true;
+                        loopSource.connect(audioContext.destination);
+                        loopSource.start(0);
+                        playRecordBtn.disabled = true;
+                        stopPlaybackBtn.disabled = false;
+                        showMessage('Playing recording.', 'info');
+                    })
+                    .catch(e => console.error('Error playing recording:', e));
+            }
+        }
+
+        function stopPlayback() {
+            if (loopSource) {
+                loopSource.stop();
+                loopSource = null;
+                playRecordBtn.disabled = false;
+                stopPlaybackBtn.disabled = true;
+                showMessage('Playback stopped.', 'info');
+            }
+        }
+
+        function downloadRecording() {
+            if (recordedAudioUrl) {
+                const a = document.createElement('a');
+                a.href = recordedAudioUrl;
+                a.download = 'recording.webm';
+                a.click();
+            }
+        }
+
         async function stopAudio() {
             // Stop all audio nodes
             reteAudioNodes.forEach((audioNode, id) => {
@@ -946,10 +1049,10 @@
                                   reteNode.label === 'LFO' || 
                                   reteNode.label === 'ADSR Envelope'
                                 ) && audioNode.mainOutput) {
-                                    audioNode.mainOutput.connect(audioContext.destination);
+                                    audioNode.mainOutput.connect(masterGain);
                                     // console.log(`Connected ${reteNode.label} to destination.`);
                                 } else if (audioNode.connect) {
-                                    audioNode.connect(audioContext.destination);
+                                    audioNode.connect(masterGain);
                                 }
                             }
                             catch (e) {
@@ -2656,6 +2759,12 @@
             document.getElementById('exportWorkspaceBtn').addEventListener('click', exportWorkspace);
             document.getElementById('importWorkspaceBtn').addEventListener('click', () => document.getElementById('importWorkspaceInput').click());
             document.getElementById('importWorkspaceInput').addEventListener('change', importWorkspace);
+
+            recordBtn.addEventListener('click', startRecording);
+            stopRecordBtn.addEventListener('click', stopRecording);
+            playRecordBtn.addEventListener('click', playRecording);
+            downloadRecordBtn.addEventListener('click', downloadRecording);
+            stopPlaybackBtn.addEventListener('click', stopPlayback);
 
             stopAudioBtn.disabled = true;
             clearEditorBtn.disabled = true;            
