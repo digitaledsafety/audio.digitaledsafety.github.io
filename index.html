@@ -221,6 +221,17 @@
             <button id="stopAudioBtn" class="button button-secondary" disabled>Stop Audio</button>
         </div>
 
+        <div id="workspace-controls" class="flex flex-col sm:flex-row justify-center gap-4 mb-6">
+            <input type="text" id="workspaceName" placeholder="Workspace Name" class="p-2 border rounded">
+            <button id="saveWorkspaceBtn" class="button button-primary">Save</button>
+            <select id="workspaceSelector" class="p-2 border rounded"></select>
+            <button id="loadWorkspaceBtn" class="button button-secondary">Load</button>
+            <button id="deleteWorkspaceBtn" class="button button-danger">Delete</button>
+            <button id="exportWorkspaceBtn" class="button button-secondary">Export</button>
+            <input type="file" id="importWorkspaceInput" style="display: none;">
+            <button id="importWorkspaceBtn" class="button button-secondary">Import</button>
+        </div>
+
         <div id="node-add-buttons" class="flex flex-wrap justify-center gap-3 mb-6">
             <button id="addToneGeneratorNodeBtn" class="button button-secondary">Add Tone Generator</button>
             <button id="addNoiseGeneratorNodeBtn" class="button button-secondary">Add Noise Generator</button>
@@ -324,6 +335,116 @@
         let engine;
 
         // --- Utility Functions ---
+
+        function getWorkspaces() {
+            const workspaces = localStorage.getItem('rete-workspaces');
+            return workspaces ? JSON.parse(workspaces) : {};
+        }
+
+        function populateWorkspacesDropdown() {
+            const workspaces = getWorkspaces();
+            const selector = document.getElementById('workspaceSelector');
+            selector.innerHTML = '';
+            for (const name in workspaces) {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                selector.appendChild(option);
+            }
+        }
+
+        function saveWorkspace() {
+            const name = document.getElementById('workspaceName').value;
+            if (!name) {
+                showMessage('Please enter a name for the workspace.', 'error');
+                return;
+            }
+            const workspaces = getWorkspaces();
+            const data = editor.toJSON();
+            workspaces[name] = data;
+            localStorage.setItem('rete-workspaces', JSON.stringify(workspaces));
+            populateWorkspacesDropdown();
+            showMessage(`Workspace "${name}" saved.`, 'success');
+        }
+
+        async function loadWorkspace() {
+            const name = document.getElementById('workspaceSelector').value;
+            if (!name) {
+                showMessage('Please select a workspace to load.', 'error');
+                return;
+            }
+            const workspaces = getWorkspaces();
+            const data = workspaces[name];
+            if (!data) {
+                showMessage(`Workspace "${name}" not found.`, 'error');
+                return;
+            }
+
+            const wasAudioRunning = audioContext && audioContext.state === 'running';
+            if (wasAudioRunning) {
+                await stopAudio();
+            }
+
+            await editor.clear();
+            await editor.fromJSON(data);
+
+            if (wasAudioRunning) {
+                await startAudio();
+            }
+
+            showMessage(`Workspace "${name}" loaded.`, 'success');
+        }
+
+        function deleteWorkspace() {
+            const name = document.getElementById('workspaceSelector').value;
+            if (!name) {
+                showMessage('Please select a workspace to delete.', 'error');
+                return;
+            }
+            const workspaces = getWorkspaces();
+            delete workspaces[name];
+            localStorage.setItem('rete-workspaces', JSON.stringify(workspaces));
+            populateWorkspacesDropdown();
+            showMessage(`Workspace "${name}" deleted.`, 'success');
+        }
+
+        function exportWorkspace() {
+            const data = editor.toJSON();
+            const json = JSON.stringify(data, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'workspace.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importWorkspace(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    const wasAudioRunning = audioContext && audioContext.state === 'running';
+                    if (wasAudioRunning) {
+                        await stopAudio();
+                    }
+                    await editor.clear();
+                    await editor.fromJSON(data);
+                    if (wasAudioRunning) {
+                        await startAudio();
+                    }
+                    showMessage('Workspace imported successfully.', 'success');
+                } catch (error) {
+                    showMessage('Error importing workspace: ' + error.message, 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
 
         function showMessage(message, type = 'info') {
             messageBox.textContent = message;
@@ -2426,11 +2547,18 @@
 
         // Initialize editor on window load
         window.onload = async () => {
+            document.getElementById('saveWorkspaceBtn').addEventListener('click', saveWorkspace);
+            document.getElementById('loadWorkspaceBtn').addEventListener('click', loadWorkspace);
+            document.getElementById('deleteWorkspaceBtn').addEventListener('click', deleteWorkspace);
+            document.getElementById('exportWorkspaceBtn').addEventListener('click', exportWorkspace);
+            document.getElementById('importWorkspaceBtn').addEventListener('click', () => document.getElementById('importWorkspaceInput').click());
+            document.getElementById('importWorkspaceInput').addEventListener('change', importWorkspace);
 
             stopAudioBtn.disabled = true;
             clearEditorBtn.disabled = true;
 
             await createEditor();
+            populateWorkspacesDropdown();
             showMessage('Editor ready. Add nodes and then click "Start Audio" to hear sound.', 'info');
         };
     </script>
