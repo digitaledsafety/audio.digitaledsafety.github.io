@@ -2544,9 +2544,12 @@
             clearEditorBtn.disabled = false;
         });
 
-
         // Initialize editor on window load
         window.onload = async () => {
+            await createEditor();
+            populateWorkspacesDropdown();
+            showMessage('Editor ready. Add nodes and then click "Start Audio" to hear sound.', 'info');
+
             document.getElementById('saveWorkspaceBtn').addEventListener('click', saveWorkspace);
             document.getElementById('loadWorkspaceBtn').addEventListener('click', loadWorkspace);
             document.getElementById('deleteWorkspaceBtn').addEventListener('click', deleteWorkspace);
@@ -2555,11 +2558,7 @@
             document.getElementById('importWorkspaceInput').addEventListener('change', importWorkspace);
 
             stopAudioBtn.disabled = true;
-            clearEditorBtn.disabled = true;
-
-            await createEditor();
-            populateWorkspacesDropdown();
-            showMessage('Editor ready. Add nodes and then click "Start Audio" to hear sound.', 'info');
+            clearEditorBtn.disabled = true;            
         };
     </script>
 </body>
