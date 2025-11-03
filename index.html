@@ -309,7 +309,13 @@
           'Minor 9th': [0, 3, 7, 10, 14], // equivalent to [0, 3, 7, 10, 2]
           'Dominant 9th': [0, 4, 7, 10, 14], // equivalent to [0, 4, 7, 10, 2]
           'Suspended 2nd (Sus2)': [0, 2, 7],
-          'Suspended 4th (Sus4)': [0, 5, 7]
+          'Suspended 4th (Sus4)': [0, 5, 7],
+          'Major 6th': [0, 4, 7, 9],
+          'Minor 6th': [0, 3, 7, 9],
+          'Add9': [0, 4, 7, 14],
+          'Minor 11th': [0, 3, 7, 10, 14, 17],
+          'Major 7#11': [0, 4, 7, 11, 18],
+          'Dominant 7b9': [0, 4, 7, 10, 13]
         };
         
         const ROOT_NOTES = {
@@ -729,16 +735,7 @@
                                 audioNode.started = false;
                                 break;
                             case 'Noise Generator':
-                                const bufferSize = 2 * audioContext.sampleRate;
-                                const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
-                                const output = noiseBuffer.getChannelData(0);
-                                for (let i = 0; i < bufferSize; i++) {
-                                    output[i] = Math.random() * 2 - 1;
-                                }
-                                audioNode = audioContext.createBufferSource();
-                                audioNode.buffer = noiseBuffer;
-                                audioNode.loop = true;
-                                audioNode.started = false;
+                                audioNode = new NoiseGenerator(audioContext, reteNode.id, reteNode.data);
                                 break;
                             case 'Wave Player':
                                 // Wave Player doesn't create an audio node on initial setup,
@@ -996,6 +993,7 @@
 
                     // Ensure we get the actual AudioNode for connection (from internal classes' mainOutput)
                     if (sourceAudioNode && sourceAudioNode.mainOutput && (
+                      sourceNode.label === 'Noise Generator' ||
                       sourceNode.label === 'Arpeggiator' || 
                       sourceNode.label === 'Chord Generator' || 
                       sourceNode.label === 'LFO' || 
@@ -1044,6 +1042,7 @@
                         if (audioNode) {
                             try {
                                 if ((
+                                  reteNode.label === 'Noise Generator' ||
                                   reteNode.label === 'Arpeggiator' || 
                                   reteNode.label === 'Chord Generator' || 
                                   reteNode.label === 'LFO' || 
@@ -1332,10 +1331,70 @@
             }
         }
 
+        class NoiseGenerator {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+                this.started = false;
+
+                const bufferSize = 2 * this.audioContext.sampleRate;
+                const noiseBuffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+                const output = noiseBuffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    output[i] = Math.random() * 2 - 1;
+                }
+                this.source = this.audioContext.createBufferSource();
+                this.source.buffer = noiseBuffer;
+                this.source.loop = true;
+
+                this.mainOutput = this.audioContext.createGain();
+                this.mainOutput.gain.value = this.data.gainValue !== undefined ? this.data.gainValue : 1;
+
+                this.source.connect(this.mainOutput);
+            }
+
+            start() {
+                if (this.started) return;
+                try {
+                    this.source.start(0);
+                    this.started = true;
+                } catch (e) {
+                    console.warn(`Could not start NoiseGenerator for node ${this.reteNodeId}:`, e);
+                }
+            }
+
+            stop() {
+                if (!this.started) return;
+                try {
+                    this.source.stop(0);
+                    this.started = false;
+                } catch (e) {
+                    console.warn(`Could not stop NoiseGenerator for node ${this.reteNodeId}:`, e);
+                }
+            }
+
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+                if (paramName === 'gainValue') {
+                    this.mainOutput.gain.value = value;
+                }
+            }
+        }
+
         class NoiseGeneratorNode extends WebAudioNode {
             constructor() {
                 super('Noise Generator');
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
+
+                this.data.gainValue = 1;
+                this.addControl('gain', new SliderControl('gainSlider', 'Gain', 0, 5, 0.01, this.data.gainValue, (val) => {
+                    this.data.gainValue = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof NoiseGenerator) {
+                        audioNode.updateParameter('gainValue', val);
+                    }
+                }));
             }
         }
 
@@ -2458,16 +2517,7 @@
                                 audioNode.started = false;
                             break;
                         case 'Noise Generator':
-                            const bufferSize = 2 * audioContext.sampleRate;
-                            const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
-                            const output = noiseBuffer.getChannelData(0);
-                            for (let i = 0; i < bufferSize; i++) {
-                                output[i] = Math.random() * 2 - 1;
-                            }
-                            audioNode = audioContext.createBufferSource();
-                            audioNode.buffer = noiseBuffer;
-                            audioNode.loop = true;
-                            audioNode.started = false;
+                            audioNode = new NoiseGenerator(audioContext, reteNode.id, reteNode.data);
                             break;
                             case 'Wave Player':
                                 audioNode = new WavePlayer(audioContext, reteNode.id, reteNode.data);
