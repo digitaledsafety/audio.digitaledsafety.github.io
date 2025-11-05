@@ -724,8 +724,8 @@
                         switch (reteNode.label) { // Rete v2 uses `label` for the node's display name
                             case 'Tone Generator':
                                 audioNode = audioContext.createOscillator();
-                                audioNode.frequency.value = reteNode.data.frequencyValue !== undefined ? reteNode.data.frequencyValue : 440;
-                                audioNode.type = reteNode.data.waveformType || 'sine';
+                                audioNode.frequency.value = reteNode.data.frequency !== undefined ? reteNode.data.frequency : 440;
+                                audioNode.type = reteNode.data.waveform || 'sine';
                                 audioNode.started = false;
                                 break;
                             case 'Noise Generator':
@@ -751,17 +751,17 @@
                                 break;
                             case 'Gain':
                                 audioNode = audioContext.createGain();
-                                audioNode.gain.value = reteNode.data.gainValue !== undefined ? reteNode.data.gainValue : 1;
+                                audioNode.gain.value = reteNode.data.gain !== undefined ? reteNode.data.gain : 1;
                                 break;
                             case 'Filter':
                                 audioNode = audioContext.createBiquadFilter();
                                 audioNode.type = reteNode.data.filterType || 'lowpass';
-                                audioNode.frequency.value = reteNode.data.frequencyValue !== undefined ? reteNode.data.frequencyValue : 2000;
-                                audioNode.Q.value = reteNode.data.qValue !== undefined ? reteNode.data.qValue : 1;
+                                audioNode.frequency.value = reteNode.data.frequency !== undefined ? reteNode.data.frequency : 2000;
+                                audioNode.Q.value = reteNode.data.q !== undefined ? reteNode.data.q : 1;
                                 break;
                             case 'Delay':
                                 audioNode = audioContext.createDelay(5.0);
-                                audioNode.delayTime.value = reteNode.data.delayTimeValue !== undefined ? reteNode.data.delayTimeValue : 0.5;             
+                                audioNode.delayTime.value = reteNode.data.delayTime !== undefined ? reteNode.data.delayTime : 0.5;
                                 break;
                             case 'Distortion': // New Node Type
                                 audioNode = audioContext.createWaveShaper();
@@ -1310,9 +1310,9 @@
 
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
 
-                this.data.frequencyValue = 440;
-                this.addControl('frequency', new SliderControl('freqSlider', 'Frequency (Hz)', 50, 2000, 1, this.data.frequencyValue, (val) => {
-                    this.data.frequencyValue = val;
+                this.data.frequency = 440;
+                this.addControl('frequency', new SliderControl('freqSlider', 'Frequency (Hz)', 50, 2000, 1, this.data.frequency, (val) => {
+                    this.data.frequency = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.frequency) {
                         audioNode.frequency.value = val;
@@ -1320,9 +1320,9 @@
                     //area.update('node', this.id); // Trigger re-render to update control value display
                 }));
 
-                this.data.waveformType = 'sine';
-                this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveformType, (val) => {
-                    this.data.waveformType = val;
+                this.data.waveform = 'sine';
+                this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveform, (val) => {
+                    this.data.waveform = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.type) {
                         audioNode.type = val;
@@ -1437,11 +1437,11 @@
                     }
                 }));
 
-                this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveformType, (val) => {
-                    this.data.waveformType = val;
+                this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveform, (val) => {
+                    this.data.waveform = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode instanceof ChordGenerator) {
-                        audioNode.updateParameter('waveformType', val);
+                        audioNode.updateParameter('waveform', val);
                     }
                 }));
             }
@@ -1455,9 +1455,9 @@
                 this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
 
-                this.data.gainValue = 1;
-                this.addControl('gain', new SliderControl('gainSlider', 'Gain', 0, 5, 0.01, this.data.gainValue, (val) => {
-                    this.data.gainValue = val;
+                this.data.gain = 1;
+                this.addControl('gain', new SliderControl('gainSlider', 'Gain', 0, 5, 0.01, this.data.gain, (val) => {
+                    this.data.gain = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.gain) {
                         audioNode.gain.value = val;
@@ -1474,9 +1474,9 @@
                 this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
 
-                this.data.frequencyValue = 2000;
-                this.addControl('frequency', new SliderControl('filterFreqSlider', 'Frequency (Hz)', 20, 20000, 10, this.data.frequencyValue, (val) => {
-                    this.data.frequencyValue = val;
+                this.data.frequency = 2000;
+                this.addControl('frequency', new SliderControl('filterFreqSlider', 'Frequency (Hz)', 20, 20000, 10, this.data.frequency, (val) => {
+                    this.data.frequency = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.frequency) {
                         audioNode.frequency.value = val;
@@ -1484,9 +1484,9 @@
                     //area.update('node', this.id);
                 }));
 
-                this.data.qValue = 1;
-                this.addControl('q', new SliderControl('qSlider', 'Q', 0.1, 10, 0.1, this.data.qValue, (val) => {
-                    this.data.qValue = val;
+                this.data.q = 1;
+                this.addControl('q', new SliderControl('qSlider', 'Q', 0.1, 10, 0.1, this.data.q, (val) => {
+                    this.data.q = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.Q) {
                         audioNode.Q.value = val;
@@ -1513,9 +1513,9 @@
                 this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
 
-                this.data.delayTimeValue = 0.5;
-                this.addControl('delayTime', new SliderControl('delayTimeSlider', 'Delay Time (s)', 0, 5, 0.01, this.data.delayTimeValue, (val) => {
-                    this.data.delayTimeValue = val;
+                this.data.delayTime = 0.5;
+                this.addControl('delayTime', new SliderControl('delayTimeSlider', 'Delay Time (s)', 0, 5, 0.01, this.data.delayTime, (val) => {
+                    this.data.delayTime = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.delayTime) {
                         audioNode.delayTime.value = val;
@@ -1830,12 +1830,12 @@
                     if (audioNode && audioNode.updateParameter) audioNode.updateParameter('octaveRange', val);
                 }));
 
-                this.data.waveformType = 'sine';
-                this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveformType, (val) => {
-                    this.data.waveformType = val;
+                this.data.waveform = 'sine';
+                this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveform, (val) => {
+                    this.data.waveform = val;
                     // Arpeggiator's internal oscillators will pick this up
                     const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('waveformType', val);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('waveform', val);
                 }));
             }
         }
@@ -2453,8 +2453,8 @@
                         case 'Tone Generator':
                       
                                 audioNode = audioContext.createOscillator();
-                                audioNode.frequency.value = reteNode.data.frequencyValue;
-                                audioNode.type = reteNode.data.waveformType;
+                                audioNode.frequency.value = reteNode.data.frequency;
+                                audioNode.type = reteNode.data.waveform;
                                 audioNode.started = false;
                             break;
                         case 'Noise Generator':
@@ -2479,21 +2479,21 @@
                         case 'Gain':
                            
                                 audioNode = audioContext.createGain();
-                                audioNode.gain.value = reteNode.data.gainValue;
+                                audioNode.gain.value = reteNode.data.gain;
                             
                             break;
                         case 'Filter':
                             
                                 audioNode = audioContext.createBiquadFilter();
                                 audioNode.type = reteNode.data.filterType;
-                                audioNode.frequency.value = reteNode.data.frequencyValue;
-                                audioNode.Q.value = reteNode.data.qValue;
+                                audioNode.frequency.value = reteNode.data.frequency;
+                                audioNode.Q.value = reteNode.data.q;
                             
                             break;
                         case 'Delay':
                             
                                 audioNode = audioContext.createDelay(5.0);
-                                audioNode.delayTime.value = reteNode.data.delayTimeValue;
+                                audioNode.delayTime.value = reteNode.data.delayTime;
                             
                             break;
                         case 'Distortion':
