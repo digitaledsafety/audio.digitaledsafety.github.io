@@ -369,29 +369,32 @@
 
             const connections = [];
             for (const conn of editor.getConnections()) {
+                console.log(conn);
                 const sourceNode = editor.getNode(conn.source);
+                console.log(sourceNode);
                 const targetNode = editor.getNode(conn.target);
-                
-                const sourceOutputKey = Object.keys(sourceNode.outputs).find(key => sourceNode.outputs[key] === conn.sourceOutput);
-                const targetInputKey = Object.keys(targetNode.inputs).find(key => targetNode.inputs[key] === conn.targetInput);
+                console.log(targetNode);
+ 
+                const sourceOutputKey = Object.keys(sourceNode.outputs).find(key => sourceNode.outputs[key].socket == conn.sourceOutput);
+                const targetInputKey = Object.keys(targetNode.inputs).find(key => targetNode.inputs[key].socket == conn.targetInput);
 
-                if (sourceOutputKey && targetInputKey) {
-                    connections.push({
-                        id: conn.id,
-                        source: conn.source,
-                        sourceOutput: sourceOutputKey,
-                        target: conn.target,
-                        targetInput: targetInputKey
-                    });
-                }
+                connections.push({
+                    id: conn.id,
+                    source: conn.source,
+                    sourceOutput: conn.sourceOutput,
+                    target: conn.target,
+                    targetInput: conn.targetInput
+                });
             }
 
             return { nodes, connections };
         }
 
         async function editorFromJSON(json) {
+            console.log('Loading editor from JSON:', json);
             await editor.clear();
 
+            // TODO: How do we avoid hardcoding any new node types here?
             const nodeConstructors = {
                 'Tone Generator': ToneGeneratorNode,
                 'Noise Generator': NoiseGeneratorNode,
@@ -443,8 +446,8 @@
                 const targetNode = editor.getNode(connData.target);
 
                 if (sourceNode && targetNode) {
-                    const sourceOutput = sourceNode.outputs[connData.sourceOutput];
-                    const targetInput = targetNode.inputs[connData.targetInput];
+                    const sourceOutput = connData.sourceOutput;
+                    const targetInput = connData.targetInput;
                     
                     if (sourceOutput && targetInput) {
                         await editor.addConnection(new Classic.Connection(sourceNode, sourceOutput, targetNode, targetInput));
