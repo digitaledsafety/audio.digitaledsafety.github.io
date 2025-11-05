@@ -915,30 +915,36 @@
         async function updateAudioGraphConnections() {
             if (!audioContext || !editor) return;
 
-            // 1. Disconnect all existing connections in the Web Audio graph
-            reteAudioNodes.forEach((audioNode, nodeId) => {
+            // 1. Disconnect all existing connections in a two-phase process.
+            // Phase 1: Disconnect all connections to AudioParams (like FM).
+            // This is crucial because the general .disconnect() without arguments doesn't sever these.
+            for (const connection of editor.getConnections()) {
+                if (connection.targetInput === 'fm') {
+                    const sourceAudioNode = reteAudioNodes.get(connection.source);
+                    const targetAudioNode = reteAudioNodes.get(connection.target);
+                    if (sourceAudioNode && targetAudioNode && targetAudioNode.frequency) {
+                        try {
+                            const sourceForDisconnect = sourceAudioNode.mainOutput ? sourceAudioNode.mainOutput : sourceAudioNode;
+                            sourceForDisconnect.disconnect(targetAudioNode.frequency);
+                            // console.log(`FM disconnected: ${editor.getNode(connection.source).label} from ${editor.getNode(connection.target).label}'s frequency`);
+                        } catch (e) {
+                             // Ignore errors here, as a node might have been disconnected by another operation.
+                        }
+                    }
+                }
+            }
+
+            // Phase 2: Perform a general disconnect for all audio nodes.
+            // This will sever all remaining node-to-node audio connections.
+            reteAudioNodes.forEach((audioNode) => {
                 try {
-                    // Standard disconnection
                     if (audioNode.mainOutput) {
                         audioNode.mainOutput.disconnect();
                     } else if (audioNode.disconnect) {
                         audioNode.disconnect();
                     }
-
-                    // Explicitly disconnect any AudioParam connections (like FM)
-                    // This is crucial because .disconnect() without arguments doesn't sever connections to AudioParams.
-                    for (const connection of editor.getConnections()) {
-                        if (connection.source === nodeId && connection.targetInput === 'fm') {
-                            const targetAudioNode = reteAudioNodes.get(connection.target);
-                            if (targetAudioNode && targetAudioNode.frequency) {
-                                let sourceForDisconnect = audioNode.mainOutput ? audioNode.mainOutput : audioNode;
-                                sourceForDisconnect.disconnect(targetAudioNode.frequency);
-                                console.log(`FM disconnected: ${editor.getNode(nodeId).label} from ${editor.getNode(connection.target).label}'s frequency`);
-                            }
-                        }
-                    }
                 } catch (e) {
-                    console.warn("Error during disconnection pass:", e);
+                    // console.warn("Error during general disconnection pass:", e);
                 }
             });
 
@@ -1013,7 +1019,11 @@
                     const hasOutgoingAudioConnection = editor.getConnections().some(conn => 
                         conn.source === reteNode.id && conn.sourceOutput.socket === audioSocket);
 
-                    if (!hasOutgoingAudioConnection && audioContext && audioContext.state === 'running') {
+                    // Connect to destination by default, unless the node is a modulator type
+                    // that explicitly sets this to false.
+                    const connectByDefault = reteNode.connectToDestinationByDefault !== false;
+
+                    if (!hasOutgoingAudioConnection && audioContext && audioContext.state === 'running' && connectByDefault) {
                         if (audioNode) {
                             try {
                                 // If the audio node has a mainOutput, connect that to the master gain. Otherwise, connect the node itself.
@@ -1126,6 +1136,13 @@
 
             start() {
                 // This can be overridden by nodes that need an explicit start action (e.g., oscillators).
+            }
+        }
+
+        class ModulatorNode extends WebAudioNode {
+            constructor(label) {
+                super(label);
+                this.connectToDestinationByDefault = false;
             }
         }
 
@@ -2144,7 +2161,7 @@
             }
         }
 
-        class LFONode extends WebAudioNode {
+        class LFONode extends ModulatorNode {
             constructor() {
                 super('LFO');
                 this.addOutput('audio', new Classic.Output(audioSocket, 'LFO Out')); // Can be used for modulation
@@ -2265,7 +2282,7 @@
             }
         }
 
-        class ADSREnvelopeNode extends WebAudioNode {
+        class ADSREnvelopeNode extends ModulatorNode {
             constructor() {
                 super('ADSR Envelope');
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Envelope Out')); // This outputs a gain value
