@@ -218,11 +218,6 @@
 
         <div id="main-controls" class="flex flex-wrap items-start justify-center gap-4 mb-6 p-4 bg-gray-50 rounded-lg shadow-inner">
 
-            <!-- Audio Controls -->
-            <div id="audio-controls" class="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                <button id="startAudioBtn" class="button button-primary">▶️ Start Audio</button>
-                <button id="stopAudioBtn" class="button button-secondary" disabled>⏹️ Stop Audio</button>
-            </div>
 
             <!-- Recording Controls -->
             <div id="recording-controls" class="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
@@ -234,7 +229,6 @@
                     <button id="recordingActionsToggle" class="button button-secondary">...</button>
                     <div id="recordingActionsDropdown" class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-10">
                         <div class="py-1" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
-                            <button id="stopPlaybackBtn" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem" disabled>⏹️ Stop Playback</button>
                             <button id="downloadRecordBtn" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem" disabled>💾 Download</button>
                         </div>
                     </div>
@@ -358,8 +352,6 @@
         };
 
         // UI Elements
-        const startAudioBtn = document.getElementById('startAudioBtn');
-        const stopAudioBtn = document.getElementById('stopAudioBtn');
         const addToneGeneratorNodeBtn = document.getElementById('addToneGeneratorNodeBtn');
         const addNoiseGeneratorNodeBtn = document.getElementById('addNoiseGeneratorNodeBtn');
         const addWavePlayerNodeBtn = document.getElementById('addWavePlayerNodeBtn');
@@ -378,7 +370,6 @@
         const stopRecordBtn = document.getElementById('stopRecordBtn');
         const playRecordBtn = document.getElementById('playRecordBtn');
         const downloadRecordBtn = document.getElementById('downloadRecordBtn');
-        const stopPlaybackBtn = document.getElementById('stopPlaybackBtn');
 
 
         // Rete.js Editor and Engine
@@ -664,95 +655,15 @@
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
                     masterGain = audioContext.createGain();
                     masterGain.connect(audioContext.destination);
-
                     mediaStreamDestination = audioContext.createMediaStreamDestination();
                     masterGain.connect(mediaStreamDestination);
-
-
-                    const processorCode = `
-                      // bitcrusher-processor.js
-                      // This file will be loaded by the AudioContext's audioWorklet.addModule()
-
-                      class BitcrusherProcessor extends AudioWorkletProcessor {
-                        // Define custom parameters that can be controlled from the main thread
-                        static get parameterDescriptors() {
-                          return [
-                            {
-                              name: 'bits',
-                              defaultValue: 8,
-                              minValue: 1,
-                              maxValue: 16,
-                              automationRate: 'a-rate' // 'a-rate' for audio-rate changes (smoother)
-                            },
-                            {
-                              name: 'sampleRateReduction', // Factor by which to reduce sample rate (e.g., 2 means half sample rate)
-                              defaultValue: 1,
-                              minValue: 1,
-                              maxValue: 100, // Or whatever max reduction you want
-                              automationRate: 'a-rate'
-                            }
-                          ];
-                        }
-
-                        constructor() {
-                          super();
-                          this.lastSample = 0; // For sample rate reduction: holds the last processed sample
-                          this.phase = 0;      // For sample rate reduction: accumulator for timing
-                        }
-
-                        process(inputs, outputs, parameters) {
-                          const input = inputs[0]; // Get the first input (assuming single input)
-                          const output = outputs[0]; // Get the first output (assuming single output)
-
-                          // Get the parameter values (they are arrays, even if constant, check first element)
-                          const bits = parameters.bits[0];
-                          const sampleRateReduction = parameters.sampleRateReduction[0];
-
-                          // Process each channel
-                          for (let channel = 0; channel < input.length; ++channel) {
-                            const inputChannel = input[channel];
-                            const outputChannel = output[channel];
-
-                            for (let i = 0; i < inputChannel.length; ++i) {
-                              let currentSample = inputChannel[i];
-
-                              // --- Bit Depth Reduction ---
-                              // Calculate the step size for quantization
-                              const step = Math.pow(0.5, bits); // e.g., 8 bits -> 2^8 = 256 levels -> step = 1/256
-                              // Quantize the sample
-                              currentSample = Math.floor(currentSample / step) * step;
-
-                              // --- Sample Rate Reduction (simple hold method) ---
-                              // Increment phase by the reduction factor. When it hits 1, process a new sample.
-                              this.phase += 1 / sampleRateReduction; // If reduction is 2, phase increases by 0.5 each sample
-                              if (this.phase >= 1) {
-                                this.phase--; // Reset phase
-                                this.lastSample = currentSample; // Store the new "processed" sample
-                              }
-                              // Output the last processed sample (either the newly processed one or the held one)
-                              outputChannel[i] = this.lastSample;
-                            }
-                          }
-                          return true; // Indicate that the processor is still active
-                        }
-                      }
-
-                      // Register the processor with a unique name
-                      registerProcessor('bitcrusher-processor', BitcrusherProcessor);
-                    `;
-
-                    const blob = new Blob([processorCode], { type: 'application/javascript' });
-                    const processorUrl = URL.createObjectURL(blob);
-
-                    await audioContext.audioWorklet.addModule(processorUrl);
                 }
 
                 if (audioContext.state === 'suspended') {
                     await audioContext.resume();
                 }
 
-                startAudioBtn.disabled = true;
-                stopAudioBtn.disabled = false;
+                stopRecordBtn.disabled = false;
                 clearEditorBtn.disabled = false;
                 showMessage('Audio context started! Nodes in the editor are now active.', 'success');
 
@@ -872,8 +783,12 @@
             }
         }
 
-        function startRecording() {
-            if (audioContext && mediaStreamDestination) {
+        async function startRecording() {
+            if (!audioContext || audioContext.state === 'closed' || audioContext.state === 'suspended') {
+                await startAudio();
+            }
+
+            if (audioContext && mediaStreamDestination && audioContext.state === 'running') {
                 recordedChunks = [];
                 mediaRecorder = new MediaRecorder(mediaStreamDestination.stream);
 
@@ -895,47 +810,67 @@
                 stopRecordBtn.disabled = false;
                 showMessage('Recording started.', 'info');
             } else {
-                showMessage('Audio context not started. Cannot record.', 'error');
+                showMessage('Could not start audio context. Cannot record.', 'error');
             }
         }
 
-        function stopRecording() {
+        function stopAll() {
             if (mediaRecorder && mediaRecorder.state === 'recording') {
                 mediaRecorder.stop();
                 recordBtn.disabled = false;
                 stopRecordBtn.disabled = true;
                 showMessage('Recording stopped.', 'info');
+            } else if (loopSource) {
+                stopPlaybackAndResetUI();
+            } else if (audioContext && audioContext.state === 'running') {
+                stopAudio();
             }
         }
 
-        function playRecording() {
-            if (recordedAudioUrl && audioContext) {
-                if (loopSource) {
-                    loopSource.stop();
+        async function playRecording() {
+            if (recordedAudioUrl) {
+                if (!audioContext || audioContext.state === 'closed' || audioContext.state === 'suspended') {
+                    await startAudio();
                 }
-                fetch(recordedAudioUrl)
-                    .then(response => response.arrayBuffer())
-                    .then(arrayBuffer => audioContext.decodeAudioData(arrayBuffer))
-                    .then(audioBuffer => {
+
+                if (audioContext && audioContext.state === 'running') {
+                    if (loopSource) {
+                        loopSource.stop();
+                    }
+                    try {
+                        const response = await fetch(recordedAudioUrl);
+                        const arrayBuffer = await response.arrayBuffer();
+                        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
                         loopSource = audioContext.createBufferSource();
                         loopSource.buffer = audioBuffer;
                         loopSource.loop = true;
                         loopSource.connect(audioContext.destination);
                         loopSource.start(0);
+
                         playRecordBtn.disabled = true;
-                        stopPlaybackBtn.disabled = false;
+                        recordBtn.disabled = true;
+                        stopRecordBtn.disabled = false;
                         showMessage('Playing recording.', 'info');
-                    })
-                    .catch(e => console.error('Error playing recording:', e));
+                    } catch (e) {
+                        console.error('Error playing recording:', e);
+                        showMessage('Error playing recording.', 'error');
+                    }
+                } else {
+                    showMessage('Could not start audio context. Cannot play recording.', 'error');
+                }
             }
         }
 
-        function stopPlayback() {
+        function stopPlaybackAndResetUI() {
             if (loopSource) {
                 loopSource.stop();
                 loopSource = null;
                 playRecordBtn.disabled = false;
-                stopPlaybackBtn.disabled = true;
+                recordBtn.disabled = false;
+                if (!mediaRecorder || mediaRecorder.state !== 'recording') {
+                    stopRecordBtn.disabled = true;
+                }
                 showMessage('Playback stopped.', 'info');
             }
         }
@@ -993,8 +928,7 @@
                 audioContext = null;
             }
 
-            startAudioBtn.disabled = false;
-            stopAudioBtn.disabled = true;
+            stopRecordBtn.disabled = true;
             showMessage('Audio stopped.', 'info');
         }
 
@@ -2726,8 +2660,6 @@
         }
 
         // --- Event Listeners for UI Buttons ---
-        startAudioBtn.addEventListener('click', startAudio);
-        stopAudioBtn.addEventListener('click', stopAudio);
         clearEditorBtn.addEventListener('click', stopAudio); // Clear editor also stops audio
 
         addToneGeneratorNodeBtn.addEventListener('click', async () => {
@@ -2836,7 +2768,48 @@
         window.onload = async () => {
             await createEditor();
             populateWorkspacesDropdown();
-            showMessage('Editor ready. Add nodes and then click "Start Audio" to hear sound.', 'info');
+            showMessage('Editor ready. Add nodes and then click "Record" or "Play" to start audio.', 'info');
+
+            try {
+                const tempAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const processorCode = `
+                    class BitcrusherProcessor extends AudioWorkletProcessor {
+                        static get parameterDescriptors() {
+                            return [{ name: 'bits', defaultValue: 8, minValue: 1, maxValue: 16, automationRate: 'a-rate' },
+                                    { name: 'sampleRateReduction', defaultValue: 1, minValue: 1, maxValue: 100, automationRate: 'a-rate' }];
+                        }
+                        constructor() { super(); this.lastSample = 0; this.phase = 0; }
+                        process(inputs, outputs, parameters) {
+                            const input = inputs[0];
+                            const output = outputs[0];
+                            const bits = parameters.bits[0];
+                            const sampleRateReduction = parameters.sampleRateReduction[0];
+                            for (let channel = 0; channel < input.length; ++channel) {
+                                const inputChannel = input[channel];
+                                const outputChannel = output[channel];
+                                for (let i = 0; i < inputChannel.length; ++i) {
+                                    let currentSample = inputChannel[i];
+                                    const step = Math.pow(0.5, bits);
+                                    currentSample = Math.floor(currentSample / step) * step;
+                                    this.phase += 1 / sampleRateReduction;
+                                    if (this.phase >= 1) { this.phase--; this.lastSample = currentSample; }
+                                    outputChannel[i] = this.lastSample;
+                                }
+                            }
+                            return true;
+                        }
+                    }
+                    registerProcessor('bitcrusher-processor', BitcrusherProcessor);
+                `;
+                const blob = new Blob([processorCode], { type: 'application/javascript' });
+                const processorUrl = URL.createObjectURL(blob);
+                await tempAudioContext.audioWorklet.addModule(processorUrl);
+                await tempAudioContext.close();
+                console.log('Bitcrusher processor loaded and ready.');
+            } catch (e) {
+                console.error('Error pre-loading audio worklet:', e);
+                showMessage('Could not pre-load audio components.', 'error');
+            }
 
             // --- Dropdown Logic ---
             const setupDropdown = (toggleId, dropdownId) => {
@@ -2889,14 +2862,10 @@
 
             // --- Recording Button Logic ---
             recordBtn.addEventListener('click', startRecording);
-            stopRecordBtn.addEventListener('click', stopRecording);
+            stopRecordBtn.addEventListener('click', stopAll);
             playRecordBtn.addEventListener('click', playRecording);
             downloadRecordBtn.addEventListener('click', () => {
                 downloadRecording();
-                document.getElementById('recordingActionsDropdown').classList.add('hidden');
-            });
-            stopPlaybackBtn.addEventListener('click', () => {
-                stopPlayback();
                 document.getElementById('recordingActionsDropdown').classList.add('hidden');
             });
 
@@ -2910,7 +2879,6 @@
 
 
             // --- Initial State ---
-            stopAudioBtn.disabled = true;
             clearEditorBtn.disabled = true;
         };
     </script>
