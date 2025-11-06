@@ -398,14 +398,9 @@
 
             const connections = [];
             for (const conn of editor.getConnections()) {
-                console.log(conn);
+                
                 const sourceNode = editor.getNode(conn.source);
-                console.log(sourceNode);
                 const targetNode = editor.getNode(conn.target);
-                console.log(targetNode);
- 
-                const sourceOutputKey = Object.keys(sourceNode.outputs).find(key => sourceNode.outputs[key].socket == conn.sourceOutput);
-                const targetInputKey = Object.keys(targetNode.inputs).find(key => targetNode.inputs[key].socket == conn.targetInput);
 
                 connections.push({
                     id: conn.id,
