@@ -915,38 +915,38 @@
         async function updateAudioGraphConnections() {
             if (!audioContext || !editor) return;
 
-            // 1. Disconnect all existing connections in a two-phase process.
-            // Phase 1: Disconnect all connections to AudioParams (like FM).
-            // This is crucial because the general .disconnect() without arguments doesn't sever these.
+            // 1. Disconnect everything to rebuild connections from scratch.
+            // This is a more targeted approach than a blanket .disconnect(), which can
+            // break the internal routing of complex nodes (like the LFO).
+
+            // First, disconnect any nodes that were implicitly connected to the master output.
+            reteAudioNodes.forEach(audioNode => {
+                try {
+                    const source = audioNode.mainOutput ? audioNode.mainOutput : audioNode;
+                    source.disconnect(masterGain);
+                } catch (e) {
+                    // Ignore errors, the node may not have been connected to masterGain.
+                }
+            });
+
+            // Second, disconnect all the specific connections that exist in the editor.
             for (const connection of editor.getConnections()) {
-                if (connection.targetInput === 'fm') {
-                    const sourceAudioNode = reteAudioNodes.get(connection.source);
-                    const targetAudioNode = reteAudioNodes.get(connection.target);
-                    if (sourceAudioNode && targetAudioNode && targetAudioNode.frequency) {
-                        try {
-                            const sourceForDisconnect = sourceAudioNode.mainOutput ? sourceAudioNode.mainOutput : sourceAudioNode;
-                            sourceForDisconnect.disconnect(targetAudioNode.frequency);
-                            // console.log(`FM disconnected: ${editor.getNode(connection.source).label} from ${editor.getNode(connection.target).label}'s frequency`);
-                        } catch (e) {
-                             // Ignore errors here, as a node might have been disconnected by another operation.
+                const sourceNode = reteAudioNodes.get(connection.source);
+                const targetNode = reteAudioNodes.get(connection.target);
+
+                if (sourceNode && targetNode) {
+                    const source = sourceNode.mainOutput ? sourceNode.mainOutput : sourceNode;
+                    try {
+                        if (connection.targetInput === 'fm' && targetNode.frequency) {
+                            source.disconnect(targetNode.frequency);
+                        } else {
+                            source.disconnect(targetNode);
                         }
+                    } catch (e) {
+                        // Ignore errors, connection might already be broken
                     }
                 }
             }
-
-            // Phase 2: Perform a general disconnect for all audio nodes.
-            // This will sever all remaining node-to-node audio connections.
-            reteAudioNodes.forEach((audioNode) => {
-                try {
-                    if (audioNode.mainOutput) {
-                        audioNode.mainOutput.disconnect();
-                    } else if (audioNode.disconnect) {
-                        audioNode.disconnect();
-                    }
-                } catch (e) {
-                    // console.warn("Error during general disconnection pass:", e);
-                }
-            });
 
             // 2. Reconnect based on Rete.js editor's connections
             for (const connection of editor.getConnections()) {
