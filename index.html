@@ -925,16 +925,19 @@
 
             // Second, disconnect all the specific connections that exist in the editor.
             for (const connection of editor.getConnections()) {
-                const sourceNode = reteAudioNodes.get(connection.source);
-                const targetNode = reteAudioNodes.get(connection.target);
+                const targetReteNode = editor.getNode(connection.target);
+                const sourceAudioNode = reteAudioNodes.get(connection.source);
+                const targetAudioNode = reteAudioNodes.get(connection.target);
 
-                if (sourceNode && targetNode) {
-                    const source = sourceNode.mainOutput ? sourceNode.mainOutput : sourceNode;
+                if (sourceAudioNode && targetAudioNode && targetReteNode) {
+                    const source = sourceAudioNode.mainOutput ? sourceAudioNode.mainOutput : sourceAudioNode;
+                    const targetInputKey = Object.keys(targetReteNode.inputs).find(key => targetReteNode.inputs[key].socket === connection.targetInput);
+
                     try {
-                        if (connection.targetInput === 'fm' && targetNode.frequency) {
-                            source.disconnect(targetNode.frequency);
-                        } else {
-                            source.disconnect(targetNode);
+                        if (targetInputKey === 'fm' && targetAudioNode.frequency) {
+                            source.disconnect(targetAudioNode.frequency);
+                        } else { // Assumes 'audio' or other direct connections
+                            source.disconnect(targetAudioNode);
                         }
                     } catch (e) {
                         // Ignore errors, connection might already be broken
@@ -947,59 +950,39 @@
                 const sourceNode = editor.getNode(connection.source);
                 const targetNode = editor.getNode(connection.target);
 
-                // Handle AUDIO connections
-                if (connection.targetInput === 'audio') { // Standard audio connection
-                    let sourceAudioNode = reteAudioNodes.get(sourceNode.id);
-                    let targetAudioNode = reteAudioNodes.get(targetNode.id);
+                const sourceAudioNode = reteAudioNodes.get(sourceNode.id);
+                const targetAudioNode = reteAudioNodes.get(targetNode.id);
 
-                    // If the source audio node has a mainOutput property, use it as the connection source.
-                    // This is typical for our custom classes that encapsulate multiple Web Audio nodes.
-                    if (sourceAudioNode && sourceAudioNode.mainOutput) {
-                        sourceAudioNode = sourceAudioNode.mainOutput;
-                    }
-                    
-                    if (sourceAudioNode && targetAudioNode) {
+                if (sourceAudioNode && targetAudioNode) {
+                    const sourceConnectable = sourceAudioNode.mainOutput ? sourceAudioNode.mainOutput : sourceAudioNode;
+                    const targetInputKey = Object.keys(targetNode.inputs).find(key => targetNode.inputs[key].socket === connection.targetInput);
+
+                    // Handle AUDIO connections
+                    if (targetInputKey === 'audio') {
                         try {
-                            sourceAudioNode.connect(targetAudioNode);
+                            sourceConnectable.connect(targetAudioNode);
                             console.log(`Audio connected: ${sourceNode.label} to ${targetNode.label}`);
                         } catch (e) {
                             console.error(`Error connecting audio from ${sourceNode.label} to ${targetNode.label}:`, e);
                         }
                     }
-                }
-                // Handle FM connections
-                else if (connection.targetInput === 'fm') {
-                    let sourceAudioNode = reteAudioNodes.get(sourceNode.id);
-                    let targetAudioNode = reteAudioNodes.get(targetNode.id);
-
-                    // If the source audio node has a mainOutput property, use it as the connection source.
-                    if (sourceAudioNode && sourceAudioNode.mainOutput) {
-                        sourceAudioNode = sourceAudioNode.mainOutput;
-                    }
-
-                    if (sourceAudioNode && targetAudioNode && targetAudioNode.frequency) {
+                    // Handle FM connections
+                    else if (targetInputKey === 'fm' && targetAudioNode.frequency) {
                         try {
-                            sourceAudioNode.connect(targetAudioNode.frequency);
+                            sourceConnectable.connect(targetAudioNode.frequency);
                             console.log(`FM connected: ${sourceNode.label} to ${targetNode.label}'s frequency`);
                         } catch (e) {
                             console.error(`Error connecting FM from ${sourceNode.label} to ${targetNode.label}:`, e);
                         }
                     }
-                }
-                // Handle MIDI connections
-                else if (connection.sourceOutput == midiSocket.name && connection.targetInput == midiSocket.name) {
-                    const sourceMidiNode = reteAudioNodes.get(connection.source);
-                    const targetMidiNode = reteAudioNodes.get(connection.target);
-
-                    if (sourceMidiNode && targetMidiNode && sourceMidiNode.addMidiOutputListener && targetMidiNode.receiveMidiNotes) {
-                        // Create a specific listener for this connection
-                        const listener = (midiNotes) => {
-                            targetMidiNode.receiveMidiNotes(midiNotes);
-                        };
-                        // Store the listener on the connection object for later removal
-                        connection._midiListener = listener;
-                        sourceMidiNode.addMidiOutputListener(listener);
-                        // console.log(`MIDI connected: ${sourceNode.label} to ${targetNode.label}`);
+                    // Handle MIDI connections
+                    else {
+                        const sourceOutputKey = Object.keys(sourceNode.outputs).find(key => sourceNode.outputs[key].socket === connection.sourceOutput);
+                        if (sourceOutputKey === 'midi' && targetInputKey === 'midi' && sourceAudioNode.addMidiOutputListener && targetAudioNode.receiveMidiNotes) {
+                            const listener = (midiNotes) => targetAudioNode.receiveMidiNotes(midiNotes);
+                            connection._midiListener = listener;
+                            sourceAudioNode.addMidiOutputListener(listener);
+                        }
                     }
                 }
             }
