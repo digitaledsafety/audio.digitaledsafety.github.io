@@ -278,6 +278,7 @@
                             <button id="addADSREnvelopeNodeBtn" class="button button-secondary w-full text-xs">✉️ ADSR</button>
                             <button id="addBitcrusherNodeBtn" class="button button-secondary w-full text-xs">👾 Bitcrusher</button>
                             <button id="addSequencerNodeBtn" class="button button-secondary w-full text-xs">🎶 Sequencer</button>
+                            <button id="addMasterGainOutputNodeBtn" class="button button-secondary w-full text-xs">🔊 Master Out</button>
                         </div>
                     </div>
                 </div>
@@ -365,6 +366,7 @@
         const addADSREnvelopeNodeBtn = document.getElementById('addADSREnvelopeNodeBtn'); // New ADSR button
         const addBitcrusherNodeBtn = document.getElementById('addBitcrusherNodeBtn'); // New Bitcrusher button
         const addSequencerNodeBtn = document.getElementById('addSequencerNodeBtn');
+        const addMasterGainOutputNodeBtn = document.getElementById('addMasterGainOutputNodeBtn');
         const clearEditorBtn = document.getElementById('clearEditorBtn');
         const reteContainer = document.getElementById('rete');
         const messageBox = document.getElementById('messageBox');
@@ -420,7 +422,6 @@
             console.log('Loading editor from JSON:', json);
             await editor.clear();
 
-            // TODO: How do we avoid hardcoding any new node types here?
             const nodeConstructors = {
                 'Tone Generator': ToneGeneratorNode,
                 'Noise Generator': NoiseGeneratorNode,
@@ -436,7 +437,8 @@
                 'LFO': LFONode,
                 'ADSR Envelope': ADSREnvelopeNode,
                 'Bitcrusher': BitcrusherNode,
-                'Sequencer': SequencerNode
+                'Sequencer': SequencerNode,
+                'Master Gain Output': MasterGainOutputNode
             };
 
             // Create nodes first
@@ -446,13 +448,11 @@
                     const node = new Constructor();
                     node.id = nodeData.id;
                     
-                    // Critical: Overwrite the default data with saved data
                     node.data = { ...node.data, ...nodeData.data };
 
                     await editor.addNode(node);
                     await area.translate(node.id, nodeData.position);
                     
-                    // Re-apply control values to the controls themselves after creation
                     for (const key in node.controls) {
                         const control = node.controls[key];
                          if (node.data.hasOwnProperty(key)) {
@@ -460,7 +460,6 @@
                         }
                     }
                     area.update('node', node.id);
-
 
                 } else {
                     console.warn(`Node type "${nodeData.label}" not found.`);
@@ -473,11 +472,11 @@
                 const targetNode = editor.getNode(connData.target);
 
                 if (sourceNode && targetNode) {
-                    const sourceOutput = connData.sourceOutput;
-                    const targetInput = connData.targetInput;
+                    const sourceOutputSocket = sourceNode.outputs[connData.sourceOutputKey]?.socket;
+                    const targetInputSocket = targetNode.inputs[connData.targetInputKey]?.socket;
                     
-                    if (sourceOutput && targetInput) {
-                        await editor.addConnection(new Classic.Connection(sourceNode, sourceOutput, targetNode, targetInput));
+                    if (sourceOutputSocket && targetInputSocket) {
+                        await editor.addConnection(new Classic.Connection(sourceNode, sourceOutputSocket, targetNode, targetInputSocket));
                     } else {
                          console.warn(`Could not find socket for connection:`, connData);
                     }
@@ -920,51 +919,38 @@
         async function updateAudioGraphConnections() {
             if (!audioContext || !editor) return;
 
-            // 1. Disconnect everything to rebuild connections from scratch.
-            // This is a more targeted approach than a blanket .disconnect(), which can
-            // break the internal routing of complex nodes (like the LFO).
-
-            // First, disconnect any nodes that were implicitly connected to the master output.
-            reteAudioNodes.forEach(audioNode => {
-                try {
-                    const source = audioNode.mainOutput ? audioNode.mainOutput : audioNode;
-                    source.disconnect(masterGain);
-                } catch (e) {
-                    // Ignore errors, the node may not have been connected to masterGain.
-                }
+            // 1. Disconnect all nodes from each other and from the master gain to prepare for a full rebuild.
+            // This is safer than a blanket .disconnect() as it preserves internal node routing.
+            reteAudioNodes.forEach(sourceAudioNode => {
+                const source = sourceAudioNode.mainOutput || sourceAudioNode;
+                // Disconnect from every other node
+                reteAudioNodes.forEach(targetAudioNode => {
+                    if (sourceAudioNode !== targetAudioNode) {
+                        try { source.disconnect(targetAudioNode); } catch(e) {}
+                        if (targetAudioNode.frequency) { // For FM
+                            try { source.disconnect(targetAudioNode.frequency); } catch(e) {}
+                        }
+                    }
+                });
+                // Disconnect from the final output
+                try { source.disconnect(masterGain); } catch(e) {}
             });
 
-            // Second, disconnect all the specific connections that exist in the editor.
-            for (const connection of editor.getConnections()) {
-                const sourceNode = reteAudioNodes.get(connection.source);
-                const targetNode = reteAudioNodes.get(connection.target);
+            // 2. Determine the main audio destination (sink) for this run
+            const masterOutputReteNode = editor.getNodes().find(n => n instanceof MasterGainOutputNode);
+            const masterOutputAudioNode = masterOutputReteNode ? reteAudioNodes.get(masterOutputReteNode.id) : null;
+            const audioSink = masterOutputAudioNode; // No fallback to masterGain
 
-                if (sourceNode && targetNode) {
-                    const source = sourceNode.mainOutput ? sourceNode.mainOutput : sourceNode;
-                    try {
-                        if (connection.targetInput === 'fm' && targetNode.frequency) {
-                            source.disconnect(targetNode.frequency);
-                        } else {
-                            source.disconnect(targetNode);
-                        }
-                    } catch (e) {
-                        // Ignore errors, connection might already be broken
-                    }
-                }
-            }
-
-            // 2. Reconnect based on Rete.js editor's connections
+            // 3. Reconnect based on Rete.js editor's connections
             for (const connection of editor.getConnections()) {
                 const sourceNode = editor.getNode(connection.source);
                 const targetNode = editor.getNode(connection.target);
 
                 // Handle AUDIO connections
-                if (connection.targetInput === 'audio') { // Standard audio connection
+                if (connection.targetInput === 'audio') {
                     let sourceAudioNode = reteAudioNodes.get(sourceNode.id);
                     let targetAudioNode = reteAudioNodes.get(targetNode.id);
 
-                    // If the source audio node has a mainOutput property, use it as the connection source.
-                    // This is typical for our custom classes that encapsulate multiple Web Audio nodes.
                     if (sourceAudioNode && sourceAudioNode.mainOutput) {
                         sourceAudioNode = sourceAudioNode.mainOutput;
                     }
@@ -1015,7 +1001,7 @@
                 }
             }
 
-            // 3. Connect any Rete.js audio nodes that have outputs but no outgoing AUDIO connections to the destination.
+            // 4. Connect any Rete.js audio nodes that have outputs but no outgoing AUDIO connections to the audio sink.
             for (const reteNode of editor.getNodes()) {
                 const audioNode = reteAudioNodes.get(reteNode.id);
                 const hasAudioOutputs = Object.keys(reteNode.outputs).some(key => reteNode.outputs[key].socket === audioSocket);
@@ -1024,19 +1010,11 @@
                     const hasOutgoingAudioConnection = editor.getConnections().some(conn => 
                         conn.source === reteNode.id && conn.sourceOutput.socket === audioSocket);
 
-                    // Connect to destination by default, unless the node is a modulator type
-                    // that explicitly sets this to false.
-                    //const connectByDefault = reteNode.connectToDestinationByDefault !== false;
-
-                    if (!hasOutgoingAudioConnection && audioContext && audioContext.state === 'running') {
+                    if (!hasOutgoingAudioConnection && audioContext && audioContext.state === 'running' && audioSink) {
                         if (audioNode) {
                             try {
-                                // If the audio node has a mainOutput, connect that to the master gain. Otherwise, connect the node itself.
-                                if (audioNode.mainOutput) {
-                                    audioNode.mainOutput.connect(masterGain);
-                                } else if (audioNode.connect) {
-                                    audioNode.connect(masterGain);
-                                }
+                                const source = audioNode.mainOutput || audioNode;
+                                source.connect(audioSink);
                             }
                             catch (e) {
                                 console.error(`Error connecting ${reteNode.label} to destination:`, e);
@@ -1045,7 +1023,7 @@
                     }
                 }
 
-                // 4. For Arpeggiator nodes, ensure they are started/stopped based on their tempoSource
+                // For Arpeggiator nodes, ensure they are started/stopped based on their tempoSource
                 if (reteNode.label === 'Arpeggiator' && audioNode instanceof Arpeggiator) {
                     // Check if audio context is running to decide if Arpeggiator should be active
                     if (audioContext && audioContext.state === 'running') {
@@ -1057,71 +1035,10 @@
                     }
                 }
             }
-        }
 
-        async function updateAudioGraphConnectionsOld() {
-            if (!audioContext || !editor) return;
-
-            // 1. Disconnect all existing connections in the Web Audio graph
-            reteAudioNodes.forEach(audioNode => {
-                try {
-                    if (audioNode.mainOutput) { // Arpeggiator has a mainOutput
-                        audioNode.mainOutput.disconnect();
-                    } else if (audioNode.disconnect) { // Regular Web Audio nodes
-                        audioNode.disconnect();
-                    }
-                } catch (e) {
-                    console.warn("Error disconnecting audio node:", e);
-                }
-            });
-
-            // 2. Reconnect based on Rete.js editor's connections
-            for (const connection of editor.getConnections()) { // Use editor.getConnections() in v2
-                const sourceNode = editor.getNode(connection.source);
-                const targetNode = editor.getNode(connection.target);
-
-                // Get the actual Web Audio nodes
-                let sourceAudioNode = reteAudioNodes.get(sourceNode.id);
-                let targetAudioNode = reteAudioNodes.get(targetNode.id);
-
-                // If source is an Arpeggiator, use its mainOutput for connection
-                if ((sourceNode.label === 'Arpeggiator' ||  sourceNode.label === 'Chord Generator') && sourceAudioNode && sourceAudioNode.mainOutput) {
-                    sourceAudioNode = sourceAudioNode.mainOutput;
-                }
-
-
-                if (sourceAudioNode && targetAudioNode) {
-                    try {
-                        sourceAudioNode.connect(targetAudioNode);
-                    } catch (e) {
-                        console.error(`Error connecting ${sourceNode.label} to ${targetNode.label}:`, e);
-                    }
-                }
-            }
-
-            // 3. Connect any Rete.js nodes that have outputs but no outgoing connections to the destination
-            for (const reteNode of editor.getNodes()) {
-                const hasOutputs = Object.keys(reteNode.outputs).length > 0;
-
-                if (hasOutputs) {
-                    const hasOutgoingConnection = editor.getConnections().some(conn => conn.source === reteNode.id);
-
-                    if (!hasOutgoingConnection) {
-                        let audioNode = reteAudioNodes.get(reteNode.id);
-                        if (audioNode) {
-                            try {
-                                if ((reteNode.label === 'Arpeggiator' || reteNode.label === 'Chord Generator') && audioNode.mainOutput) {
-                                    audioNode.mainOutput.connect(audioContext.destination);
-                                } else if (audioNode.connect) {
-                                    audioNode.connect(audioContext.destination);
-                                }
-                            }
-                            catch (e) {
-                                console.error(`Error connecting ${reteNode.label} to destination:`, e);
-                            }
-                        }
-                    }
-                }
+            // 5. If a master output node exists, connect it to the final masterGain
+            if (masterOutputAudioNode) {
+                masterOutputAudioNode.connect(masterGain);
             }
         }
 
@@ -1565,6 +1482,30 @@
 
                 this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
+
+                this.data.gain = 1;
+                this.addControl('gain', new SliderControl('gainSlider', 'Gain', 0, 5, 0.01, this.data.gain, (val) => {
+                    this.data.gain = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.gain) {
+                        audioNode.gain.value = val;
+                    }
+                    //area.update('node', this.id);
+                }));
+            }
+
+            build(audioContext) {
+                const audioNode = audioContext.createGain();
+                audioNode.gain.value = this.data.gain !== undefined ? this.data.gain : 1;
+                return audioNode;
+            }
+        }
+
+        class MasterGainOutputNode extends WebAudioNode {
+            constructor() {
+                super('Master Gain Output');
+
+                this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
 
                 this.data.gain = 1;
                 this.addControl('gain', new SliderControl('gainSlider', 'Gain', 0, 5, 0.01, this.data.gain, (val) => {
@@ -2778,6 +2719,7 @@
                     ['ADSR Envelope', () => new ADSREnvelopeNode()], // New: ADSR
                     ['Bitcrusher', () => new BitcrusherNode()], // New: Bitcrusher
                     ['Sequencer', () => new SequencerNode()],
+                    ['Master Gain Output', () => new MasterGainOutputNode()]
 
                 ])
             });
@@ -2859,6 +2801,15 @@
             editor.addPipe(async (context) => {
 
                 if (context.type === 'nodecreate' && context.data instanceof WebAudioNode) {
+                    // Prevent adding more than one Master Gain Output node
+                    if (context.data instanceof MasterGainOutputNode) {
+                        const existingMasterGain = editor.getNodes().find(n => n instanceof MasterGainOutputNode && n.id !== context.data.id);
+                        if (existingMasterGain) {
+                            showMessage('Only one Master Gain Output node is allowed.', 'error');
+                            return false; // Prevent node creation
+                        }
+                    }
+
                     if(!audioContext) {
                         console.warn('AudioContext not active, Nodes will be created when "Start Audio" is clicked.');
                         showMessage(`AudioContext not active, Nodes will be created when "Start Audio" is clicked.`, 'error');
@@ -3076,9 +3027,27 @@
             clearEditorBtn.disabled = false;
         });
 
+        addMasterGainOutputNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new MasterGainOutputNode());
+            clearEditorBtn.disabled = false;
+        });
+
         // Initialize editor on window load
         window.onload = async () => {
             await createEditor();
+
+            const defaultWorkspace = {
+                "nodes": [
+                    { "id": "4", "label": "Tone Generator", "data": { "frequency": 220, "waveform": "sine" }, "position": { "x": 100, "y": 200 } },
+                    { "id": "5", "label": "Master Gain Output", "data": { "gain": 0.5 }, "position": { "x": 400, "y": 200 } }
+                ],
+                "connections": [
+                    { "source": "4", "sourceOutputKey": "audio", "target": "5", "targetInputKey": "audio" }
+                ]
+            };
+
+            await editorFromJSON(defaultWorkspace);
+
             populateWorkspacesDropdown();
             showMessage('Editor ready. Add nodes and then click "Record" or "Play" to start audio.', 'info');
 
