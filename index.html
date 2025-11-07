@@ -229,6 +229,7 @@
                     <button id="recordingActionsToggle" class="button button-secondary">...</button>
                     <div id="recordingActionsDropdown" class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-10">
                         <div class="py-1" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
+                            <button id="loopifyBtn" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem" disabled>➰ Loopify</button>
                             <button id="downloadRecordBtn" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem" disabled>💾 Download</button>
                         </div>
                     </div>
@@ -370,6 +371,7 @@
         const stopRecordBtn = document.getElementById('stopRecordBtn');
         const playRecordBtn = document.getElementById('playRecordBtn');
         const downloadRecordBtn = document.getElementById('downloadRecordBtn');
+        const loopifyBtn = document.getElementById('loopifyBtn');
 
 
         // Rete.js Editor and Engine
@@ -601,6 +603,110 @@
             }, 5000);
         }
 
+        function findLoopPoints(audioBuffer) {
+            const channelData = audioBuffer.getChannelData(0); // Use the first channel for analysis
+            const threshold = 0.001; // Threshold for detecting a zero crossing
+            let start = -1;
+            let end = -1;
+
+            // Find the first zero crossing
+            for (let i = 1; i < channelData.length; i++) {
+                if (channelData[i] > 0 && channelData[i - 1] < 0 || channelData[i] < 0 && channelData[i - 1] > 0) {
+                    if (Math.abs(channelData[i]) < threshold) {
+                        start = i;
+                        break;
+                    }
+                }
+            }
+
+            // Find the last zero crossing
+            for (let i = channelData.length - 1; i > 0; i--) {
+                if (channelData[i] > 0 && channelData[i - 1] < 0 || channelData[i] < 0 && channelData[i - 1] > 0) {
+                    if (Math.abs(channelData[i]) < threshold) {
+                        end = i;
+                        break;
+                    }
+                }
+            }
+
+            if (start === -1 || end === -1 || start >= end) {
+                return { start: 0, end: audioBuffer.length }; // Return full buffer if no suitable loop points are found
+            }
+
+            return { start, end };
+        }
+
+        function sliceAudioBuffer(audioBuffer, loopPoints) {
+            const start = loopPoints.start;
+            const end = loopPoints.end;
+            const length = end - start;
+            const newBuffer = audioContext.createBuffer(
+                audioBuffer.numberOfChannels,
+                length,
+                audioBuffer.sampleRate
+            );
+
+            for (let i = 0; i < audioBuffer.numberOfChannels; i++) {
+                const oldChannelData = audioBuffer.getChannelData(i);
+                const newChannelData = newBuffer.getChannelData(i);
+                newChannelData.set(oldChannelData.subarray(start, end));
+            }
+
+            return newBuffer;
+        }
+
+        // --- WAV Conversion ---
+        function bufferToWave(aBuffer) {
+            let numOfChan = aBuffer.numberOfChannels,
+                btwLength = aBuffer.length * numOfChan * 2 + 44,
+                btwArrBuff = new ArrayBuffer(btwLength),
+                btwView = new DataView(btwArrBuff),
+                btwChan = [],
+                btwIndex,
+                btwSample,
+                btwOffset = 0,
+                btwPos = 0;
+
+            setUint32(0x46464952); // "RIFF"
+            setUint32(btwLength - 8); // file length - 8
+            setUint32(0x45564157); // "WAVE"
+            setUint32(0x20746d66); // "fmt " chunk
+            setUint32(16); // length = 16
+            setUint16(1); // PCM (uncompressed)
+            setUint16(numOfChan);
+            setUint32(aBuffer.sampleRate);
+            setUint32(aBuffer.sampleRate * 2 * numOfChan); // avg. bytes/sec
+            setUint16(numOfChan * 2); // block-align
+            setUint16(16); // 16-bit
+            setUint32(0x61746164); // "data" - chunk
+            setUint32(btwLength - btwPos - 4); // chunk length
+
+            for (btwIndex = 0; btwIndex < aBuffer.numberOfChannels; btwIndex++)
+                btwChan.push(aBuffer.getChannelData(btwIndex));
+
+            while (btwPos < btwLength) {
+                for (btwIndex = 0; btwIndex < numOfChan; btwIndex++) {
+                    btwSample = Math.max(-1, Math.min(1, btwChan[btwIndex][btwOffset])); // clamp
+                    btwSample = (0.5 + btwSample < 0 ? btwSample * 32768 : btwSample * 32767) | 0; // scale to 16-bit signed int
+                    btwView.setInt16(btwPos, btwSample, true); // write 16-bit sample
+                    btwPos += 2;
+                }
+                btwOffset++;
+            }
+
+            return new Blob([btwView], { type: "audio/wav" });
+
+            function setUint16(data) {
+                btwView.setUint16(btwPos, data, true);
+                btwPos += 2;
+            }
+
+            function setUint32(data) {
+                btwView.setUint32(btwPos, data, true);
+                btwPos += 4;
+            }
+        }
+
 
         /**
          * Converts a MIDI note number to its corresponding frequency in Hz.
@@ -784,6 +890,7 @@
                     recordedAudioUrl = URL.createObjectURL(blob);
                     playRecordBtn.disabled = false;
                     downloadRecordBtn.disabled = false;
+                    loopifyBtn.disabled = false;
                 };
 
                 mediaRecorder.start();
@@ -862,6 +969,47 @@
                 a.href = recordedAudioUrl;
                 a.download = 'recording.webm';
                 a.click();
+            }
+        }
+
+        async function loopifyRecording() {
+            if (!recordedAudioUrl) {
+                showMessage('No recording available to loopify.', 'error');
+                return;
+            }
+
+            if (!audioContext || audioContext.state !== 'running') {
+                await startAudio();
+            }
+
+            try {
+                // 1. Get the recorded audio buffer
+                const response = await fetch(recordedAudioUrl);
+                const arrayBuffer = await response.arrayBuffer();
+                const originalBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+                // 2. Find loop points
+                const loopPoints = findLoopPoints(originalBuffer);
+
+                // 3. Slice the buffer to create the loop
+                const loopedBuffer = sliceAudioBuffer(originalBuffer, loopPoints);
+
+                // 4. Convert the loop to a WAV file
+                const wavBlob = bufferToWave(loopedBuffer);
+                const wavUrl = URL.createObjectURL(wavBlob);
+
+                // 5. Trigger the download
+                const a = document.createElement('a');
+                a.href = wavUrl;
+                a.download = 'loop.wav';
+                a.click();
+                URL.revokeObjectURL(wavUrl);
+
+                showMessage('Loopified recording downloaded.', 'success');
+
+            } catch (e) {
+                console.error('Error during loopify process:', e);
+                showMessage('Failed to loopify the recording.', 'error');
             }
         }
 
@@ -2954,6 +3102,11 @@
             playRecordBtn.addEventListener('click', startAudio);
             downloadRecordBtn.addEventListener('click', () => {
                 downloadRecording();
+                document.getElementById('recordingActionsDropdown').classList.add('hidden');
+            });
+
+            loopifyBtn.addEventListener('click', () => {
+                loopifyRecording();
                 document.getElementById('recordingActionsDropdown').classList.add('hidden');
             });
 
