@@ -146,7 +146,7 @@
         .control label {
             display: block;
             font-size: 0.875rem;
-            color: #ffffff;
+            color: #4B5563; /* Changed to gray-600 */
             margin-bottom: 0.25rem;
             text-align: center;
         }
@@ -1829,7 +1829,7 @@
                 const osc = this.audioContext.createOscillator();
                 const gainNode = this.audioContext.createGain();
 
-                osc.type = this.data.waveformType || 'sine'; // Use waveform from node data
+                osc.type = this.data.waveform || 'sine'; // Use waveform from node data
                 osc.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
 
                 // Simple ADSR-like envelope (Attack and Release)
@@ -2013,11 +2013,51 @@
                 this.rootNotes = ROOT_NOTES;
             }
 
-            getSequenceNotes() {
-                const noteSequence = this.data.sequence || 'C4, E4, G4, B4';
-                const noteNames = noteSequence.split(',').map(note => note.trim());
-                const midiNotes = noteNames.map(noteName => this.rootNotes[noteName]).filter(note => note !== undefined);
-                return midiNotes;
+            parseSequence() {
+                const sequence = this.data.sequence || 'C4';
+                const events = sequence.split(/[\s,]+/).filter(s => s.length > 0);
+
+                return events.map(event => {
+                    let noteName = event.match(/[A-G]#?[0-9]/)?.[0] || (event.includes('~') ? '~' : null);
+                    let speed = 1;
+                    let duration = 1;
+                    let elongation = 1;
+
+                    // Speed multiplier/divider
+                    const speedMatch = event.match(/[*\/]\d+/);
+                    if (speedMatch) {
+                        const operator = speedMatch[0][0];
+                        const value = parseInt(speedMatch[0].substring(1), 10);
+                        if (operator === '*') {
+                            speed *= value;
+                        } else if (operator === '/') {
+                            speed /= value;
+                        }
+                    }
+
+                    // Duration weight
+                    const durationMatch = event.match(/@\d+/);
+                    if (durationMatch) {
+                        duration = parseInt(durationMatch[0].substring(1), 10);
+                    }
+
+                    // Elongation
+                    const elongationMatch = event.match(/_/);
+                    if (elongationMatch) {
+                        // This is a simple interpretation. A more complex one might count the underscores.
+                        elongation = 1.5;
+                    }
+
+                    const midi = noteName === '~' ? null : (this.rootNotes[noteName] || null);
+
+                    return {
+                        midi: midi,
+                        speed: speed,
+                        duration: duration,
+                        elongation: elongation,
+                        noteName: noteName // Keep for debugging or other purposes
+                    };
+                });
             }
 
             scheduleNote(midiNote, durationSeconds) {
@@ -2060,42 +2100,45 @@
                 if (this.started || !this.audioContext) return;
 
                 this.started = true;
-                this.currentNoteIndex = 0;
+                this.currentStep = 0;
+                this.nextStepTime = this.audioContext.currentTime;
 
-                const notes = this.getSequenceNotes();
-                const bpm = this.data.bpm || 120;
-                const noteDurationMap = {
-                    '1': 1, '1/2': 2, '1/4': 1, '1/8': 0.5, '1/16': 0.25, '1/32': 0.125
-                };
-                const noteValue = noteDurationMap[this.data.noteDuration] || 0.25; // Default to 1/16th note
+                const sequenceEvents = this.parseSequence();
+                if (sequenceEvents.length === 0) return;
 
-                const secondsPerBeat = 60 / bpm;
-                const intervalMs = (secondsPerBeat * noteValue) * 1000;
+                const schedule = () => {
+                    while (this.nextStepTime < this.audioContext.currentTime + 0.1) {
+                        const event = sequenceEvents[this.currentStep];
 
-                const playNextNote = () => {
-                    if (!this.started) { // Check if sequencer is still active
-                        clearInterval(this.intervalId);
-                        return;
+                        const bpm = this.data.bpm || 120;
+                        const noteDurationMap = { '1': 4, '1/2': 2, '1/4': 1, '1/8': 0.5, '1/16': 0.25, '1/32': 0.125 };
+                        const baseNoteDuration = noteDurationMap[this.data.noteDuration] || 0.25;
+                        const secondsPerBeat = 60.0 / bpm;
+
+                        const stepDuration = secondsPerBeat * baseNoteDuration * (1 / event.speed) * event.duration;
+
+                        if (event.midi !== null) {
+                            const noteLength = stepDuration * event.elongation;
+                            this.scheduleNote(event.midi, noteLength);
+                        }
+
+                        this.nextStepTime += stepDuration;
+                        this.currentStep = (this.currentStep + 1) % sequenceEvents.length;
                     }
-                    if (notes.length === 0) return;
 
-                    const midiNote = notes[this.currentNoteIndex];
-                    this.scheduleNote(midiNote, secondsPerBeat * noteValue); // Use noteValue as duration
-
-                    this.currentNoteIndex = (this.currentNoteIndex + 1) % notes.length;
+                    if (this.started) {
+                        this.timeoutId = setTimeout(schedule, 25);
+                    }
                 };
 
-                // Play first note immediately, then schedule interval
-                playNextNote();
-                this.intervalId = setInterval(playNextNote, intervalMs);
-
-                console.log(`Sequencer started with BPM: ${bpm}, Note Duration: ${this.data.noteDuration}`);
+                schedule();
+                console.log(`Sequencer started with BPM: ${this.data.bpm}, Note Duration: ${this.data.noteDuration}`);
             }
 
             stop() {
                 if (!this.started) return;
-                clearInterval(this.intervalId);
-                this.intervalId = null;
+                clearTimeout(this.timeoutId);
+                this.timeoutId = null;
                 this.started = false;
                 console.log('Sequencer stopped.');
             }
