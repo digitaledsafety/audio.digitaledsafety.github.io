@@ -406,13 +406,17 @@
                 const sourceNode = editor.getNode(conn.source);
                 const targetNode = editor.getNode(conn.target);
 
-                connections.push({
-                    id: conn.id,
-                    source: conn.source,
-                    sourceOutput: conn.sourceOutput,
-                    target: conn.target,
-                    targetInput: conn.targetInput
-                });
+                if (sourceOutputKey && targetInputKey) {
+                    connections.push({
+                        id: conn.id,
+                        source: conn.source,
+                        sourceOutputKey: sourceOutputKey,
+                        target: conn.target,
+                        targetInputKey: targetInputKey
+                    });
+                } else {
+                    console.warn('Could not find socket keys for connection:', conn);
+                }
             }
 
             return { nodes, connections };
