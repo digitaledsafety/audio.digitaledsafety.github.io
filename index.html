@@ -256,11 +256,6 @@
                 </div>
             </div>
 
-            <!-- Visualizer Controls -->
-            <div id="visualizer-controls" class="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                <button id="toggleVisualizerBtn" class="button button-secondary">👁️ Show Visualizer</button>
-            </div>
-
             <!-- Node Addition Controls -->
             <div id="node-add-controls" class="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
                 <!-- Dropdown for adding nodes -->
@@ -287,15 +282,17 @@
                     </div>
                 </div>
                 <button id="clearEditorBtn" class="button button-danger" disabled>🗑️ Clear All</button>
+                <button id="toggleVisualizerBtn" class="button button-secondary">👁️ Show Visualizer</button>
             </div>
         </div>
 
         <div id="messageBox" class="message-box hidden"></div>
+        <canvas id="visualizer" class="w-full h-64 border border-gray-300 rounded-lg mt-4" style="display: none;"></canvas>
+
 
         <div id="rete" class="relative">
             </div>
 
-        <canvas id="visualizer" class="w-full h-64 border border-gray-300 rounded-lg mt-4" style="display: none;"></canvas>
     </div>
 
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/rete@2.0.0-beta.6/rete.min.js"></script>
