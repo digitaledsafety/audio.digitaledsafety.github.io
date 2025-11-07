@@ -3334,21 +3334,40 @@
             return mat2(c, -s, s, c);
         }
 
+        float rand(vec2 n) {
+            return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453);
+        }
+
         void main() {
             vec2 uv = (gl_FragCoord.xy * 2.0 - u_resolution.xy) / u_resolution.y;
+            vec2 original_uv = uv;
 
             float bass = texture2D(u_frequency_data, vec2(0.1, 0.0)).r;
-            float mid = texture2D(u_frequency_data, vec2(0.4, 0.0)).r;
-            float high = texture2D(u_frequency_data, vec2(0.8, 0.0)).r;
+            float mid = texture2D(u_frequency_data, vec2(0.5, 0.0)).r;
+            float high = texture2D(u_frequency_data, vec2(0.9, 0.0)).r;
 
-            uv *= rotate(mid * 3.14 * 2.0);
+            // --- Ambient Rotation ---
+            uv *= rotate(u_time * 0.2);
 
-            float d = length(uv);
+            // --- Bass-driven pulsing square ---
+            float square = step(abs(uv.x), 0.2 + bass * 0.3) * step(abs(uv.y), 0.2 + bass * 0.3);
+            vec3 color = vec3(square);
 
-            vec3 color = vec3(0.0);
+            // --- Mid-frequency glitchy lines ---
+            if (mid > 0.5) {
+                float lines = sin(uv.x * 20.0 + u_time * 10.0) * sin(uv.y * 20.0 + u_time * 10.0);
+                color += vec3(lines * mid, 0.0, lines * mid);
+            }
 
-            float ring = step(0.5, d) - step(0.6, d);
-            color += vec3(ring * bass, ring * mid, ring * high);
+            // --- High-frequency noise/static ---
+            if (high > 0.6) {
+                color += rand(original_uv * u_time) * high;
+            }
+
+            // --- Final color mixing ---
+            color.r += sin(u_time) * 0.5 + 0.5;
+            color.g = mix(color.g, 1.0, bass);
+            color.b = mix(color.b, 1.0, high);
 
             gl_FragColor = vec4(color, 1.0);
         }
