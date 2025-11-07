@@ -277,6 +277,7 @@
                             <button id="addLFONodeBtn" class="button button-secondary w-full text-xs">🌊 LFO</button>
                             <button id="addADSREnvelopeNodeBtn" class="button button-secondary w-full text-xs">✉️ ADSR</button>
                             <button id="addBitcrusherNodeBtn" class="button button-secondary w-full text-xs">👾 Bitcrusher</button>
+                            <button id="addSequencerNodeBtn" class="button button-secondary w-full text-xs">🎶 Sequencer</button>
                         </div>
                     </div>
                 </div>
@@ -363,6 +364,7 @@
         const addLFONodeBtn = document.getElementById('addLFONodeBtn'); // New LFO button
         const addADSREnvelopeNodeBtn = document.getElementById('addADSREnvelopeNodeBtn'); // New ADSR button
         const addBitcrusherNodeBtn = document.getElementById('addBitcrusherNodeBtn'); // New Bitcrusher button
+        const addSequencerNodeBtn = document.getElementById('addSequencerNodeBtn');
         const clearEditorBtn = document.getElementById('clearEditorBtn');
         const reteContainer = document.getElementById('rete');
         const messageBox = document.getElementById('messageBox');
@@ -433,7 +435,8 @@
                 'Arpeggiator': ArpeggiatorNode,
                 'LFO': LFONode,
                 'ADSR Envelope': ADSREnvelopeNode,
-                'Bitcrusher': BitcrusherNode
+                'Bitcrusher': BitcrusherNode,
+                'Sequencer': SequencerNode
             };
 
             // Create nodes first
@@ -1987,6 +1990,178 @@
 
 
 
+        // --- New Sequencer Node ---
+        // Internal class to manage the Web Audio API aspects of the Sequencer
+        class Sequencer {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data; // Reference to the Rete.js node's data
+                this.started = false;
+                this.intervalId = null;
+                this.currentNoteIndex = 0;
+
+                // Master gain for the Sequencer output
+                this.mainOutput = this.audioContext.createGain();
+                this.mainOutput.gain.value = 0.5; // Default volume for sequencer
+
+                this.setupNotes();
+            }
+
+            setupNotes() {
+                // Root note MIDI numbers
+                this.rootNotes = ROOT_NOTES;
+            }
+
+            getSequenceNotes() {
+                const noteSequence = this.data.sequence || 'C4, E4, G4, B4';
+                const noteNames = noteSequence.split(',').map(note => note.trim());
+                const midiNotes = noteNames.map(noteName => this.rootNotes[noteName]).filter(note => note !== undefined);
+                return midiNotes;
+            }
+
+            scheduleNote(midiNote, durationSeconds) {
+                if (!this.audioContext) return;
+
+                const frequency = midiToFrequency(midiNote);
+                const osc = this.audioContext.createOscillator();
+                const gainNode = this.audioContext.createGain();
+
+                osc.type = this.data.waveformType || 'sine'; // Use waveform from node data
+                osc.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+
+                // Simple ADSR-like envelope (Attack and Release)
+                const attackTime = 0.01;
+                const releaseTime = 0.1;
+                const rampTime = 0.001;
+
+                gainNode.gain.setValueAtTime(0, this.audioContext.currentTime); // Start at 0
+                gainNode.gain.linearRampToValueAtTime(0.3, this.audioContext.currentTime + attackTime); // Attack
+
+                let myRampTime = this.audioContext.currentTime + durationSeconds - releaseTime;
+                // Error when myRampTime less than 0.001
+                gainNode.gain.exponentialRampToValueAtTime(rampTime, ((myRampTime < rampTime) ? rampTime : myRampTime)); // Release
+                gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + durationSeconds); // Turn off
+
+                osc.connect(gainNode);
+                gainNode.connect(this.mainOutput); // Connect to sequencer's main output
+
+                osc.start(this.audioContext.currentTime);
+                osc.stop(this.audioContext.currentTime + durationSeconds);
+
+                // Clean up nodes after they stop
+                osc.onended = () => {
+                    osc.disconnect();
+                    gainNode.disconnect();
+                };
+            }
+
+            start() {
+                if (this.started || !this.audioContext) return;
+
+                this.started = true;
+                this.currentNoteIndex = 0;
+
+                const notes = this.getSequenceNotes();
+                const bpm = this.data.bpm || 120;
+                const noteDurationMap = {
+                    '1': 1, '1/2': 2, '1/4': 1, '1/8': 0.5, '1/16': 0.25, '1/32': 0.125
+                };
+                const noteValue = noteDurationMap[this.data.noteDuration] || 0.25; // Default to 1/16th note
+
+                const secondsPerBeat = 60 / bpm;
+                const intervalMs = (secondsPerBeat * noteValue) * 1000;
+
+                const playNextNote = () => {
+                    if (!this.started) { // Check if sequencer is still active
+                        clearInterval(this.intervalId);
+                        return;
+                    }
+                    if (notes.length === 0) return;
+
+                    const midiNote = notes[this.currentNoteIndex];
+                    this.scheduleNote(midiNote, secondsPerBeat * noteValue); // Use noteValue as duration
+
+                    this.currentNoteIndex = (this.currentNoteIndex + 1) % notes.length;
+                };
+
+                // Play first note immediately, then schedule interval
+                playNextNote();
+                this.intervalId = setInterval(playNextNote, intervalMs);
+
+                console.log(`Sequencer started with BPM: ${bpm}, Note Duration: ${this.data.noteDuration}`);
+            }
+
+            stop() {
+                if (!this.started) return;
+                clearInterval(this.intervalId);
+                this.intervalId = null;
+                this.started = false;
+                console.log('Sequencer stopped.');
+            }
+
+            // Method to update parameters dynamically (called from Rete.js control changes)
+            updateParameter(param, value) {
+                this.data[param] = value;
+                if (this.started) {
+                    // Restart sequencer to apply new tempo/notes
+                    this.stop();
+                    this.start();
+                }
+            }
+        }
+
+        class SequencerNode extends WebAudioNode {
+            constructor() {
+                super('Sequencer');
+                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
+
+                this.data.bpm = 120;
+                this.addControl('bpm', new SliderControl('seqBpm', 'BPM', 60, 240, 1, this.data.bpm, (val) => {
+                    this.data.bpm = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('bpm', val);
+                }));
+
+                this.data.noteDuration = '1/16';
+                this.addControl('noteDuration', new SelectControl('seqNoteDuration', 'Note Duration', ['1', '1/2', '1/4', '1/8', '1/16', '1/32'], this.data.noteDuration, (val) => {
+                    this.data.noteDuration = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('noteDuration', val);
+                }));
+
+                this.data.sequence = 'C4, E4, G4, B4';
+                this.addControl('sequence', new TextControl('seqSequence', 'Sequence', this.data.sequence, (val) => {
+                    this.data.sequence = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('sequence', val);
+                }));
+
+                this.data.waveform = 'sine';
+                this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveform, (val) => {
+                    this.data.waveform = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('waveform', val);
+                }));
+            }
+
+            build(audioContext) {
+                return new Sequencer(audioContext, this.id, this.data);
+            }
+
+            start() {
+                const audioNode = reteAudioNodes.get(this.id);
+                if (audioNode && audioNode.start && !audioNode.started) {
+                    try {
+                        audioNode.start();
+                        audioNode.started = true;
+                    } catch (e) {
+                        console.warn(`Could not start ${this.label} for node ${this.id}:`, e);
+                    }
+                }
+            }
+        }
+
         // --- New Effects Nodes ---
 
         class DistortionNode extends WebAudioNode {
@@ -2559,6 +2734,7 @@
                     ['LFO', () => new LFONode()], // New: LFO
                     ['ADSR Envelope', () => new ADSREnvelopeNode()], // New: ADSR
                     ['Bitcrusher', () => new BitcrusherNode()], // New: Bitcrusher
+                    ['Sequencer', () => new SequencerNode()],
 
                 ])
             });
@@ -2849,6 +3025,11 @@
 
         addBitcrusherNodeBtn.addEventListener('click', async () => {
             await editor.addNode(new BitcrusherNode());
+            clearEditorBtn.disabled = false;
+        });
+
+        addSequencerNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new SequencerNode());
             clearEditorBtn.disabled = false;
         });
 
