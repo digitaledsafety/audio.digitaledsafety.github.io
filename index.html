@@ -268,6 +268,8 @@
                             <button id="addWavePlayerNodeBtn" class="button button-secondary w-full text-xs">🎵 Wave Player</button>
                             <button id="addChordGeneratorNodeBtn" class="button button-secondary w-full text-xs">🎼 Chord Gen</button>
                             <button id="addGainNodeBtn" class="button button-secondary w-full text-xs">🎚️ Gain</button>
+                            <button id="addMixerNodeBtn" class="button button-secondary w-full text-xs">🎛️ Mixer</button>
+                            <button id="addMasterGainOutputNodeBtn" class="button button-secondary w-full text-xs">🔊 Master</button>
                             <button id="addFilterNodeBtn" class="button button-secondary w-full text-xs">📉 Filter</button>
                             <button id="addDelayNodeBtn" class="button button-secondary w-full text-xs">⏳ Delay</button>
                             <button id="addDistortionNodeBtn" class="button button-secondary w-full text-xs">🎸 Distortion</button>
@@ -360,6 +362,8 @@
         const addWavePlayerNodeBtn = document.getElementById('addWavePlayerNodeBtn');
         const addChordGeneratorNodeBtn = document.getElementById('addChordGeneratorNodeBtn'); // New Chord Generator Button
         const addGainNodeBtn = document.getElementById('addGainNodeBtn');
+        const addMixerNodeBtn = document.getElementById('addMixerNodeBtn');
+        const addMasterGainOutputNodeBtn = document.getElementById('addMasterGainOutputNodeBtn');
         const addFilterNodeBtn = document.getElementById('addFilterNodeBtn');
         const addDelayNodeBtn = document.getElementById('addDelayNodeBtn');
         const addArpeggiatorNodeBtn = document.getElementById('addArpeggiatorNodeBtn'); // New Button
@@ -430,6 +434,8 @@
                 'Wave Player': WavePlayerNode,
                 'Chord Generator': ChordGeneratorNode,
                 'Gain': GainNode,
+                'Mixer': MixerNode,
+                'Master': MasterGainOutputNode,
                 'Filter': FilterNode,
                 'Delay': DelayNode,
                 'Distortion': DistortionNode,
@@ -944,12 +950,18 @@
             for (const connection of editor.getConnections()) {
                 const sourceNode = reteAudioNodes.get(connection.source);
                 const targetNode = reteAudioNodes.get(connection.target);
+                const targetReteNode = editor.getNode(connection.target);
 
                 if (sourceNode && targetNode) {
                     const source = sourceNode.mainOutput ? sourceNode.mainOutput : sourceNode;
                     try {
                         if (connection.targetInput === 'fm' && targetNode.frequency) {
                             source.disconnect(targetNode.frequency);
+                        } else if (targetReteNode.label === 'Mixer') {
+                            const inputIndex = parseInt(connection.targetInput.replace('in', ''), 10) - 1;
+                            if (targetNode.inputs && targetNode.inputs[inputIndex]) {
+                                source.disconnect(targetNode.inputs[inputIndex]);
+                            }
                         } else {
                             source.disconnect(targetNode);
                         }
@@ -965,7 +977,7 @@
                 const targetNode = editor.getNode(connection.target);
 
                 // Handle AUDIO connections
-                if (connection.targetInput === 'audio') { // Standard audio connection
+                if (connection.targetInput === 'audio' || (targetNode.label === 'Mixer' && connection.targetInput.startsWith('in'))) { // Standard audio connection
                     let sourceAudioNode = reteAudioNodes.get(sourceNode.id);
                     let targetAudioNode = reteAudioNodes.get(targetNode.id);
 
@@ -977,8 +989,16 @@
                     
                     if (sourceAudioNode && targetAudioNode) {
                         try {
-                            sourceAudioNode.connect(targetAudioNode);
-                            console.log(`Audio connected: ${sourceNode.label} to ${targetNode.label}`);
+                            if (targetNode.label === 'Mixer') {
+                                const inputIndex = parseInt(connection.targetInput.replace('in', '')) - 1;
+                                if (targetAudioNode.inputs && targetAudioNode.inputs[inputIndex]) {
+                                    sourceAudioNode.connect(targetAudioNode.inputs[inputIndex]);
+                                    console.log(`Audio connected: ${sourceNode.label} to ${targetNode.label}`);
+                                }
+                            } else {
+                                sourceAudioNode.connect(targetAudioNode);
+                                console.log(`Audio connected: ${sourceNode.label} to ${targetNode.label}`);
+                            }
                         } catch (e) {
                             console.error(`Error connecting audio from ${sourceNode.label} to ${targetNode.label}:`, e);
                         }
@@ -1022,6 +1042,9 @@
             }
 
             // 3. Connect any Rete.js audio nodes that have outputs but no outgoing AUDIO connections to the destination.
+            const masterOutputNode = editor.getNodes().find(n => n.label === 'Master');
+            const masterOutputAudioNode = masterOutputNode ? reteAudioNodes.get(masterOutputNode.id) : null;
+
             for (const reteNode of editor.getNodes()) {
                 const audioNode = reteAudioNodes.get(reteNode.id);
                 const hasAudioOutputs = Object.keys(reteNode.outputs).some(key => reteNode.outputs[key].socket === audioSocket);
@@ -1037,11 +1060,12 @@
                     if (!hasOutgoingAudioConnection && audioContext && audioContext.state === 'running') {
                         if (audioNode) {
                             try {
+                                const destination = masterOutputAudioNode || masterGain;
                                 // If the audio node has a mainOutput, connect that to the master gain. Otherwise, connect the node itself.
                                 if (audioNode.mainOutput) {
-                                    audioNode.mainOutput.connect(masterGain);
+                                    audioNode.mainOutput.connect(destination);
                                 } else if (audioNode.connect) {
-                                    audioNode.connect(masterGain);
+                                    audioNode.connect(destination);
                                 }
                             }
                             catch (e) {
@@ -1587,6 +1611,98 @@
                 const audioNode = audioContext.createGain();
                 audioNode.gain.value = this.data.gain !== undefined ? this.data.gain : 1;
                 return audioNode;
+            }
+        }
+
+        class MixerNode extends WebAudioNode {
+            constructor() {
+                super('Mixer');
+
+                this.addInput('in1', new Classic.Input(audioSocket, 'In 1'));
+                this.addInput('in2', new Classic.Input(audioSocket, 'In 2'));
+                this.addInput('in3', new Classic.Input(audioSocket, 'In 3'));
+                this.addInput('in4', new Classic.Input(audioSocket, 'In 4'));
+                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
+
+                this.data.gain1 = 0.5;
+                this.addControl('gain1', new SliderControl('gainSlider1', 'Gain 1', 0, 1, 0.01, this.data.gain1, (val) => {
+                    this.data.gain1 = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.inputs && audioNode.inputs[0]) {
+                        audioNode.inputs[0].gain.value = val;
+                    }
+                }));
+
+                this.data.gain2 = 0.5;
+                this.addControl('gain2', new SliderControl('gainSlider2', 'Gain 2', 0, 1, 0.01, this.data.gain2, (val) => {
+                    this.data.gain2 = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.inputs && audioNode.inputs[1]) {
+                        audioNode.inputs[1].gain.value = val;
+                    }
+                }));
+
+                this.data.gain3 = 0.5;
+                this.addControl('gain3', new SliderControl('gainSlider3', 'Gain 3', 0, 1, 0.01, this.data.gain3, (val) => {
+                    this.data.gain3 = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.inputs && audioNode.inputs[2]) {
+                        audioNode.inputs[2].gain.value = val;
+                    }
+                }));
+
+                this.data.gain4 = 0.5;
+                this.addControl('gain4', new SliderControl('gainSlider4', 'Gain 4', 0, 1, 0.01, this.data.gain4, (val) => {
+                    this.data.gain4 = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.inputs && audioNode.inputs[3]) {
+                        audioNode.inputs[3].gain.value = val;
+                    }
+                }));
+            }
+
+            build(audioContext) {
+                const mixer = {
+                    mainOutput: audioContext.createGain(),
+                    inputs: [
+                        audioContext.createGain(),
+                        audioContext.createGain(),
+                        audioContext.createGain(),
+                        audioContext.createGain()
+                    ]
+                };
+
+                mixer.inputs.forEach(input => input.connect(mixer.mainOutput));
+
+                mixer.inputs[0].gain.value = this.data.gain1;
+                mixer.inputs[1].gain.value = this.data.gain2;
+                mixer.inputs[2].gain.value = this.data.gain3;
+                mixer.inputs[3].gain.value = this.data.gain4;
+
+                return mixer;
+            }
+        }
+
+        class MasterGainOutputNode extends WebAudioNode {
+            constructor() {
+                super('Master');
+                this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
+
+                this.data.gain = 0.5;
+                this.addControl('gain', new SliderControl('gainSlider', 'Gain', 0, 1, 0.01, this.data.gain, (val) => {
+                    this.data.gain = val;
+                    if (masterGain) {
+                        masterGain.gain.value = val;
+                    }
+                }));
+            }
+
+            build(audioContext) {
+                // This node doesn't create a new audio node, it controls the global masterGain
+                if (masterGain) {
+                    masterGain.gain.value = this.data.gain;
+                }
+                return masterGain; // Return the existing masterGain
             }
         }
 
@@ -2774,6 +2890,8 @@
                     ['Wave Player', () => new WavePlayerNode()],
                     ['Chord Generator', () => new ChordGeneratorNode()], // Add Chord Generator to Context Menu
                     ['Gain', () => new GainNode()],
+                    ['Mixer', () => new MixerNode()],
+                    ['Master', () => new MasterGainOutputNode()],
                     ['Filter', () => new FilterNode()],
                     ['Delay', () => new DelayNode()],
                     ['Distortion', () => new DistortionNode()],   // New Context Menu Item
@@ -2865,6 +2983,13 @@
             editor.addPipe(async (context) => {
 
                 if (context.type === 'nodecreate' && context.data instanceof WebAudioNode) {
+                    if (context.data.label === 'Master') {
+                        const existingMaster = editor.getNodes().find(n => n.label === 'Master');
+                        if (existingMaster) {
+                            showMessage('Only one Master Output node is allowed.', 'error');
+                            return; // Stop the creation process by returning nothing
+                        }
+                    }
                     if(!audioContext) {
                         console.warn('AudioContext not active, Nodes will be created when "Start Audio" is clicked.');
                         showMessage(`AudioContext not active, Nodes will be created when "Start Audio" is clicked.`, 'error');
@@ -3006,6 +3131,20 @@
             clearEditorBtn.disabled = false; // Enable clear button after adding node
         });
 
+        addMixerNodeBtn.addEventListener('click', async () => {
+            const node = new MixerNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+        });
+
+        addMasterGainOutputNodeBtn.addEventListener('click', async () => {
+            const node = new MasterGainOutputNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+        });
+
 
         addGainNodeBtn.addEventListener('click', async () => {
             const node = new GainNode();
@@ -3085,6 +3224,51 @@
         // Initialize editor on window load
         window.onload = async () => {
             await createEditor();
+
+            const defaultWorkspace = {
+              "nodes": [
+                {
+                  "id": "1",
+                  "label": "Tone Generator",
+                  "data": { "frequency": 220, "waveform": "sawtooth" },
+                  "position": { "x": 100, "y": 100 }
+                },
+                {
+                  "id": "2",
+                  "label": "LFO",
+                  "data": { "frequency": 10, "waveform": "square", "amount": 100 },
+                  "position": { "x": 100, "y": 300 }
+                },
+                {
+                  "id": "3",
+                  "label": "Noise Generator",
+                  "data": { "gainValue": 0.1 },
+                  "position": { "x": 100, "y": 500 }
+                },
+                {
+                  "id": "4",
+                  "label": "Mixer",
+                  "data": { "gain1": 0.5, "gain2": 0.2, "gain3": 0.5, "gain4": 0.5 },
+                  "position": { "x": 400, "y": 300 }
+                },
+                {
+                  "id": "5",
+                  "label": "Master",
+                  "data": { "gain": 0.5 },
+                  "position": { "x": 700, "y": 300 }
+                }
+              ],
+              "connections": [
+                { "id": "conn1", "source": "2", "sourceOutput": "audio", "target": "1", "targetInput": "fm" },
+                { "id": "conn2", "source": "1", "sourceOutput": "audio", "target": "4", "targetInput": "in1" },
+                { "id": "conn3", "source": "3", "sourceOutput": "audio", "target": "4", "targetInput": "in2" },
+                { "id": "conn4", "source": "4", "sourceOutput": "audio", "target": "5", "targetInput": "audio" }
+              ]
+            };
+
+            await editorFromJSON(defaultWorkspace);
+
+
             populateWorkspacesDropdown();
             showMessage('Editor ready. Add nodes and then click "Record" or "Play" to start audio.', 'info');
 
