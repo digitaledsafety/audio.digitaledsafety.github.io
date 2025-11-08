@@ -458,17 +458,16 @@
                     // Critical: Overwrite the default data with saved data
                     node.data = { ...node.data, ...nodeData.data };
 
-                    await editor.addNode(node);
-                    await area.translate(node.id, nodeData.position);
-                    
-                    // Re-apply control values to the controls themselves after creation
+                    // Pre-apply control values so the initial render is correct
                     for (const key in node.controls) {
                         const control = node.controls[key];
-                         if (node.data.hasOwnProperty(key)) {
-                             control.value = node.data[key];
+                        if (node.data.hasOwnProperty(key)) {
+                            control.value = node.data[key];
                         }
                     }
-                    area.update('node', node.id);
+
+                    await editor.addNode(node);
+                    await area.translate(node.id, nodeData.position);
 
 
                 } else {
@@ -2523,7 +2522,7 @@
                 }));
 
                 this.data.amount = 0.5; // Amplitude of the LFO output
-                this.addControl('amount', new SliderControl('lfoAmount', 'Amount', 0, 1, 0.01, this.data.amount, (val) => {
+                this.addControl('amount', new SliderControl('lfoAmount', 'Amount', 0, 1000, 1, this.data.amount, (val) => {
                     this.data.amount = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode instanceof LFOGenerator) audioNode.updateParameter('amount', val);
@@ -2943,12 +2942,14 @@
                     // Check if node data is valid and it's a known node type
                     if (context.data.payload instanceof WebAudioNode) {
                         const nodeView = new CustomNodeComponent(context.data.payload);
-                        let elements = context.data.element.children[0].getElementsByClassName("control");
-                        while(elements.length > 0){
-                          elements[0].parentNode.removeChild(elements[0]);
-                        } 
-                        context.data.element.children[0].style.height = "auto";
-                        context.data.element.children[0].appendChild(nodeView.el); // Append the custom node's DOM element
+                        if (context.data.element.children[0]) {
+                            let elements = context.data.element.children[0].getElementsByClassName("control");
+                            while(elements.length > 0){
+                              elements[0].parentNode.removeChild(elements[0]);
+                            }
+                            context.data.element.children[0].style.height = "auto";
+                            context.data.element.children[0].appendChild(nodeView.el); // Append the custom node's DOM element
+                        }
                     }
                 }
                 // Handle socket rendering for custom nodes
@@ -3236,7 +3237,7 @@
                 {
                   "id": "2",
                   "label": "LFO",
-                  "data": { "frequency": 10, "waveform": "square", "amount": 100 },
+                  "data": { "frequency": 10, "waveform": "square", "amount": 200 },
                   "position": { "x": 100, "y": 300 }
                 },
                 {
