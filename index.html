@@ -957,6 +957,8 @@
                     try {
                         if (connection.targetInput === 'fm' && targetNode.frequency) {
                             source.disconnect(targetNode.frequency);
+                        } else if (connection.targetInput === 'gain' && targetNode.gain) {
+                            source.disconnect(targetNode.gain);
                         } else if (targetReteNode.label === 'Mixer') {
                             const inputIndex = parseInt(connection.targetInput.replace('in', ''), 10) - 1;
                             if (targetNode.inputs && targetNode.inputs[inputIndex]) {
@@ -1004,6 +1006,26 @@
                         }
                     }
                 }
+                // Handle GAIN connections (for ADSR)
+                else if (connection.targetInput === 'gain') {
+                    let sourceAudioNode = reteAudioNodes.get(sourceNode.id);
+                    let targetAudioNode = reteAudioNodes.get(targetNode.id);
+
+                    // The source (e.g., ADSR) might have a mainOutput which is the control signal
+                    if (sourceAudioNode && sourceAudioNode.mainOutput) {
+                        sourceAudioNode = sourceAudioNode.mainOutput;
+                    }
+
+                    // The target (GainNode) has a .gain AudioParam
+                    if (sourceAudioNode && targetAudioNode && targetAudioNode.gain) {
+                        try {
+                            sourceAudioNode.connect(targetAudioNode.gain);
+                            console.log(`Gain Modulation connected: ${sourceNode.label} to ${targetNode.label}'s gain`);
+                        } catch (e) {
+                            console.error(`Error connecting Gain Modulation from ${sourceNode.label} to ${targetNode.label}:`, e);
+                        }
+                    }
+                }
                 // Handle FM connections
                 else if (connection.targetInput === 'fm') {
                     let sourceAudioNode = reteAudioNodes.get(sourceNode.id);
@@ -1047,6 +1069,20 @@
 
             for (const reteNode of editor.getNodes()) {
                 const audioNode = reteAudioNodes.get(reteNode.id);
+
+                // Set initial gain values for GainNodes, which might be overridden by connections
+                if (reteNode.label === 'Gain' && audioNode && audioNode.gain) {
+                    const isModulated = editor.getConnections().some(c => c.target === reteNode.id && c.targetInput === 'gain');
+                    if (isModulated) {
+                        // If a modulator is connected, the intrinsic gain should be 0,
+                        // so the modulator controls the full range from 0.
+                        audioNode.gain.value = 0;
+                    } else {
+                        // Otherwise, use the value from the slider.
+                        audioNode.gain.value = reteNode.data.gain;
+                    }
+                }
+
                 const hasAudioOutputs = Object.keys(reteNode.outputs).some(key => reteNode.outputs[key].socket === audioSocket);
 
                 if (hasAudioOutputs) {
@@ -1594,16 +1630,18 @@
                 super('Gain');
 
                 this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
+                this.addInput('gain', new Classic.Input(audioSocket, 'Gain In'));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
 
                 this.data.gain = 1;
-                this.addControl('gain', new SliderControl('gainSlider', 'Gain', 0, 5, 0.01, this.data.gain, (val) => {
+                this.addControl('gain', new SliderControl('gainSlider', 'Gain', 0, 1, 0.01, this.data.gain, (val) => {
                     this.data.gain = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.gain) {
+                        // This will be overridden by a connected modulator, which is the intended behavior.
+                        // The updateAudioGraphConnections function will manage the base value.
                         audioNode.gain.value = val;
                     }
-                    //area.update('node', this.id);
                 }));
             }
 
@@ -2555,8 +2593,20 @@
                 this.data = data;
                 this.started = false; // Indicates if an envelope is currently active
 
-                this.mainOutput = this.audioContext.createGain();
-                this.mainOutput.gain.value = 0; // Starts at 0
+                // This GainNode is the core of the ADSR. Its gain value IS the envelope.
+                this.controlGain = this.audioContext.createGain();
+                this.controlGain.gain.value = 0;
+
+                // Create a constant audio source that outputs a steady value of 1.
+                const constantSource = this.audioContext.createConstantSource();
+                constantSource.offset.value = 1;
+                constantSource.start();
+
+                // Connect the constant source through the controlGain. The output of this
+                // is the control signal that will modulate other parameters.
+                constantSource.connect(this.controlGain);
+
+                this.mainOutput = this.controlGain; // The output is now the control signal
 
                 this.updateParameter('attack', this.data.attack || 0.1, false);
                 this.updateParameter('decay', this.data.decay || 0.1, false);
@@ -2569,7 +2619,7 @@
                 if (!this.audioContext || this.audioContext.state !== 'running') return;
 
                 const now = this.audioContext.currentTime;
-                const gain = this.mainOutput.gain;
+                const gain = this.controlGain.gain;
 
                 // Cancel any ongoing ramps
                 gain.cancelScheduledValues(now);
@@ -2589,7 +2639,7 @@
                 if (!this.audioContext || this.audioContext.state !== 'running' || !this.started) return;
 
                 const now = this.audioContext.currentTime;
-                const gain = this.mainOutput.gain;
+                const gain = this.controlGain.gain;
 
                 // Cancel any ongoing ramps
                 gain.cancelScheduledValues(now);
