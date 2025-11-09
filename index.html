@@ -1064,9 +1064,9 @@
 
                     // Connect to destination by default, unless the node is a modulator type
                     // that explicitly sets this to false.
-                    //const connectByDefault = reteNode.connectToDestinationByDefault !== false;
+                    const connectByDefault = reteNode.connectToDestinationByDefault !== false;
 
-                    if (!hasOutgoingAudioConnection && audioContext && audioContext.state === 'running') {
+                    if (!hasOutgoingAudioConnection && connectByDefault && audioContext && audioContext.state === 'running') {
                         if (audioNode) {
                             try {
                                 const destination = masterOutputAudioNode || masterGain;
