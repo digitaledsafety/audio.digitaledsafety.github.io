@@ -1041,21 +1041,7 @@
                 }
             }
 
-            // 3. Before connecting to the destination, check for FM connections to mute the direct signal of ToneGenerators.
-            for (const reteNode of editor.getNodes()) {
-                if (reteNode instanceof ToneGeneratorNode) {
-                    const audioNode = reteAudioNodes.get(reteNode.id);
-                    if (audioNode instanceof ToneGenerator) {
-                        const hasFMConnection = editor.getConnections().some(conn =>
-                            conn.target === reteNode.id && conn.targetInput === 'fm'
-                        );
-                        // If there's an FM connection, mute the direct output. Otherwise, set it to full volume.
-                        audioNode.mainOutput.gain.value = hasFMConnection ? 0 : 1;
-                    }
-                }
-            }
-
-            // 4. Connect any Rete.js audio nodes that have outputs but no outgoing AUDIO connections to the destination.
+            // 3. Connect any Rete.js audio nodes that have outputs but no outgoing AUDIO connections to the destination.
             const masterOutputNode = editor.getNodes().find(n => n.label === 'Master');
             const masterOutputAudioNode = masterOutputNode ? reteAudioNodes.get(masterOutputNode.id) : null;
 
@@ -1067,6 +1053,10 @@
                     const hasOutgoingAudioConnection = editor.getConnections().some(conn =>
                         conn.source === reteNode.id && conn.sourceOutput.socket === audioSocket);
 
+                    // Connect to destination by default, unless the node is a modulator type
+                    // that explicitly sets this to false.
+                    //const connectByDefault = reteNode.connectToDestinationByDefault !== false;
+
                     if (!hasOutgoingAudioConnection && audioContext && audioContext.state === 'running') {
                         if (audioNode) {
                             try {
@@ -1077,7 +1067,8 @@
                                 } else if (audioNode.connect) {
                                     audioNode.connect(destination);
                                 }
-                            } catch (e) {
+                            }
+                            catch (e) {
                                 console.error(`Error connecting ${reteNode.label} to destination:`, e);
                             }
                         }
