@@ -1041,7 +1041,21 @@
                 }
             }
 
-            // 3. Connect any Rete.js audio nodes that have outputs but no outgoing AUDIO connections to the destination.
+            // 3. Before connecting to the destination, check for FM connections to mute the direct signal of ToneGenerators.
+            for (const reteNode of editor.getNodes()) {
+                if (reteNode instanceof ToneGeneratorNode) {
+                    const audioNode = reteAudioNodes.get(reteNode.id);
+                    if (audioNode instanceof ToneGenerator) {
+                        const hasFMConnection = editor.getConnections().some(conn =>
+                            conn.target === reteNode.id && conn.targetInput === 'fm'
+                        );
+                        // If there's an FM connection, mute the direct output. Otherwise, set it to full volume.
+                        audioNode.mainOutput.gain.value = hasFMConnection ? 0 : 1;
+                    }
+                }
+            }
+
+            // 4. Connect any Rete.js audio nodes that have outputs but no outgoing AUDIO connections to the destination.
             const masterOutputNode = editor.getNodes().find(n => n.label === 'Master');
             const masterOutputAudioNode = masterOutputNode ? reteAudioNodes.get(masterOutputNode.id) : null;
 
@@ -1050,12 +1064,8 @@
                 const hasAudioOutputs = Object.keys(reteNode.outputs).some(key => reteNode.outputs[key].socket === audioSocket);
 
                 if (hasAudioOutputs) {
-                    const hasOutgoingAudioConnection = editor.getConnections().some(conn => 
+                    const hasOutgoingAudioConnection = editor.getConnections().some(conn =>
                         conn.source === reteNode.id && conn.sourceOutput.socket === audioSocket);
-
-                    // Connect to destination by default, unless the node is a modulator type
-                    // that explicitly sets this to false.
-                    //const connectByDefault = reteNode.connectToDestinationByDefault !== false;
 
                     if (!hasOutgoingAudioConnection && audioContext && audioContext.state === 'running') {
                         if (audioNode) {
@@ -1067,8 +1077,7 @@
                                 } else if (audioNode.connect) {
                                     audioNode.connect(destination);
                                 }
-                            }
-                            catch (e) {
+                            } catch (e) {
                                 console.error(`Error connecting ${reteNode.label} to destination:`, e);
                             }
                         }
@@ -1328,6 +1337,57 @@
 
 
         // Custom Node Component classes for Rete.js v2
+        class ToneGenerator {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+                this.started = false;
+
+                this.oscillator = this.audioContext.createOscillator();
+                this.oscillator.type = this.data.waveform || 'sine';
+                this.oscillator.frequency.value = this.data.frequency !== undefined ? this.data.frequency : 440;
+
+                this.mainOutput = this.audioContext.createGain();
+                this.mainOutput.gain.value = 1; // Default to full volume
+
+                this.oscillator.connect(this.mainOutput);
+            }
+
+            start() {
+                if (this.started) return;
+                try {
+                    this.oscillator.start(0);
+                    this.started = true;
+                } catch (e) {
+                    console.warn(`Could not start ToneGenerator for node ${this.reteNodeId}:`, e);
+                }
+            }
+
+            stop() {
+                if (!this.started) return;
+                try {
+                    this.oscillator.stop(0);
+                    this.started = false;
+                } catch (e) {
+                    console.warn(`Could not stop ToneGenerator for node ${this.reteNodeId}:`, e);
+                }
+            }
+
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+                if (paramName === 'frequency') {
+                    this.oscillator.frequency.value = value;
+                } else if (paramName === 'waveform') {
+                    this.oscillator.type = value;
+                }
+            }
+
+            get frequency() {
+                return this.oscillator.frequency;
+            }
+        }
+
         class ToneGeneratorNode extends WebAudioNode {
             constructor() {
                 super('Tone Generator');
@@ -1339,29 +1399,23 @@
                 this.addControl('frequency', new SliderControl('freqSlider', 'Frequency (Hz)', 50, 2000, 1, this.data.frequency, (val) => {
                     this.data.frequency = val;
                     const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode && audioNode.frequency) {
-                        audioNode.frequency.value = val;
+                    if (audioNode instanceof ToneGenerator) {
+                        audioNode.updateParameter('frequency', val);
                     }
-                    //area.update('node', this.id); // Trigger re-render to update control value display
                 }));
 
                 this.data.waveform = 'sine';
                 this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveform, (val) => {
                     this.data.waveform = val;
                     const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode && audioNode.type) {
-                        audioNode.type = val;
+                    if (audioNode instanceof ToneGenerator) {
+                        audioNode.updateParameter('waveform', val);
                     }
-                    //area.update('node', this.id); // Trigger re-render
                 }));
             }
 
             build(audioContext) {
-                const audioNode = audioContext.createOscillator();
-                audioNode.frequency.value = this.data.frequency !== undefined ? this.data.frequency : 440;
-                audioNode.type = this.data.waveform || 'sine';
-                audioNode.started = false;
-                return audioNode;
+                return new ToneGenerator(audioContext, this.id, this.data);
             }
 
             start() {
@@ -1369,7 +1423,6 @@
                 if (audioNode && audioNode.start && !audioNode.started) {
                     try {
                         audioNode.start();
-                        audioNode.started = true;
                     } catch (e) {
                         console.warn(`Could not start ${this.label} for node ${this.id}:`, e);
                     }
