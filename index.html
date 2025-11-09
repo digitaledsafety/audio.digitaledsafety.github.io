@@ -2285,7 +2285,7 @@
                     let elongation = 1;
 
                     // Speed multiplier/divider
-                    const speedMatch = event.match(/[*\/]\d+/);
+                    const speedMatch = eventString.match(/[*\/]\d+/);
                     if (speedMatch) {
                         const operator = speedMatch[0][0];
                         const value = parseInt(speedMatch[0].substring(1), 10);
@@ -2297,7 +2297,7 @@
                     }
 
                     // Duration weight
-                    const durationMatch = event.match(/@\d+/);
+                    const durationMatch = eventString.match(/@\d+/);
                     if (durationMatch) {
                         duration = parseInt(durationMatch[0].substring(1), 10);
                     }
@@ -2455,7 +2455,7 @@
                     if (audioNode && audioNode.updateParameter) audioNode.updateParameter('noteDuration', val);
                 }));
 
-                this.data.sequence = 'C4, E4, G4, B4';
+                this.data.sequence = 'C4 E4 G4 B4';
                 this.addControl('sequence', new TextControl('seqSequence', 'Sequence', this.data.sequence, (val) => {
                     this.data.sequence = val;
                     const audioNode = reteAudioNodes.get(this.id);
