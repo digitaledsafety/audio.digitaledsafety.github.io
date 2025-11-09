@@ -350,10 +350,12 @@
         };
         
         const ROOT_NOTES = {
-            'C3': 48, 'C#3': 49, 'D3': 50, 'D#3': 51, 'E3': 52, 'F3': 53,
-            'F#3': 54, 'G3': 55, 'G#3': 56, 'A3': 57, 'A#3': 58, 'B3': 59,
-            'C4': 60, 'C#4': 61, 'D4': 62, 'D#4': 63, 'E4': 64, 'F4': 65,
-            'F#4': 66, 'G4': 67, 'G#4': 68, 'A4': 69, 'A#4': 70, 'B4': 71
+            'C1': 24, 'C#1': 25, 'D1': 26, 'D#1': 27, 'E1': 28, 'F1': 29, 'F#1': 30, 'G1': 31, 'G#1': 32, 'A1': 33, 'A#1': 34, 'B1': 35,
+            'C2': 36, 'C#2': 37, 'D2': 38, 'D#2': 39, 'E2': 40, 'F2': 41, 'F#2': 42, 'G2': 43, 'G#2': 44, 'A2': 45, 'A#2': 46, 'B2': 47,
+            'C3': 48, 'C#3': 49, 'D3': 50, 'D#3': 51, 'E3': 52, 'F3': 53, 'F#3': 54, 'G3': 55, 'G#3': 56, 'A3': 57, 'A#3': 58, 'B3': 59,
+            'C4': 60, 'C#4': 61, 'D4': 62, 'D#4': 63, 'E4': 64, 'F4': 65, 'F#4': 66, 'G4': 67, 'G#4': 68, 'A4': 69, 'A#4': 70, 'B4': 71,
+            'C5': 72, 'C#5': 73, 'D5': 74, 'D#5': 75, 'E5': 76, 'F5': 77, 'F#5': 78, 'G5': 79, 'G#5': 80, 'A5': 81, 'A#5': 82, 'B5': 83,
+            'C6': 84, 'C#6': 85, 'D6': 86, 'D#6': 87, 'E6': 88, 'F6': 89, 'F#6': 90, 'G6': 91, 'G#6': 92, 'A6': 93, 'A#6': 94, 'B6': 95
         };
 
         // UI Elements
@@ -878,6 +880,13 @@
                 a.download = 'recording.webm';
                 a.click();
             }
+        }
+
+        async function clearEditor() {
+            await stopAudio();
+            await editor.clear();
+            clearEditorBtn.disabled = true;
+            showMessage('Editor cleared.', 'info');
         }
 
         async function stopAudio() {
@@ -1554,7 +1563,7 @@
                     }
                 }));
 
-                this.addControl('octaveRange', new SliderControl('octaveRangeSlider', 'Octave Offset', -2, 2, 1, this.data.octaveRange, (val) => {
+                this.addControl('octaveRange', new SliderControl('octaveRangeSlider', 'Octave Offset', -3, 3, 1, this.data.octaveRange, (val) => {
                     this.data.octaveRange = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode instanceof ChordGenerator) {
@@ -1597,7 +1606,7 @@
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
 
                 this.data.gain = 1;
-                this.addControl('gain', new SliderControl('gainSlider', 'Gain', 0, 5, 0.01, this.data.gain, (val) => {
+                this.addControl('gain', new SliderControl('gainSlider', 'Gain', 0, 100, 0.01, this.data.gain, (val) => {
                     this.data.gain = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.gain) {
@@ -1625,7 +1634,7 @@
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
 
                 this.data.gain1 = 0.5;
-                this.addControl('gain1', new SliderControl('gainSlider1', 'Gain 1', 0, 1, 0.01, this.data.gain1, (val) => {
+                this.addControl('gain1', new SliderControl('gainSlider1', 'Gain 1', 0, 100, 0.01, this.data.gain1, (val) => {
                     this.data.gain1 = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.inputs && audioNode.inputs[0]) {
@@ -1634,7 +1643,7 @@
                 }));
 
                 this.data.gain2 = 0.5;
-                this.addControl('gain2', new SliderControl('gainSlider2', 'Gain 2', 0, 1, 0.01, this.data.gain2, (val) => {
+                this.addControl('gain2', new SliderControl('gainSlider2', 'Gain 2', 0, 100, 0.01, this.data.gain2, (val) => {
                     this.data.gain2 = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.inputs && audioNode.inputs[1]) {
@@ -1643,7 +1652,7 @@
                 }));
 
                 this.data.gain3 = 0.5;
-                this.addControl('gain3', new SliderControl('gainSlider3', 'Gain 3', 0, 1, 0.01, this.data.gain3, (val) => {
+                this.addControl('gain3', new SliderControl('gainSlider3', 'Gain 3', 0, 100, 0.01, this.data.gain3, (val) => {
                     this.data.gain3 = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.inputs && audioNode.inputs[2]) {
@@ -1652,7 +1661,7 @@
                 }));
 
                 this.data.gain4 = 0.5;
-                this.addControl('gain4', new SliderControl('gainSlider4', 'Gain 4', 0, 1, 0.01, this.data.gain4, (val) => {
+                this.addControl('gain4', new SliderControl('gainSlider4', 'Gain 4', 0, 100, 0.01, this.data.gain4, (val) => {
                     this.data.gain4 = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.inputs && audioNode.inputs[3]) {
@@ -2078,7 +2087,7 @@
                 }));
 
                 this.data.octaveRange = 1;
-                this.addControl('octaveRange', new SliderControl('arpOctaveRange', 'Octaves', 1, 3, 1, this.data.octaveRange, (val) => {
+                this.addControl('octaveRange', new SliderControl('arpOctaveRange', 'Octaves', 1, 5, 1, this.data.octaveRange, (val) => {
                     this.data.octaveRange = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.updateParameter) audioNode.updateParameter('octaveRange', val);
@@ -3098,7 +3107,7 @@
         }
 
         // --- Event Listeners for UI Buttons ---
-        clearEditorBtn.addEventListener('click', stopAudio); // Clear editor also stops audio
+        clearEditorBtn.addEventListener('click', clearEditor); // Clear editor also stops audio
 
         addToneGeneratorNodeBtn.addEventListener('click', async () => {
             const node = new ToneGeneratorNode();
@@ -3381,7 +3390,7 @@
 
 
             // --- Initial State ---
-            clearEditorBtn.disabled = true;
+            clearEditorBtn.disabled = false; // Initially enabled to allow clearing default workspace
 
             // --- Visualizer Toggle ---
             const toggleVisualizerBtn = document.getElementById('toggleVisualizerBtn');
