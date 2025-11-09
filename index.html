@@ -2137,10 +2137,140 @@
 
             parseSequence() {
                 const sequence = this.data.sequence || 'C4';
-                const events = sequence.split(/[\s,]+/).filter(s => s.length > 0);
+                const tokens = sequence
+                    .replace(/([\[\(\{])/g, ' $1 ') // Openers
+                    .replace(/([\]\)\}](?:[:*\/]\d*|<|\?)*)/g, ' $1 ') // Closers with modifiers
+                    .split(/\s+/)
+                    .filter(s => s.length > 0);
+                return this.buildStructure(tokens);
+            }
 
-                return events.map(event => {
-                    let noteName = event.match(/[A-G]#?[0-9]/)?.[0] || (event.includes('~') ? '~' : null);
+            generateEuclidean(pulses, steps) {
+                if (pulses > steps || pulses < 0 || steps <= 0) return Array(steps).fill(0);
+                const pattern = [];
+                for (let i = 0; i < steps; i++) {
+                    // This generates a well-distributed pattern
+                    pattern.push(Math.floor(i * pulses / steps) !== Math.floor((i - 1) * pulses / steps) ? 1 : 0);
+                }
+                return pattern;
+            }
+
+            buildStructure(tokens) {
+                const structure = [];
+                const openers = ['[', '(', '{'];
+                const closers = [']', ')', '}'];
+
+                while (tokens.length > 0) {
+                    const token = tokens.shift();
+                    const euclideanMatch = token.match(/^([A-G#?0-9~_@]+)\*(\d+)\/(\d+)$/);
+                    if (euclideanMatch) {
+                        const note = euclideanMatch[1];
+                        const pulses = parseInt(euclideanMatch[2], 10);
+                        const steps = parseInt(euclideanMatch[3], 10);
+
+                        if (steps > 0) {
+                            const pattern = this.generateEuclidean(pulses, steps);
+                            const speedModifier = `/${steps}`;
+                            const generatedTokens = pattern.map(p => (p === 1 ? note : '~') + speedModifier);
+                            tokens.unshift(...generatedTokens);
+                            continue;
+                        }
+                    }
+
+                    if (openers.includes(token)) {
+                        structure.push(this.buildStructure(tokens));
+                    } else if (closers.includes(token[0])) {
+                        const modifierString = token.substring(1);
+                        return this.applyGroupModifiers(structure, modifierString);
+                    } else {
+                        structure.push(token);
+                    }
+                }
+                return this.flattenAndProcess(structure);
+            }
+
+            applyGroupModifiers(group, modifiers) {
+                let modifiedGroup = [...group];
+
+                // Polymetric Tuplets (e.g., :3 for triplets)
+                const tupletMatch = modifiers.match(/:(\d+)/);
+                if (tupletMatch) {
+                    const tupletValue = parseInt(tupletMatch[1], 10);
+                    if (tupletValue > 0) {
+                        const speedModifier = `*` + tupletValue;
+                        modifiedGroup = this.applyModifierRecursively(modifiedGroup, speedModifier);
+                    }
+                }
+
+                // Repetition (* operator)
+                const repetitionMatch = modifiers.match(/\*(\d+)/);
+                if (repetitionMatch) {
+                    const count = parseInt(repetitionMatch[1], 10);
+                    const originalGroup = [...modifiedGroup];
+                    if (count > 1) {
+                        for (let i = 1; i < count; i++) {
+                            modifiedGroup.push(...JSON.parse(JSON.stringify(originalGroup)));
+                        }
+                    } else if (count === 0) {
+                        modifiedGroup = [];
+                    }
+                }
+
+                // Reverse
+                if (modifiers.includes('<')) {
+                    modifiedGroup.reverse();
+                }
+
+                // Shuffle
+                if (modifiers.includes('?')) {
+                    for (let i = modifiedGroup.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [modifiedGroup[i], modifiedGroup[j]] = [modifiedGroup[j], modifiedGroup[i]];
+                    }
+                }
+
+                // Speed/Subdivision (/ operator)
+                const speedMatch = modifiers.match(/\/(\d+)/);
+                if (speedMatch) {
+                    const modifierToApply = `/` + speedMatch[1];
+                    modifiedGroup = this.applyModifierRecursively(modifiedGroup, modifierToApply);
+                }
+
+                return modifiedGroup;
+            }
+
+            applyModifierRecursively(group, modifier) {
+                return group.map(item => {
+                    if (typeof item === 'string') {
+                        return item + modifier;
+                    } else if (Array.isArray(item)) {
+                        return this.applyModifierRecursively(item, modifier);
+                    }
+                    return item;
+                });
+            }
+
+            flattenAndProcess(structure) {
+                const flatList = [];
+                for (const item of structure) {
+                    if (Array.isArray(item)) {
+                        // It's a chord/group, process each note inside
+                        const chord = item.map(noteString => this.parseNoteEvent(noteString));
+                        flatList.push(chord);
+                    } else {
+                        // It's a single note
+                        flatList.push(this.parseNoteEvent(item));
+                    }
+                }
+                return flatList;
+            }
+
+            parseNoteEvent(eventString) {
+                // Return a single note event object, similar to the old .map callback
+                if (Array.isArray(eventString)) {
+                    return eventString.map(s => this.parseNoteEvent(s));
+                }
+                let noteName = eventString.match(/[A-G]#?[0-9]/)?.[0] || (eventString.includes('~') ? '~' : null);
                     let speed = 1;
                     let duration = 1;
                     let elongation = 1;
@@ -2164,9 +2294,8 @@
                     }
 
                     // Elongation
-                    const elongationMatch = event.match(/_/);
+                    const elongationMatch = eventString.match(/_/);
                     if (elongationMatch) {
-                        // This is a simple interpretation. A more complex one might count the underscores.
                         elongation = 1.5;
                     }
 
@@ -2177,9 +2306,8 @@
                         speed: speed,
                         duration: duration,
                         elongation: elongation,
-                        noteName: noteName // Keep for debugging or other purposes
+                        noteName: noteName
                     };
-                });
             }
 
             scheduleNote(midiNote, durationSeconds) {
@@ -2226,22 +2354,45 @@
                 this.nextStepTime = this.audioContext.currentTime;
 
                 const sequenceEvents = this.parseSequence();
-                if (sequenceEvents.length === 0) return;
+                if (sequenceEvents.length === 0) {
+                    this.stop();
+                    return;
+                }
 
                 const schedule = () => {
                     while (this.nextStepTime < this.audioContext.currentTime + 0.1) {
                         const event = sequenceEvents[this.currentStep];
 
+                        // Determine the properties for the step's duration from the first note in the event (or the event itself)
+                        const representativeEvent = Array.isArray(event) ? event[0] : event;
+
+                        // Handle empty groups gracefully
+                        if (!representativeEvent) {
+                            this.currentStep = (this.currentStep + 1) % sequenceEvents.length;
+                            continue; // Skip to the next iteration
+                        }
+
                         const bpm = this.data.bpm || 120;
-                        const noteDurationMap = { '1': 4, '1/2': 2, '1/4': 1, '1/8': 0.5, '1/16': 0.25, '1/32': 0.125 };
+                        const noteDurationMap = { '1': 1, '1/2': 0.5, '1/4': 0.25, '1/8': 0.125, '1/16': 0.0625, '1/32': 0.03125 };
                         const baseNoteDuration = noteDurationMap[this.data.noteDuration] || 0.25;
                         const secondsPerBeat = 60.0 / bpm;
 
-                        const stepDuration = secondsPerBeat * baseNoteDuration * (1 / event.speed) * event.duration;
+                        const stepDuration = secondsPerBeat * 4 * baseNoteDuration * (1 / representativeEvent.speed) * representativeEvent.duration;
 
-                        if (event.midi !== null) {
-                            const noteLength = stepDuration * event.elongation;
-                            this.scheduleNote(event.midi, noteLength);
+                        if (Array.isArray(event)) {
+                            // It's a chord, schedule all notes
+                            for (const note of event) {
+                                if (note.midi !== null) {
+                                    const noteLength = stepDuration * note.elongation;
+                                    this.scheduleNote(note.midi, noteLength);
+                                }
+                            }
+                        } else {
+                            // It's a single note
+                            if (event.midi !== null) {
+                                const noteLength = stepDuration * event.elongation;
+                                this.scheduleNote(event.midi, noteLength);
+                            }
                         }
 
                         this.nextStepTime += stepDuration;
