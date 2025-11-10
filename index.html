@@ -1725,12 +1725,13 @@
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
 
                 this.data.frequency = 2000;
-                this.addControl('frequency', new SliderControl('filterFreqSlider', 'Frequency (Hz)', 20, 20000, 10, this.data.frequency, (val) => {
+                this.addControl('frequency', new SliderControl('filterFreqSlider', 'Frequency (Hz)', 0, 2000, 10, this.data.frequency, (val) => {
                     this.data.frequency = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.frequency) {
                         audioNode.frequency.value = val;
                     }
+                    if (audioNode instanceof ModulatorNode) audioNode.updateParameter('frequency', val);
                     //area.update('node', this.id);
                 }));
 
