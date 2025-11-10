@@ -1351,6 +1351,7 @@
                     if (audioNode && audioNode.frequency) {
                         audioNode.frequency.value = val;
                     }
+                    if (audioNode instanceof ModulatorNode) audioNode.updateParameter('frequency', val);
                     //area.update('node', this.id); // Trigger re-render to update control value display
                 }));
 
@@ -2683,7 +2684,7 @@
                 }));
 
                 this.data.amount = 0.5; // Amplitude of the LFO output
-                this.addControl('amount', new SliderControl('lfoAmount', 'Amount', 0, 1, 0.01, this.data.amount, (val) => {
+                this.addControl('amount', new SliderControl('lfoAmount', 'Amount', 0, 100, 0.01, this.data.amount, (val) => {
                     this.data.amount = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode instanceof LFOGenerator) audioNode.updateParameter('amount', val);
