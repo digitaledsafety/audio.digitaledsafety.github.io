@@ -138,6 +138,15 @@
             background: #4f46e5;
             border-color: #4338ca;
         }
+        /* Custom socket color for Clock signals */
+        .socket.clock {
+            background: #f59e0b; /* amber-500 */
+            border-color: #b45309; /* amber-700 */
+        }
+        .socket.clock:hover {
+            background: #fbbf24; /* amber-400 */
+            border-color: #d97706; /* amber-600 */
+        }
         /* Custom control styling */
         .control {
             margin-top: 0.75rem;
@@ -280,6 +289,8 @@
                             <button id="addADSREnvelopeNodeBtn" class="button button-secondary w-full text-xs">✉️ ADSR</button>
                             <button id="addBitcrusherNodeBtn" class="button button-secondary w-full text-xs">👾 Bitcrusher</button>
                             <button id="addSequencerNodeBtn" class="button button-secondary w-full text-xs">🎶 Sequencer</button>
+                            <button id="addMasterClockNodeBtn" class="button button-secondary w-full text-xs">⏰ Master Clock</button>
+                            <button id="addClockDividerNodeBtn" class="button button-secondary w-full text-xs">➗ Clock Divider</button>
                         </div>
                     </div>
                 </div>
@@ -315,6 +326,7 @@
         // Capture global Rete.js objects into local constants after all CDN scripts have loaded
 
         const { ClassicPreset: Classic, NodeEditor } = window.Rete;
+        window.Rete = window.Rete;
         const { createRoot } = window.ReactDOM;
         const { AreaExtensions, AreaPlugin } = window.ReteAreaPlugin;
         const { ConnectionPlugin, Presets: ConnectionPresets } = window.ReteConnectionPlugin;
@@ -373,6 +385,8 @@
         const addADSREnvelopeNodeBtn = document.getElementById('addADSREnvelopeNodeBtn'); // New ADSR button
         const addBitcrusherNodeBtn = document.getElementById('addBitcrusherNodeBtn'); // New Bitcrusher button
         const addSequencerNodeBtn = document.getElementById('addSequencerNodeBtn');
+        const addMasterClockNodeBtn = document.getElementById('addMasterClockNodeBtn');
+        const addClockDividerNodeBtn = document.getElementById('addClockDividerNodeBtn');
         const clearEditorBtn = document.getElementById('clearEditorBtn');
         const reteContainer = document.getElementById('rete');
         const messageBox = document.getElementById('messageBox');
@@ -447,7 +461,9 @@
                 'LFO': LFONode,
                 'ADSR Envelope': ADSREnvelopeNode,
                 'Bitcrusher': BitcrusherNode,
-                'Sequencer': SequencerNode
+                'Sequencer': SequencerNode,
+                'Master Clock': MasterClockNode,
+                'Clock Divider': ClockDividerNode
             };
 
             // Create nodes first
@@ -859,6 +875,8 @@
                 }
             }
         }
+        window.SequencerNode = SequencerNode;
+        window.MasterClockNode = MasterClockNode;
 
         function stopPlaybackAndResetUI() {
             if (loopSource) {
@@ -941,116 +959,136 @@
         async function updateAudioGraphConnections() {
             if (!audioContext || !editor) return;
 
-            // 1. Disconnect everything to rebuild connections from scratch.
-            // This is a more targeted approach than a blanket .disconnect(), which can
-            // break the internal routing of complex nodes (like the LFO).
+            // --- Phase 1: Disconnection and State Reset ---
 
-            // First, disconnect any nodes that were implicitly connected to the master output.
+            // Reset all clockable nodes to internal timing by default
             reteAudioNodes.forEach(audioNode => {
-                try {
-                    const source = audioNode.mainOutput ? audioNode.mainOutput : audioNode;
-                    source.disconnect(masterGain);
-                } catch (e) {
-                    // Ignore errors, the node may not have been connected to masterGain.
+                if (audioNode.isExternallyClocked !== undefined) {
+                    const wasClocked = audioNode.isExternallyClocked;
+                    audioNode.isExternallyClocked = false;
+                    // If it was running and clocked, restart it to use its internal timer
+                    if (wasClocked && audioNode.started) {
+                        audioNode.stop();
+                        audioNode.start();
+                    }
                 }
             });
 
-            // Second, disconnect all the specific connections that exist in the editor.
+            // Disconnect all existing connections (both audio and listeners)
             for (const connection of editor.getConnections()) {
-                const sourceNode = reteAudioNodes.get(connection.source);
-                const targetNode = reteAudioNodes.get(connection.target);
+                const sourceAudioNode = reteAudioNodes.get(connection.source);
+                const targetAudioNode = reteAudioNodes.get(connection.target);
+                const sourceReteNode = editor.getNode(connection.source);
                 const targetReteNode = editor.getNode(connection.target);
 
-                if (sourceNode && targetNode) {
-                    const source = sourceNode.mainOutput ? sourceNode.mainOutput : sourceNode;
+                if (sourceAudioNode && targetAudioNode) {
+                    // Disconnect Audio/FM
                     try {
-                        if (connection.targetInput === 'fm' && targetNode.frequency) {
-                            source.disconnect(targetNode.frequency);
+                        const source = sourceAudioNode.mainOutput ? sourceAudioNode.mainOutput : sourceAudioNode;
+                        if (connection.targetInput === 'fm' && targetAudioNode.frequency) {
+                            source.disconnect(targetAudioNode.frequency);
                         } else if (targetReteNode.label === 'Mixer') {
                             const inputIndex = parseInt(connection.targetInput.replace('in', ''), 10) - 1;
-                            if (targetNode.inputs && targetNode.inputs[inputIndex]) {
-                                source.disconnect(targetNode.inputs[inputIndex]);
+                            if (targetAudioNode.inputs && targetAudioNode.inputs[inputIndex]) {
+                                source.disconnect(targetAudioNode.inputs[inputIndex]);
                             }
-                        } else {
-                            source.disconnect(targetNode);
+                        } else if (source.disconnect) { // Check if disconnect method exists
+                             source.disconnect(targetAudioNode);
                         }
-                    } catch (e) {
-                        // Ignore errors, connection might already be broken
+                    } catch (e) { /* Ignore errors, connection might not have existed */ }
+
+                    // Disconnect MIDI listeners
+                    if (connection._midiListener && sourceAudioNode.removeMidiOutputListener) {
+                        sourceAudioNode.removeMidiOutputListener(connection._midiListener);
+                        delete connection._midiListener;
+                    }
+
+                    // Disconnect Clock listeners
+                    if (connection._clockListener && sourceAudioNode.removeTickListener) {
+                         if (sourceReteNode.label === 'Clock Divider') {
+                            const division = parseInt(connection.sourceOutput.replace('div', ''), 10);
+                            sourceAudioNode.removeTickListener(division, connection._clockListener);
+                        } else {
+                            sourceAudioNode.removeTickListener(connection._clockListener);
+                        }
+                        delete connection._clockListener;
                     }
                 }
             }
 
-            // 2. Reconnect based on Rete.js editor's connections
-            for (const connection of editor.getConnections()) {
-                const sourceNode = editor.getNode(connection.source);
-                const targetNode = editor.getNode(connection.target);
-
-                // Handle AUDIO connections
-                if (connection.targetInput === 'audio' || (targetNode.label === 'Mixer' && connection.targetInput.startsWith('in'))) { // Standard audio connection
-                    let sourceAudioNode = reteAudioNodes.get(sourceNode.id);
-                    let targetAudioNode = reteAudioNodes.get(targetNode.id);
-
-                    // If the source audio node has a mainOutput property, use it as the connection source.
-                    // This is typical for our custom classes that encapsulate multiple Web Audio nodes.
-                    if (sourceAudioNode && sourceAudioNode.mainOutput) {
-                        sourceAudioNode = sourceAudioNode.mainOutput;
+             // Disconnect any nodes that were implicitly connected to the master output.
+            reteAudioNodes.forEach(audioNode => {
+                try {
+                    const source = audioNode.mainOutput ? audioNode.mainOutput : audioNode;
+                    if (source && source.disconnect) {
+                       source.disconnect(masterGain);
                     }
+                } catch (e) { /* Ignore */ }
+            });
+
+
+            // --- Phase 2: Reconnection ---
+
+            for (const connection of editor.getConnections()) {
+                const sourceReteNode = editor.getNode(connection.source);
+                const targetReteNode = editor.getNode(connection.target);
+                const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
+                const targetAudioNode = reteAudioNodes.get(targetReteNode.id);
+
+                if (!sourceAudioNode || !targetAudioNode) continue;
+
+                const sourceSocket = sourceReteNode.outputs[connection.sourceOutput]?.socket;
+                const targetSocket = targetReteNode.inputs[connection.targetInput]?.socket;
+
+
+                // Handle AUDIO and FM connections
+                if (sourceSocket === audioSocket) {
+                    const sourceOutput = sourceAudioNode.mainOutput || sourceAudioNode;
                     
-                    if (sourceAudioNode && targetAudioNode) {
-                        try {
-                            if (targetNode.label === 'Mixer') {
-                                const inputIndex = parseInt(connection.targetInput.replace('in', '')) - 1;
-                                if (targetAudioNode.inputs && targetAudioNode.inputs[inputIndex]) {
-                                    sourceAudioNode.connect(targetAudioNode.inputs[inputIndex]);
-                                    console.log(`Audio connected: ${sourceNode.label} to ${targetNode.label}`);
-                                }
-                            } else {
-                                sourceAudioNode.connect(targetAudioNode);
-                                console.log(`Audio connected: ${sourceNode.label} to ${targetNode.label}`);
-                            }
-                        } catch (e) {
-                            console.error(`Error connecting audio from ${sourceNode.label} to ${targetNode.label}:`, e);
+                    if (targetSocket === audioSocket) { // Audio -> Audio
+                        let targetInput = targetAudioNode;
+                         if (targetReteNode.label === 'Mixer') {
+                            const inputIndex = parseInt(connection.targetInput.replace('in', '')) - 1;
+                            targetInput = targetAudioNode.inputs[inputIndex];
                         }
+                        if (targetInput) sourceOutput.connect(targetInput);
+
+                    } else if (connection.targetInput === 'fm' && targetAudioNode.frequency) { // Audio -> FM Param
+                        sourceOutput.connect(targetAudioNode.frequency);
                     }
                 }
-                // Handle FM connections
-                else if (connection.targetInput === 'fm') {
-                    let sourceAudioNode = reteAudioNodes.get(sourceNode.id);
-                    let targetAudioNode = reteAudioNodes.get(targetNode.id);
+                // Handle CLOCK connections
+                else if (sourceSocket === clockSocket && targetSocket === clockSocket) {
+                    const listener = targetAudioNode.onTick.bind(targetAudioNode);
+                    connection._clockListener = listener; // Store for disconnection
 
-                    // If the source audio node has a mainOutput property, use it as the connection source.
-                    if (sourceAudioNode && sourceAudioNode.mainOutput) {
-                        sourceAudioNode = sourceAudioNode.mainOutput;
+                    if (sourceReteNode.label === 'Clock Divider') {
+                        const division = parseInt(connection.sourceOutput.replace('div', ''), 10);
+                        sourceAudioNode.addTickListener(division, listener);
+                    } else { // Master Clock
+                        sourceAudioNode.addTickListener(listener);
                     }
 
-                    if (sourceAudioNode && targetAudioNode && targetAudioNode.frequency) {
-                        try {
-                            sourceAudioNode.connect(targetAudioNode.frequency);
-                            console.log(`FM connected: ${sourceNode.label} to ${targetNode.label}'s frequency`);
-                        } catch (e) {
-                            console.error(`Error connecting FM from ${sourceNode.label} to ${targetNode.label}:`, e);
-                        }
+                    // Set target to external clock mode and restart if it was already running
+                    if (targetAudioNode.isExternallyClocked !== undefined && !targetAudioNode.isExternallyClocked) {
+                        const wasStarted = targetAudioNode.started;
+                        if(wasStarted) targetAudioNode.stop();
+                        targetAudioNode.isExternallyClocked = true;
+                        if(wasStarted) targetAudioNode.start();
                     }
+                    console.log(`Clock connected: ${sourceReteNode.label} to ${targetReteNode.label}`);
                 }
                 // Handle MIDI connections
-                else if (connection.sourceOutput == midiSocket.name && connection.targetInput == midiSocket.name) {
-                    const sourceMidiNode = reteAudioNodes.get(connection.source);
-                    const targetMidiNode = reteAudioNodes.get(connection.target);
-
-                    if (sourceMidiNode && targetMidiNode && sourceMidiNode.addMidiOutputListener && targetMidiNode.receiveMidiNotes) {
-                        // Create a specific listener for this connection
-                        const listener = (midiNotes) => {
-                            targetMidiNode.receiveMidiNotes(midiNotes);
-                        };
-                        // Store the listener on the connection object for later removal
-                        connection._midiListener = listener;
-                        sourceMidiNode.addMidiOutputListener(listener);
-                        // console.log(`MIDI connected: ${sourceNode.label} to ${targetNode.label}`);
+                else if (sourceSocket === midiSocket && targetSocket === midiSocket) {
+                    if (sourceAudioNode.addMidiOutputListener && targetAudioNode.receiveMidiNotes) {
+                        const listener = (midiNotes) => targetAudioNode.receiveMidiNotes(midiNotes);
+                        connection._midiListener = listener; // Store for disconnection
+                        sourceAudioNode.addMidiOutputListener(listener);
                     }
                 }
             }
 
-            // 3. Connect any Rete.js audio nodes that have outputs but no outgoing AUDIO connections to the destination.
+            // --- Phase 3: Connect unconnected outputs to master ---
             const masterOutputNode = editor.getNodes().find(n => n.label === 'Master');
             const masterOutputAudioNode = masterOutputNode ? reteAudioNodes.get(masterOutputNode.id) : null;
 
@@ -1237,6 +1275,7 @@
         // Define the common Audio Socket
         const audioSocket = new Classic.Socket('audio');
         const midiSocket = new Classic.Socket('midi');
+        const clockSocket = new Classic.Socket('clock');
 
         // --- New ChordGenerator Internal Class ---
         class ChordGenerator {
@@ -1798,6 +1837,7 @@
                 this.started = false;
                 this.intervalId = null;
                 this.currentNoteIndex = 0;
+                this.isExternallyClocked = false;
                 this.oscillators = [];
                 this.gainNodes = [];
 
@@ -1989,40 +2029,57 @@
                 };
             }
 
+            onTick() {
+                if (this.started && this.isExternallyClocked) {
+                    this.playNextNote();
+                }
+            }
+
+            playNextNote() {
+                const notes = this.getArpeggioNotes();
+                if (notes.length === 0) return;
+
+                const bpm = this.data.bpm || 120;
+                const noteDurationMap = { '1': 1, '1/2': 0.5, '1/4': 0.25, '1/8': 0.125, '1/16': 0.0625, '1/32': 0.03125 };
+                const noteValue = noteDurationMap[this.data.noteDuration] || 0.25;
+                const secondsPerBeat = 60.0 / bpm;
+                const stepDuration = secondsPerBeat * 4 * noteValue;
+
+                const midiNote = notes[this.currentNoteIndex];
+                this.scheduleNote(midiNote, stepDuration);
+
+                this.currentNoteIndex = (this.currentNoteIndex + 1) % notes.length;
+            }
+
             start() {
                 if (this.started || !this.audioContext) return;
-
                 this.started = true;
                 this.currentNoteIndex = 0;
 
-                const notes = this.getArpeggioNotes();
+                if (this.isExternallyClocked) {
+                    console.log('Arpeggiator started in external clock mode.');
+                    // Don't start internal timer, just wait for onTick calls
+                    return;
+                }
+
                 const bpm = this.data.bpm || 120;
-                const noteDurationMap = {
-                    '1': 1, '1/2': 2, '1/4': 1, '1/8': 0.5, '1/16': 0.25, '1/32': 0.125
-                };
-                const noteValue = noteDurationMap[this.data.noteDuration] || 0.25; // Default to 1/16th note
+                const noteDurationMap = { '1': 1, '1/2': 0.5, '1/4': 0.25, '1/8': 0.125, '1/16': 0.0625, '1/32': 0.03125 };
+                const noteValue = noteDurationMap[this.data.noteDuration] || 0.25;
+                const secondsPerBeat = 60.0 / bpm;
+                const intervalMs = (secondsPerBeat * 4 * noteValue) * 1000;
 
-                const secondsPerBeat = 60 / bpm;
-                const intervalMs = (secondsPerBeat * noteValue) * 1000;
-
-                const playNextNote = () => {
-                    if (!this.started) { // Check if arpeggiator is still active
+                const tick = () => {
+                    if (!this.started || this.isExternallyClocked) {
                         clearInterval(this.intervalId);
+                        this.intervalId = null;
                         return;
                     }
-                    if (notes.length === 0) return;
-
-                    const midiNote = notes[this.currentNoteIndex];
-                    this.scheduleNote(midiNote, secondsPerBeat * noteValue); // Use noteValue as duration
-
-                    this.currentNoteIndex = (this.currentNoteIndex + 1) % notes.length;
+                    this.playNextNote();
                 };
 
-                // Play first note immediately, then schedule interval
-                playNextNote();
-                this.intervalId = setInterval(playNextNote, intervalMs);
-
-                console.log(`Arpeggiator started with BPM: ${bpm}, Note Duration: ${this.data.noteDuration}`);
+                tick(); // Play first note immediately
+                this.intervalId = setInterval(tick, intervalMs);
+                console.log(`Arpeggiator started with internal BPM: ${bpm}`);
             }
 
             stop() {
@@ -2047,6 +2104,7 @@
         class ArpeggiatorNode extends WebAudioNode {
             constructor() {
                 super('Arpeggiator');
+                this.addInput('clock', new Classic.Input(clockSocket, 'Clock In'));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
 
                 this.data.bpm = 120;
@@ -2129,8 +2187,9 @@
                 this.reteNodeId = reteNodeId;
                 this.data = data; // Reference to the Rete.js node's data
                 this.started = false;
-                this.intervalId = null;
-                this.currentNoteIndex = 0;
+                this.timeoutId = null;
+                this.currentStep = 0;
+                this.isExternallyClocked = false;
 
                 // Master gain for the Sequencer output
                 this.mainOutput = this.audioContext.createGain();
@@ -2355,66 +2414,64 @@
                 };
             }
 
+            onTick() {
+                if (this.started && this.isExternallyClocked) {
+                    this.playNextStep();
+                }
+            }
+
+            playNextStep() {
+                const sequenceEvents = this.parseSequence();
+                if (sequenceEvents.length === 0) return;
+
+                const event = sequenceEvents[this.currentStep];
+                const representativeEvent = Array.isArray(event) ? event[0] : event;
+
+                if (!representativeEvent) {
+                    this.currentStep = (this.currentStep + 1) % sequenceEvents.length;
+                    return;
+                }
+
+                const bpm = this.data.bpm || 120;
+                const noteDurationMap = { '1': 1, '1/2': 0.5, '1/4': 0.25, '1/8': 0.125, '1/16': 0.0625, '1/32': 0.03125 };
+                const baseNoteDuration = noteDurationMap[this.data.noteDuration] || 0.25;
+                const secondsPerBeat = 60.0 / bpm;
+                const stepDuration = secondsPerBeat * 4 * baseNoteDuration * (1 / representativeEvent.speed) * representativeEvent.duration;
+
+                if (Array.isArray(event)) {
+                    for (const note of event) {
+                        if (note.midi !== null) this.scheduleNote(note.midi, stepDuration * note.elongation);
+                    }
+                } else {
+                    if (event.midi !== null) this.scheduleNote(event.midi, stepDuration * event.elongation);
+                }
+
+                this.currentStep = (this.currentStep + 1) % sequenceEvents.length;
+                return stepDuration;
+            }
+
             start() {
                 if (this.started || !this.audioContext) return;
 
                 this.started = true;
                 this.currentStep = 0;
-                this.nextStepTime = this.audioContext.currentTime;
 
-                const sequenceEvents = this.parseSequence();
-                if (sequenceEvents.length === 0) {
-                    this.stop();
-                    return;
+                if (this.isExternallyClocked) {
+                    console.log('Sequencer started in external clock mode.');
+                    return; // Do not start internal timer
                 }
 
+                this.nextStepTime = this.audioContext.currentTime;
+
                 const schedule = () => {
-                    while (this.nextStepTime < this.audioContext.currentTime + 0.1) {
-                        const event = sequenceEvents[this.currentStep];
+                    if (!this.started || this.isExternallyClocked) return; // Stop if no longer needed
 
-                        // Determine the properties for the step's duration from the first note in the event (or the event itself)
-                        const representativeEvent = Array.isArray(event) ? event[0] : event;
-
-                        // Handle empty groups gracefully
-                        if (!representativeEvent) {
-                            this.currentStep = (this.currentStep + 1) % sequenceEvents.length;
-                            continue; // Skip to the next iteration
-                        }
-
-                        const bpm = this.data.bpm || 120;
-                        const noteDurationMap = { '1': 1, '1/2': 0.5, '1/4': 0.25, '1/8': 0.125, '1/16': 0.0625, '1/32': 0.03125 };
-                        const baseNoteDuration = noteDurationMap[this.data.noteDuration] || 0.25;
-                        const secondsPerBeat = 60.0 / bpm;
-
-                        const stepDuration = secondsPerBeat * 4 * baseNoteDuration * (1 / representativeEvent.speed) * representativeEvent.duration;
-
-                        if (Array.isArray(event)) {
-                            // It's a chord, schedule all notes
-                            for (const note of event) {
-                                if (note.midi !== null) {
-                                    const noteLength = stepDuration * note.elongation;
-                                    this.scheduleNote(note.midi, noteLength);
-                                }
-                            }
-                        } else {
-                            // It's a single note
-                            if (event.midi !== null) {
-                                const noteLength = stepDuration * event.elongation;
-                                this.scheduleNote(event.midi, noteLength);
-                            }
-                        }
-
-                        this.nextStepTime += stepDuration;
-                        this.currentStep = (this.currentStep + 1) % sequenceEvents.length;
-                    }
-
-                    if (this.started) {
-                        this.timeoutId = setTimeout(schedule, 25);
-                    }
+                    const stepDuration = this.playNextStep();
+                    this.timeoutId = setTimeout(schedule, stepDuration * 1000);
                 };
 
                 schedule();
-                console.log(`Sequencer started with BPM: ${this.data.bpm}, Note Duration: ${this.data.noteDuration}`);
+                console.log(`Sequencer started with internal BPM: ${this.data.bpm}`);
             }
 
             stop() {
@@ -2436,9 +2493,169 @@
             }
         }
 
+        // --- New Clocking Nodes ---
+
+        // Internal class to manage the Web Audio API aspects of the Master Clock
+        class MasterClock {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data; // Reference to the Rete.js node's data
+                this.started = false;
+                this.intervalId = null;
+                this.tickListeners = new Set();
+            }
+
+            addTickListener(callback) {
+                this.tickListeners.add(callback);
+            }
+
+            removeTickListener(callback) {
+                this.tickListeners.delete(callback);
+            }
+
+            start() {
+                if (this.started) return;
+
+                this.started = true;
+                const bpm = this.data.bpm || 120;
+                const intervalMs = (60 / bpm) * 1000; // Calculate interval from BPM
+
+                const tick = () => {
+                    if (!this.started) {
+                        clearInterval(this.intervalId);
+                        return;
+                    }
+                    // Notify all listeners
+                    this.tickListeners.forEach(listener => listener());
+                };
+
+                this.intervalId = setInterval(tick, intervalMs);
+                console.log(`Master Clock started with BPM: ${bpm}`);
+            }
+
+            stop() {
+                if (!this.started) return;
+                clearInterval(this.intervalId);
+                this.intervalId = null;
+                this.started = false;
+                console.log('Master Clock stopped.');
+            }
+
+            updateParameter(param, value) {
+                this.data[param] = value;
+                if (param === 'bpm' && this.started) {
+                    // Restart clock to apply new tempo
+                    this.stop();
+                    this.start();
+                }
+            }
+        }
+
+        class MasterClockNode extends WebAudioNode {
+            constructor() {
+                super('Master Clock');
+                this.addOutput('clock', new Classic.Output(clockSocket, 'Clock Out'));
+
+                this.data.bpm = 120;
+                this.addControl('bpm', new SliderControl('clockBpm', 'BPM', 30, 300, 1, this.data.bpm, (val) => {
+                    this.data.bpm = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('bpm', val);
+                }));
+
+                // The button will toggle the running state
+                this.addControl('startStop', new ButtonControl('startStopBtn', 'Start', () => {
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) {
+                        if (audioNode.started) {
+                            audioNode.stop();
+                            this.controls.startStop.label = 'Start'; // Update button label
+                        } else {
+                            audioNode.start();
+                            this.controls.startStop.label = 'Stop'; // Update button label
+                        }
+                        area.update('node', this.id); // Re-render the node to show the new label
+                    }
+                }));
+            }
+
+            build(audioContext) {
+                // This node doesn't create a standard Web Audio node, but our custom clock handler.
+                return new MasterClock(audioContext, this.id, this.data);
+            }
+
+            // The global start/stop functions won't control this node. It's controlled manually by its button.
+            start() {}
+            stop() {
+                const audioNode = reteAudioNodes.get(this.id);
+                if (audioNode && audioNode.stop) {
+                     audioNode.stop();
+                     this.controls.startStop.label = 'Start';
+                     area.update('node', this.id);
+                }
+            }
+        }
+
+        class ClockDivider {
+            constructor(audioContext, reteNodeId, data) {
+                this.reteNodeId = reteNodeId;
+                this.counters = {};
+                this.divisions = [2, 3, 4, 8, 16]; // The divisions this node supports
+                this.tickListeners = {};
+
+                this.divisions.forEach(d => {
+                    this.counters[d] = 0;
+                    this.tickListeners[d] = new Set();
+                });
+            }
+
+            // Called when an incoming clock pulse is received
+            onTick() {
+                this.divisions.forEach(d => {
+                    this.counters[d]++;
+                    if (this.counters[d] >= d) {
+                        this.counters[d] = 0;
+                        // Fire tick event for this division's output
+                        this.tickListeners[d].forEach(listener => listener());
+                    }
+                });
+            }
+
+            addTickListener(division, callback) {
+                if (this.tickListeners[division]) {
+                    this.tickListeners[division].add(callback);
+                }
+            }
+
+            removeTickListener(division, callback) {
+                if (this.tickListeners[division]) {
+                    this.tickListeners[division].delete(callback);
+                }
+            }
+        }
+
+        class ClockDividerNode extends WebAudioNode {
+            constructor() {
+                super('Clock Divider');
+                this.addInput('clock', new Classic.Input(clockSocket, 'Clock In'));
+
+                this.addOutput('div2', new Classic.Output(clockSocket, '/2'));
+                this.addOutput('div3', new Classic.Output(clockSocket, '/3'));
+                this.addOutput('div4', new Classic.Output(clockSocket, '/4'));
+                this.addOutput('div8', new Classic.Output(clockSocket, '/8'));
+                this.addOutput('div16', new Classic.Output(clockSocket, '/16'));
+            }
+
+            build(audioContext) {
+                return new ClockDivider(audioContext, this.id, this.data);
+            }
+        }
+        window.ClockDividerNode = ClockDividerNode;
         class SequencerNode extends WebAudioNode {
             constructor() {
                 super('Sequencer');
+                this.addInput('clock', new Classic.Input(clockSocket, 'Clock In'));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
 
                 this.data.bpm = 120;
@@ -2604,6 +2821,7 @@
                 this.reteNodeId = reteNodeId;
                 this.data = data;
                 this.started = false;
+                this.isExternallyClocked = false;
 
                 this.oscillator = this.audioContext.createOscillator();
                 this.mainOutput = this.audioContext.createGain(); // Output for modulation or audible signal
@@ -2614,6 +2832,21 @@
                 this.updateParameter('frequency', this.data.frequency || 5, false);
                 this.updateParameter('waveform', this.data.waveform || 'sine', false);
                 this.updateParameter('amount', this.data.amount || 0.5, false); // Initialize amount
+            }
+
+            onTick() {
+                if (this.started && this.isExternallyClocked) {
+                    // To reset the phase, we have to stop and start the oscillator.
+                    // This is the standard Web Audio API way to achieve LFO sync.
+                    this.oscillator.stop();
+                    this.oscillator.disconnect();
+
+                    this.oscillator = this.audioContext.createOscillator();
+                    this.oscillator.type = this.data.waveform;
+                    this.oscillator.frequency.value = this.data.frequency; // It still runs at its own frequency, but gets reset
+                    this.oscillator.connect(this.mainOutput);
+                    this.oscillator.start(0);
+                }
             }
 
             start() {
@@ -2666,6 +2899,7 @@
         class LFONode extends ModulatorNode {
             constructor() {
                 super('LFO');
+                this.addInput('clock', new Classic.Input(clockSocket, 'Clock In'));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'LFO Out')); // Can be used for modulation
 
                 this.data.frequency = 5;
@@ -3020,6 +3254,7 @@
 
             // NodeEditor is correctly destructured from window.Rete
             editor = new NodeEditor(schemes);
+            window.editor = editor;
             // DataflowEngine is correctly destructured from window.ReteEngine
             engine = new DataflowEngine(schemes); 
 
@@ -3062,6 +3297,8 @@
                     ['ADSR Envelope', () => new ADSREnvelopeNode()], // New: ADSR
                     ['Bitcrusher', () => new BitcrusherNode()], // New: Bitcrusher
                     ['Sequencer', () => new SequencerNode()],
+                    ['Master Clock', () => new MasterClockNode()],
+                    ['Clock Divider', () => new ClockDividerNode()],
 
                 ])
             });
@@ -3086,7 +3323,15 @@
             area.use(reactRender);
             area.use(contextMenu); // Use the instantiated contextMenu plugin
 
-            reactRender.addPreset(ReactPresets.classic.setup({ area }));
+            const CustomSocket = (props) => {
+                const { data } = props;
+                // Add the socket name as a class for custom styling (e.g., 'audio', 'midi', 'clock')
+                const className = `socket ${data.payload.name} ${data.side}`;
+                // Use React.createElement as we are not using JSX
+                return React.createElement('div', { className: className, title: data.payload.name });
+            };
+
+            reactRender.addPreset(ReactPresets.classic.setup({ area, socket: CustomSocket }));
             reactRender.addPreset(ReactPresets.contextMenu.setup())
 
             //AreaExtensions.simpleNodesOrder(area);
@@ -3378,6 +3623,16 @@
 
         addSequencerNodeBtn.addEventListener('click', async () => {
             await editor.addNode(new SequencerNode());
+            clearEditorBtn.disabled = false;
+        });
+
+        addMasterClockNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new MasterClockNode());
+            clearEditorBtn.disabled = false;
+        });
+
+        addClockDividerNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new ClockDividerNode());
             clearEditorBtn.disabled = false;
         });
 
