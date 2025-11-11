@@ -1045,16 +1045,16 @@
                 if (sourceSocket === audioSocket) {
                     const sourceOutput = sourceAudioNode.mainOutput || sourceAudioNode;
                     
-                    if (targetSocket === audioSocket) { // Audio -> Audio
+                    // Specific check for FM connection MUST come before the generic audio check
+                    if (connection.targetInput === 'fm' && targetAudioNode.frequency) { // Audio -> FM Param
+                        sourceOutput.connect(targetAudioNode.frequency);
+                    } else if (targetSocket === audioSocket) { // Audio -> Audio
                         let targetInput = targetAudioNode;
                          if (targetReteNode.label === 'Mixer') {
                             const inputIndex = parseInt(connection.targetInput.replace('in', '')) - 1;
                             targetInput = targetAudioNode.inputs[inputIndex];
                         }
                         if (targetInput) sourceOutput.connect(targetInput);
-
-                    } else if (connection.targetInput === 'fm' && targetAudioNode.frequency) { // Audio -> FM Param
-                        sourceOutput.connect(targetAudioNode.frequency);
                     }
                 }
                 // Handle CLOCK connections
