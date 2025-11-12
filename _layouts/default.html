@@ -975,38 +975,65 @@ workspace_data: ${base64Data}
         async function updateAudioGraphConnections() {
             if (!audioContext || !editor) return;
 
-            // 1. Disconnect everything to rebuild connections from scratch.
-            // This is a more targeted approach than a blanket .disconnect(), which can
-            // break the internal routing of complex nodes (like the LFO).
+            const connectionStrategies = {
+                'audio': new AudioConnectionStrategy(),
+                'fm': new FmConnectionStrategy(),
+                'mixer': new MixerConnectionStrategy(),
+                'midi': new MidiConnectionStrategy(),
+                'default': new AudioConnectionStrategy()
+            };
 
-            // First, disconnect any nodes that were implicitly connected to the master output.
+            function getDisconnectionStrategy(targetReteNode, targetInputKey, sourceSocket) {
+                 if (sourceSocket === midiSocket) {
+                    return connectionStrategies['midi'];
+                }
+                if (targetReteNode.label === 'Mixer' && targetInputKey.startsWith('in')) {
+                    return connectionStrategies['mixer'];
+                }
+                return connectionStrategies[targetInputKey] || connectionStrategies['default'];
+            }
+
+            function getConnectionStrategy(targetReteNode, targetInputKey, sourceSocket) {
+                if (sourceSocket === midiSocket) {
+                    return connectionStrategies['midi'];
+                }
+                if (targetInputKey === 'fm') {
+                    return connectionStrategies['fm'];
+                }
+                if (targetReteNode.label === 'Mixer' && targetInputKey.startsWith('in')) {
+                    return connectionStrategies['mixer'];
+                }
+                if (targetInputKey === 'audio') {
+                    return connectionStrategies['audio'];
+                }
+                return null;
+            }
+
+            // 1. Disconnect everything to rebuild connections from scratch.
             reteAudioNodes.forEach(audioNode => {
                 try {
+                    // Disconnect from global masterGain, if connected
                     const source = audioNode.mainOutput ? audioNode.mainOutput : audioNode;
                     source.disconnect(masterGain);
                 } catch (e) {
-                    // Ignore errors, the node may not have been connected to masterGain.
+                    // Ignore errors, the node may not have been connected.
                 }
             });
 
-            // Second, disconnect all the specific connections that exist in the editor.
             for (const connection of editor.getConnections()) {
-                const sourceNode = reteAudioNodes.get(connection.source);
-                const targetNode = reteAudioNodes.get(connection.target);
+                const sourceReteNode = editor.getNode(connection.source);
                 const targetReteNode = editor.getNode(connection.target);
+                const sourceAudioNode = reteAudioNodes.get(connection.source);
+                const targetAudioNode = reteAudioNodes.get(connection.target);
 
-                if (sourceNode && targetNode) {
-                    const source = sourceNode.mainOutput ? sourceNode.mainOutput : sourceNode;
+                if (sourceAudioNode && targetAudioNode) {
+                    const source = sourceAudioNode.mainOutput ? sourceAudioNode.mainOutput : sourceAudioNode;
+                    const strategy = getDisconnectionStrategy(targetReteNode, connection.targetInput, connection.sourceOutput.socket);
                     try {
-                        if (connection.targetInput === 'fm' && targetNode.frequency) {
-                            source.disconnect(targetNode.frequency);
-                        } else if (targetReteNode.label === 'Mixer') {
-                            const inputIndex = parseInt(connection.targetInput.replace('in', ''), 10) - 1;
-                            if (targetNode.inputs && targetNode.inputs[inputIndex]) {
-                                source.disconnect(targetNode.inputs[inputIndex]);
-                            }
+                        if (connection.sourceOutput.socket === midiSocket) {
+                            strategy.disconnect(sourceReteNode, targetAudioNode);
                         } else {
-                            source.disconnect(targetNode);
+                            strategy.disconnect(source, targetAudioNode, connection.targetInput);
                         }
                     } catch (e) {
                         // Ignore errors, connection might already be broken
@@ -1016,109 +1043,62 @@ workspace_data: ${base64Data}
 
             // 2. Reconnect based on Rete.js editor's connections
             for (const connection of editor.getConnections()) {
-                const sourceNode = editor.getNode(connection.source);
-                const targetNode = editor.getNode(connection.target);
+                const sourceReteNode = editor.getNode(connection.source);
+                const targetReteNode = editor.getNode(connection.target);
 
-                // Handle AUDIO connections
-                if (connection.targetInput === 'audio' || (targetNode.label === 'Mixer' && connection.targetInput.startsWith('in'))) { // Standard audio connection
-                    let sourceAudioNode = reteAudioNodes.get(sourceNode.id);
-                    let targetAudioNode = reteAudioNodes.get(targetNode.id);
+                let sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
+                let targetAudioNode = reteAudioNodes.get(targetReteNode.id);
 
-                    // If the source audio node has a mainOutput property, use it as the connection source.
-                    // This is typical for our custom classes that encapsulate multiple Web Audio nodes.
-                    if (sourceAudioNode && sourceAudioNode.mainOutput) {
-                        sourceAudioNode = sourceAudioNode.mainOutput;
-                    }
-                    
-                    if (sourceAudioNode && targetAudioNode) {
+                if (sourceAudioNode && targetAudioNode) {
+                    const source = sourceAudioNode.mainOutput ? sourceAudioNode.mainOutput : sourceAudioNode;
+                    const strategy = getConnectionStrategy(targetReteNode, connection.targetInput, connection.sourceOutput.socket);
+
+                    if (strategy) {
                         try {
-                            if (targetNode.label === 'Mixer') {
-                                const inputIndex = parseInt(connection.targetInput.replace('in', '')) - 1;
-                                if (targetAudioNode.inputs && targetAudioNode.inputs[inputIndex]) {
-                                    sourceAudioNode.connect(targetAudioNode.inputs[inputIndex]);
-                                    console.log(`Audio connected: ${sourceNode.label} to ${targetNode.label}`);
-                                }
+                            if (connection.sourceOutput.socket === midiSocket) {
+                                strategy.connect(sourceReteNode, targetAudioNode);
                             } else {
-                                sourceAudioNode.connect(targetAudioNode);
-                                console.log(`Audio connected: ${sourceNode.label} to ${targetNode.label}`);
+                                strategy.connect(source, targetAudioNode, connection.targetInput);
                             }
+                            console.log(`Connected: ${sourceReteNode.label} to ${targetReteNode.label} via ${connection.targetInput}`);
                         } catch (e) {
-                            console.error(`Error connecting audio from ${sourceNode.label} to ${targetNode.label}:`, e);
+                            console.error(`Error connecting ${sourceReteNode.label} to ${targetReteNode.label}:`, e);
                         }
-                    }
-                }
-                // Handle FM connections
-                else if (connection.targetInput === 'fm') {
-                    let sourceAudioNode = reteAudioNodes.get(sourceNode.id);
-                    let targetAudioNode = reteAudioNodes.get(targetNode.id);
-
-                    // If the source audio node has a mainOutput property, use it as the connection source.
-                    if (sourceAudioNode && sourceAudioNode.mainOutput) {
-                        sourceAudioNode = sourceAudioNode.mainOutput;
-                    }
-
-                    if (sourceAudioNode && targetAudioNode && targetAudioNode.frequency) {
-                        try {
-                            sourceAudioNode.connect(targetAudioNode.frequency);
-                            console.log(`FM connected: ${sourceNode.label} to ${targetNode.label}'s frequency`);
-                        } catch (e) {
-                            console.error(`Error connecting FM from ${sourceNode.label} to ${targetNode.label}:`, e);
-                        }
-                    }
-                }
-                // Handle MIDI connections
-                else if (connection.sourceOutput == midiSocket.name && connection.targetInput == midiSocket.name) {
-                    const sourceMidiNode = reteAudioNodes.get(connection.source);
-                    const targetMidiNode = reteAudioNodes.get(connection.target);
-
-                    if (sourceMidiNode && targetMidiNode && sourceMidiNode.addMidiOutputListener && targetMidiNode.receiveMidiNotes) {
-                        // Create a specific listener for this connection
-                        const listener = (midiNotes) => {
-                            targetMidiNode.receiveMidiNotes(midiNotes);
-                        };
-                        // Store the listener on the connection object for later removal
-                        connection._midiListener = listener;
-                        sourceMidiNode.addMidiOutputListener(listener);
-                        // console.log(`MIDI connected: ${sourceNode.label} to ${targetNode.label}`);
                     }
                 }
             }
 
-            // 3. Connect any Rete.js audio nodes that have outputs but no outgoing AUDIO connections to the destination.
+            // 3. Connect any audio-producing nodes with no outgoing connections to the Master Output, if it exists.
             const masterOutputNode = editor.getNodes().find(n => n.label === 'Master');
             const masterOutputAudioNode = masterOutputNode ? reteAudioNodes.get(masterOutputNode.id) : null;
 
             for (const reteNode of editor.getNodes()) {
                 const audioNode = reteAudioNodes.get(reteNode.id);
+                if (!audioNode) continue; // Skip if the audio node hasn't been built yet
+
                 const hasAudioOutputs = Object.keys(reteNode.outputs).some(key => reteNode.outputs[key].socket === audioSocket);
 
                 if (hasAudioOutputs) {
-                    const hasOutgoingAudioConnection = editor.getConnections().some(conn => 
+                    const hasOutgoingAudioConnection = editor.getConnections().some(conn =>
                         conn.source === reteNode.id && conn.sourceOutput.socket === audioSocket);
 
-                    // Connect to destination by default, unless the node is a modulator type
-                    // that explicitly sets this to false.
                     const connectByDefault = reteNode.connectToDestinationByDefault !== false;
 
-                    if (!hasOutgoingAudioConnection && connectByDefault && audioContext && audioContext.state === 'running') {
-                        if (audioNode) {
-                            try {
-                                const destination = masterOutputAudioNode || masterGain;
-                                // If the audio node has a mainOutput, connect that to the master gain. Otherwise, connect the node itself.
-                                if (audioNode.mainOutput) {
-                                    audioNode.mainOutput.connect(destination);
-                                } else if (audioNode.connect) {
-                                    audioNode.connect(destination);
-                                }
+                    // If the node has no outgoing audio connections and should connect by default,
+                    // route it ONLY to the master output node IF that node exists.
+                    // If no master output exists, these nodes will be silent.
+                    if (!hasOutgoingAudioConnection && connectByDefault && masterOutputAudioNode) {
+                        try {
+                            const sourceToConnect = audioNode.mainOutput || audioNode;
+                            if (sourceToConnect.connect) {
+                                sourceToConnect.connect(masterOutputAudioNode);
                             }
-                            catch (e) {
-                                console.error(`Error connecting ${reteNode.label} to destination:`, e);
-                            }
+                        } catch (e) {
+                            console.error(`Error connecting unconnected ${reteNode.label} to Master Output:`, e);
                         }
                     }
                 }
-
-                // 4. For Arpeggiator nodes, ensure they are started/stopped based on their tempoSource
+                 // 4. For Arpeggiator nodes, ensure they are started/stopped based on their tempoSource
                 if (reteNode.label === 'Arpeggiator' && audioNode instanceof Arpeggiator) {
                     // Check if audio context is running to decide if Arpeggiator should be active
                     if (audioContext && audioContext.state === 'running') {
@@ -1200,6 +1180,89 @@ workspace_data: ${base64Data}
 
 
         // --- Rete.js v2 Setup ---
+
+        class ConnectionStrategy {
+            connect(sourceNode, targetNode, targetInputKey) {
+                throw new Error("Connect method must be implemented by subclass.");
+            }
+
+            disconnect(sourceNode, targetNode, targetInputKey) {
+                throw new Error("Disconnect method must be inplemented by subclass.");
+            }
+        }
+
+        class MidiConnectionStrategy extends ConnectionStrategy {
+            connect(sourceReteNode, targetAudioNode) {
+                if (targetAudioNode && typeof targetAudioNode.receiveMidiNotes === 'function') {
+                    const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
+                    if (sourceAudioNode && typeof sourceAudioNode.addMidiListener === 'function') {
+                        // Create the bound listener function
+                        const listener = targetAudioNode.receiveMidiNotes.bind(targetAudioNode);
+
+                        // Store the listener on the target node, keyed by the source node's ID
+                        // to handle multiple MIDI inputs to the same target.
+                        if (!targetAudioNode._midiListeners) {
+                            targetAudioNode._midiListeners = new Map();
+                        }
+                        targetAudioNode._midiListeners.set(sourceReteNode.id, listener);
+
+                        sourceAudioNode.addMidiListener(listener);
+                    }
+                }
+            }
+
+            disconnect(sourceReteNode, targetAudioNode) {
+                 const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
+                 if (sourceAudioNode && typeof sourceAudioNode.removeMidiListener === 'function') {
+                    // Retrieve the stored listener
+                    if (targetAudioNode._midiListeners && targetAudioNode._midiListeners.has(sourceReteNode.id)) {
+                        const listener = targetAudioNode._midiListeners.get(sourceReteNode.id);
+                        sourceAudioNode.removeMidiListener(listener);
+                        targetAudioNode._midiListeners.delete(sourceReteNode.id); // Clean up
+                    }
+                }
+            }
+        }
+
+        class AudioConnectionStrategy extends ConnectionStrategy {
+            connect(sourceNode, targetNode, targetInputKey) {
+                sourceNode.connect(targetNode);
+            }
+
+            disconnect(sourceNode, targetNode, targetInputKey) {
+                sourceNode.disconnect(targetNode);
+            }
+        }
+
+        class FmConnectionStrategy extends ConnectionStrategy {
+            connect(sourceNode, targetNode, targetInputKey) {
+                if (targetNode.frequency) {
+                    sourceNode.connect(targetNode.frequency);
+                }
+            }
+
+            disconnect(sourceNode, targetNode, targetInputKey) {
+                if (targetNode.frequency) {
+                    sourceNode.disconnect(targetNode.frequency);
+                }
+            }
+        }
+
+        class MixerConnectionStrategy extends ConnectionStrategy {
+            connect(sourceNode, targetNode, targetInputKey) {
+                const inputIndex = parseInt(targetInputKey.replace('in', ''), 10) - 1;
+                if (targetNode.inputs && targetNode.inputs[inputIndex]) {
+                    sourceNode.connect(targetNode.inputs[inputIndex]);
+                }
+            }
+
+            disconnect(sourceNode, targetNode, targetInputKey) {
+                const inputIndex = parseInt(targetInputKey.replace('in', ''), 10) - 1;
+                if (targetNode.inputs && targetNode.inputs[inputIndex]) {
+                    sourceNode.disconnect(targetNode.inputs[inputIndex]);
+                }
+            }
+        }
 
         // Define Schemes for type safety (even in plain JS, helps define structure)
         // This is crucial for Rete.js v2
@@ -1290,6 +1353,32 @@ workspace_data: ${base64Data}
                 this.updateParameter('rootNote', this.data.rootNote || 'C4');
                 this.updateParameter('octaveRange', this.data.octaveRange || 0);
                 this.updateParameter('waveform', this.data.waveform || 'sine');
+            }
+
+            receiveMidiNotes(notes) {
+                if (notes && notes.length > 0) {
+                    const firstNote = notes[0];
+                    // Find the note name from the MIDI value
+                    let closestNoteName = 'C4';
+                    let minDiff = Infinity;
+                    for (const noteName in this.rootNotes) {
+                        const diff = Math.abs(this.rootNotes[noteName] - firstNote);
+                        if (diff < minDiff) {
+                            minDiff = diff;
+                            closestNoteName = noteName;
+                        }
+                    }
+
+                    // Update the internal data and the audio output
+                    this.updateParameter('rootNote', closestNoteName);
+
+                    // Also update the UI control in the Rete node
+                    const reteNode = editor.getNode(this.reteNodeId);
+                    if (reteNode && reteNode.controls.rootNote) {
+                        reteNode.controls.rootNote.value = closestNoteName;
+                        area.update('node', this.reteNodeId); // This is important to re-render the node's control
+                    }
+                }
             }
 
             setupNotesAndChords() {
@@ -1574,6 +1663,7 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Chord Generator');
 
+                this.addInput('midi', new Classic.Input(midiSocket, 'MIDI In'));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
 
                 // Initialize default data values for the new controls
@@ -1836,12 +1926,26 @@ workspace_data: ${base64Data}
                 this.currentNoteIndex = 0;
                 this.oscillators = [];
                 this.gainNodes = [];
+                this.midiListeners = [];
 
                 // Master gain for the Arpeggiator output
                 this.mainOutput = this.audioContext.createGain();
                 this.mainOutput.gain.value = 0.5; // Default volume for arpeggiator
 
                 this.setupNotesAndChords();
+            }
+
+            addMidiListener(callback) {
+                if (typeof callback === 'function' && !this.midiListeners.includes(callback)) {
+                    this.midiListeners.push(callback);
+                }
+            }
+
+            removeMidiListener(callback) {
+                const index = this.midiListeners.indexOf(callback);
+                if (index > -1) {
+                    this.midiListeners.splice(index, 1);
+                }
             }
 
             setupNotesAndChords() {
@@ -2051,6 +2155,13 @@ workspace_data: ${base64Data}
                     const midiNote = notes[this.currentNoteIndex];
                     this.scheduleNote(midiNote, secondsPerBeat * noteValue); // Use noteValue as duration
 
+                     // Broadcast the MIDI note to listeners
+                    if (this.midiListeners.length > 0) {
+                        this.midiListeners.forEach(callback => {
+                            callback([midiNote]); // Send as an array of notes
+                        });
+                    }
+
                     this.currentNoteIndex = (this.currentNoteIndex + 1) % notes.length;
                 };
 
@@ -2084,6 +2195,7 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Arpeggiator');
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
+                this.addOutput('midi', new Classic.Output(midiSocket, 'MIDI Out'));
 
                 this.data.bpm = 120;
                 this.addControl('bpm', new SliderControl('arpBpm', 'BPM', 60, 240, 1, this.data.bpm, (val) => {
@@ -3436,46 +3548,52 @@ workspace_data: ${base64Data}
             }
             {% else %}
             const defaultWorkspace = {
-              "nodes": [
-                {
-                  "id": "1",
-                  "label": "Tone Generator",
-                  "data": { "frequency": 220, "waveform": "sawtooth" },
-                  "position": { "x": 100, "y": 100 }
-                },
-                {
-                  "id": "2",
-                  "label": "LFO",
-                  "data": { "frequency": 10, "waveform": "square", "amount": 100 },
-                  "position": { "x": 100, "y": 300 }
-                },
-                {
-                  "id": "3",
-                  "label": "Noise Generator",
-                  "data": { "gainValue": 0.1 },
-                  "position": { "x": 100, "y": 500 }
-                },
-                {
-                  "id": "4",
-                  "label": "Mixer",
-                  "data": { "gain1": 0.5, "gain2": 0.2, "gain3": 0.5, "gain4": 0.5 },
-                  "position": { "x": 400, "y": 300 }
-                },
-                {
-                  "id": "5",
-                  "label": "Master",
-                  "data": { "gain": 0.5 },
-                  "position": { "x": 700, "y": 300 }
-                }
-              ],
-              "connections": [
-                { "id": "conn1", "source": "2", "sourceOutput": "audio", "target": "1", "targetInput": "fm" },
-                { "id": "conn2", "source": "1", "sourceOutput": "audio", "target": "4", "targetInput": "in1" },
-                { "id": "conn3", "source": "3", "sourceOutput": "audio", "target": "4", "targetInput": "in2" },
-                { "id": "conn4", "source": "4", "sourceOutput": "audio", "target": "5", "targetInput": "audio" }
-              ]
+                "nodes": [
+                    {
+                        "id": "1", "label": "LFO",
+                        "data": { "frequency": 10, "waveform": "square", "amount": 100 },
+                        "position": { "x": 50, "y": 300 }
+                    },
+                    {
+                        "id": "2", "label": "Tone Generator",
+                        "data": { "frequency": 220, "waveform": "sawtooth" },
+                        "position": { "x": 250, "y": 100 }
+                    },
+                    {
+                        "id": "3", "label": "Noise Generator",
+                        "data": { "gainValue": 0.1 },
+                        "position": { "x": 250, "y": 300 }
+                    },
+                     {
+                        "id": "4", "label": "Arpeggiator",
+                        "data": { "bpm": 140, "noteDuration": "1/16", "chordType": "Minor 7th", "rootNote": "A3", "arpeggioPattern": "Up-Down", "octaveRange": 2, "waveform": "sine" },
+                        "position": { "x": 50, "y": 500 }
+                    },
+                    {
+                        "id": "5", "label": "Chord Generator",
+                        "data": { "chordType": "Major Triad", "rootNote": "C4", "octaveRange": 0, "waveform": "triangle" },
+                        "position": { "x": 250, "y": 500 }
+                    },
+                    {
+                        "id": "6", "label": "Mixer",
+                        "data": { "gain1": 0.4, "gain2": 0.2, "gain3": 0.3, "gain4": 0.5 },
+                        "position": { "x": 550, "y": 300 }
+                    },
+                    {
+                        "id": "7", "label": "Master",
+                        "data": { "gain": 0.6 },
+                        "position": { "x": 800, "y": 300 }
+                    }
+                ],
+                "connections": [
+                    { "id": "conn1", "source": "1", "sourceOutput": "audio", "target": "2", "targetInput": "fm" },
+                    { "id": "conn2", "source": "2", "sourceOutput": "audio", "target": "6", "targetInput": "in1" },
+                    { "id": "conn3", "source": "3", "sourceOutput": "audio", "target": "6", "targetInput": "in2" },
+                    { "id": "conn4", "source": "4", "sourceOutput": "midi", "target": "5", "targetInput": "midi" },
+                    { "id": "conn5", "source": "5", "sourceOutput": "audio", "target": "6", "targetInput": "in3" },
+                    { "id": "conn6", "source": "6", "sourceOutput": "audio", "target": "7", "targetInput": "audio" }
+                ]
             };
-
             await editorFromJSON(defaultWorkspace);
             {% endif %}
 
