@@ -3467,6 +3467,51 @@ workspace_data: ${base64Data}
         // Initialize editor on window load
         window.onload = async () => {
             document.getElementById('cta-button').addEventListener('click', async () => {
+                // Load default workspace only if no specific workspace is being loaded from page data
+                {% unless page.workspace_data %}
+                const defaultWorkspace = {
+                  "nodes": [
+                    {
+                      "id": "1",
+                      "label": "Tone Generator",
+                      "data": { "frequency": 220, "waveform": "sawtooth" },
+                      "position": { "x": 100, "y": 100 }
+                    },
+                    {
+                      "id": "2",
+                      "label": "LFO",
+                      "data": { "frequency": 10, "waveform": "square", "amount": 100 },
+                      "position": { "x": 100, "y": 300 }
+                    },
+                    {
+                      "id": "3",
+                      "label": "Noise Generator",
+                      "data": { "gainValue": 0.1 },
+                      "position": { "x": 100, "y": 500 }
+                    },
+                    {
+                      "id": "4",
+                      "label": "Mixer",
+                      "data": { "gain1": 0.5, "gain2": 0.2, "gain3": 0.5, "gain4": 0.5 },
+                      "position": { "x": 400, "y": 300 }
+                    },
+                    {
+                      "id": "5",
+                      "label": "Master",
+                      "data": { "gain": 0.5 },
+                      "position": { "x": 700, "y": 300 }
+                    }
+                  ],
+                  "connections": [
+                    { "id": "conn1", "source": "2", "sourceOutput": "audio", "target": "1", "targetInput": "fm" },
+                    { "id": "conn2", "source": "1", "sourceOutput": "audio", "target": "4", "targetInput": "in1" },
+                    { "id": "conn3", "source": "3", "sourceOutput": "audio", "target": "4", "targetInput": "in2" },
+                    { "id": "conn4", "source": "4", "sourceOutput": "audio", "target": "5", "targetInput": "audio" }
+                  ]
+                };
+                await editorFromJSON(defaultWorkspace);
+                {% endunless %}
+
                 await startAudio();
                 document.getElementById('hero-overlay').remove();
             });
@@ -3480,49 +3525,6 @@ workspace_data: ${base64Data}
                 console.error('Error loading workspace data:', e);
                 showMessage('Error loading workspace data.', 'error');
             }
-            {% else %}
-            const defaultWorkspace = {
-              "nodes": [
-                {
-                  "id": "1",
-                  "label": "Tone Generator",
-                  "data": { "frequency": 220, "waveform": "sawtooth" },
-                  "position": { "x": 100, "y": 100 }
-                },
-                {
-                  "id": "2",
-                  "label": "LFO",
-                  "data": { "frequency": 10, "waveform": "square", "amount": 100 },
-                  "position": { "x": 100, "y": 300 }
-                },
-                {
-                  "id": "3",
-                  "label": "Noise Generator",
-                  "data": { "gainValue": 0.1 },
-                  "position": { "x": 100, "y": 500 }
-                },
-                {
-                  "id": "4",
-                  "label": "Mixer",
-                  "data": { "gain1": 0.5, "gain2": 0.2, "gain3": 0.5, "gain4": 0.5 },
-                  "position": { "x": 400, "y": 300 }
-                },
-                {
-                  "id": "5",
-                  "label": "Master",
-                  "data": { "gain": 0.5 },
-                  "position": { "x": 700, "y": 300 }
-                }
-              ],
-              "connections": [
-                { "id": "conn1", "source": "2", "sourceOutput": "audio", "target": "1", "targetInput": "fm" },
-                { "id": "conn2", "source": "1", "sourceOutput": "audio", "target": "4", "targetInput": "in1" },
-                { "id": "conn3", "source": "3", "sourceOutput": "audio", "target": "4", "targetInput": "in2" },
-                { "id": "conn4", "source": "4", "sourceOutput": "audio", "target": "5", "targetInput": "audio" }
-              ]
-            };
-
-            await editorFromJSON(defaultWorkspace);
             {% endif %}
 
             populateWorkspacesDropdown();
