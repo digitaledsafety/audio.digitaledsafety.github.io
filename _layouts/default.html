@@ -1,3 +1,6 @@
+---
+layout: none
+---
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -251,6 +254,8 @@
                             <button id="exportWorkspaceBtn" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md" role="menuitem">📤 Export to File</button>
                             <input type="file" id="importWorkspaceInput" style="display: none;">
                             <button id="importWorkspaceBtn" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md" role="menuitem">📥 Import from File</button>
+                            <hr class="my-2">
+                            <button id="publishWorkspaceBtn" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md" role="menuitem">🚀 Publish</button>
                         </div>
                     </div>
                 </div>
@@ -291,6 +296,7 @@
         <div id="messageBox" class="message-box hidden"></div>
         <canvas id="visualizer" class="w-full h-64 border border-gray-300 rounded-lg mt-4" style="display: none;"></canvas>
 
+        {{ content }}
 
         <div id="rete" class="relative">
             </div>
@@ -605,6 +611,33 @@
                 }
             };
             reader.readAsText(file);
+        }
+
+        function publishWorkspace() {
+            const name = document.getElementById('workspaceName').value;
+            if (!name) {
+                showMessage('Please enter a name for the workspace to publish.', 'error');
+                return;
+            }
+
+            const data = editorToJSON();
+            const json = JSON.stringify(data);
+            const base64Data = btoa(json);
+
+            const frontMatter = `---
+layout: default
+title: ${name}
+workspace_data: ${base64Data}
+---
+`;
+
+            const blob = new Blob([frontMatter], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${name.toLowerCase().replace(/\s+/g, '-')}.md`;
+            a.click();
+            URL.revokeObjectURL(url);
         }
 
         function showMessage(message, type = 'info') {
@@ -3387,6 +3420,15 @@
         window.onload = async () => {
             await createEditor();
 
+            {% if page.workspace_data %}
+            try {
+                const workspaceData = JSON.parse(atob('{{ page.workspace_data }}'));
+                await editorFromJSON(workspaceData);
+            } catch (e) {
+                console.error('Error loading workspace data:', e);
+                showMessage('Error loading workspace data.', 'error');
+            }
+            {% else %}
             const defaultWorkspace = {
               "nodes": [
                 {
@@ -3429,7 +3471,7 @@
             };
 
             await editorFromJSON(defaultWorkspace);
-
+            {% endif %}
 
             populateWorkspacesDropdown();
             showMessage('Editor ready. Add nodes and then click "Record" or "Play" to start audio.', 'info');
@@ -3522,6 +3564,10 @@
                 document.getElementById('workspaceActionsDropdown').classList.add('hidden');
             });
             document.getElementById('importWorkspaceInput').addEventListener('change', importWorkspace);
+            document.getElementById('publishWorkspaceBtn').addEventListener('click', () => {
+                publishWorkspace();
+                document.getElementById('workspaceActionsDropdown').classList.add('hidden');
+            });
 
 
             // --- Recording Button Logic ---
