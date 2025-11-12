@@ -3138,11 +3138,16 @@ workspace_data: ${base64Data}
                 if (context.type === 'render' && context.data.type === 'node') {
                     // Check if node data is valid and it's a known node type
                     if (context.data.payload instanceof WebAudioNode) {
+                        // Guard clause: Rete's React renderer might not have created the child elements yet.
+                        // If so, we skip this render pass. The pipe will be called again.
+                        if (!context.data.element.children[0]) {
+                            return context;
+                        }
                         const nodeView = new CustomNodeComponent(context.data.payload);
                         let elements = context.data.element.children[0].getElementsByClassName("control");
                         while(elements.length > 0){
                           elements[0].parentNode.removeChild(elements[0]);
-                        } 
+                        }
                         context.data.element.children[0].style.height = "auto";
                         context.data.element.children[0].appendChild(nodeView.el); // Append the custom node's DOM element
                     }
