@@ -3782,35 +3782,30 @@ workspace_data: ${base64Data}
             });
 
             // --- Two-finger tap for Play/Stop on mobile ---
-            let lastTapTime = 0;
+            let touchStartTime = 0;
+            let touchStartCoords = { x: 0, y: 0 };
             document.addEventListener('touchstart', (e) => {
-                // 1. Check if the required number of fingers are touching
                 if (e.touches.length === 2) {
-                    // Prevent default behavior (like zooming) for this gesture
-                    e.preventDefault();
-            
-                    const currentTime = new Date().getTime();
-                    const timeDifference = currentTime - lastTapTime;
-            
-                    // 2. Check if the current tap is within the 300 of the last tap
-                    if (timeDifference < 300 && timeDifference > 0) {
-                        // --- 🚀 DOUBLE TAP DETECTED 🚀 ---
-                        console.log("Two-Finger Double Tap!");
-                        
-                        // Execute your desired action
-                        // Assuming 'playStopBtn' is globally available or defined earlier
-                        if (typeof playStopBtn !== 'undefined' && playStopBtn.click) {
-                            playStopBtn.click();
-                        }
-            
-                        // Reset the lastTapTime to 0 after a successful double tap
-                        lastTapTime = 0;
-                    } else {
-                        // This is the first tap of a potential double tap
-                        lastTapTime = currentTime;
+                    touchStartTime = new Date().getTime();
+                    touchStartCoords = { x: e.touches[0].screenX, y: e.touches[0].screenY };
+                }
+            }, { passive: false });
+
+            document.addEventListener('touchend', (e) => {
+                if (e.changedTouches.length === 2 || e.touches.length === 0) {
+                    const touchEndTime = new Date().getTime();
+                    const touchEndX = e.changedTouches[0] ? e.changedTouches[0].screenX : touchStartCoords.x;
+                    const touchEndY = e.changedTouches[0] ? e.changedTouches[0].screenY : touchStartCoords.y;
+                    
+                    const duration = touchEndTime - touchStartTime;
+                    const distance = Math.sqrt(Math.pow(touchEndX - touchStartCoords.x, 2) + Math.pow(touchEndY - touchStartCoords.y, 2));
+
+                    if (duration < 300 && distance < 20) {
+                        e.preventDefault();
+                        playStopBtn.click();
                     }
                 }
-            });
+            }, { passive: false });
             
             // --- Initial State ---
             clearEditorBtn.disabled = false; // Initially enabled to allow clearing default workspace
