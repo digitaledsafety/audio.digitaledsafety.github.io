@@ -3770,6 +3770,40 @@ workspace_data: ${base64Data}
                 }
             });
 
+            // --- Hotkey for Play/Stop ---
+            document.addEventListener('keydown', (e) => {
+                if (e.code === 'Space' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA' && document.activeElement.tagName !== 'SELECT') {
+                    e.preventDefault();
+                    playStopBtn.click();
+                }
+            });
+
+            // --- Two-finger tap for Play/Stop on mobile ---
+            let touchStartTime = 0;
+            let touchStartCoords = { x: 0, y: 0 };
+            document.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 2) {
+                    touchStartTime = new Date().getTime();
+                    touchStartCoords = { x: e.touches[0].screenX, y: e.touches[0].screenY };
+                }
+            }, { passive: false });
+
+            document.addEventListener('touchend', (e) => {
+                if (e.changedTouches.length === 2 || e.touches.length === 0) {
+                    const touchEndTime = new Date().getTime();
+                    const touchEndX = e.changedTouches[0] ? e.changedTouches[0].screenX : touchStartCoords.x;
+                    const touchEndY = e.changedTouches[0] ? e.changedTouches[0].screenY : touchStartCoords.y;
+
+                    const duration = touchEndTime - touchStartTime;
+                    const distance = Math.sqrt(Math.pow(touchEndX - touchStartCoords.x, 2) + Math.pow(touchEndY - touchStartCoords.y, 2));
+
+                    if (duration < 300 && distance < 20) {
+                        e.preventDefault();
+                        playStopBtn.click();
+                    }
+                }
+            }, { passive: false });
+
 
             // --- Initial State ---
             clearEditorBtn.disabled = false; // Initially enabled to allow clearing default workspace
