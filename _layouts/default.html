@@ -11,26 +11,26 @@ layout: none
     <base target="_top">
     <style>
         /* Custom styles for better visual appeal */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Prevent scrolling of the body */
+        }
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f0f2f5;
             display: flex;
-            justify-content: center;
-            align-items: flex-start; /* Align to top for better content flow */
-            min-height: 100vh;
-            padding: 2rem;
-            box-sizing: border-box;
+            flex-direction: column;
         }
         .container {
-            background-color: #ffffff;
-            border-radius: 1rem;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-            padding: 2rem;
-            width: 100%;
-            max-width: 1200px; /* Wider to accommodate Rete.js editor */
+            flex-grow: 1;
             display: flex;
             flex-direction: column;
-            gap: 1.5rem;
+            padding-bottom: 60px; /* Height of the bottom nav bar */
+            height: 100vh;
+            width: 100%;
+            box-sizing: border-box;
         }
         .button {
             padding: 0.75rem 1.5rem;
@@ -83,11 +83,8 @@ layout: none
         /* Rete.js specific styles */
         #rete {
             width: 100%;
-            height: 600px; /* Fixed height for the Rete.js editor */
-            border: 1px solid #e5e7eb;
-            border-radius: 0.75rem;
+            height: 100%;
             background-color: #f9fafb;
-            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.05);
             overflow: hidden; /* Ensures content stays within bounds */
         }
         .node {
@@ -259,56 +256,30 @@ layout: none
         <button id="cta-button">Enter the Studio</button>
     </div>
     <div class="container">
-        <h1 class="text-3xl font-bold text-center text-gray-800 mb-4">Web Audio Node Processor with Rete.js v2</h1>
+        <div id="messageBox" class="message-box hidden"></div>
 
-        <div id="main-controls" class="flex flex-wrap items-start justify-center gap-4 mb-6 p-4 bg-gray-50 rounded-lg shadow-inner">
+        <div id="workspace-view" class="flex-grow h-full">
+            {{ content }}
+            <div id="rete" class="relative h-full"></div>
+        </div>
 
+        <div id="visualizer-view" class="hidden h-full">
+            <canvas id="visualizer" class="w-full h-full border-none"></canvas>
+        </div>
 
-            <!-- Recording Controls -->
-            <div id="recording-controls" class="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                <button id="recordBtn" class="button button-danger">⏺️ Record</button>
-                <button id="playRecordBtn" class="button button-secondary">▶️ Play</button>
-                <button id="stopRecordBtn" class="button button-secondary">⏹️ Stop</button>                
-                <!-- Dropdown for additional recording actions -->
-                <div class="relative inline-block text-left">
-                    <button id="recordingActionsToggle" class="button button-secondary">...</button>
-                    <div id="recordingActionsDropdown" class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-10">
-                        <div class="py-1" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
-                            <button id="downloadRecordBtn" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem" disabled>💾 Download</button>
-                        </div>
-                    </div>
-                </div>
+        <!-- Bottom Navigation Bar -->
+        <div id="bottom-nav" class="fixed bottom-0 left-0 right-0 bg-white shadow-lg flex justify-between items-center p-2 z-20">
+            <!-- Tabs -->
+            <div class="flex gap-2">
+                <button id="workspace-tab" class="button button-primary">Workspace</button>
+                <button id="visualizer-tab" class="button button-secondary">Visualizer</button>
             </div>
-
-            <!-- Workspace Controls -->
-            <div id="workspace-controls" class="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                <input type="text" id="workspaceName" placeholder="Workspace" class="p-2 border rounded-md text-sm w-32">
-                <button id="saveWorkspaceBtn" class="button button-primary">💾 Save</button>
-                <!-- Dropdown for workspace management -->
+            <!-- Action Buttons -->
+            <div class="flex gap-2 items-center">
+                <!-- Add Node Dropdown -->
                 <div class="relative inline-block text-left">
-                    <button id="workspaceActionsToggle" class="button button-secondary">📂 Manage</button>
-                    <div id="workspaceActionsDropdown" class="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-10">
-                        <div class="p-2" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
-                            <select id="workspaceSelector" class="w-full p-2 border rounded-md mb-2"></select>
-                            <button id="loadWorkspaceBtn" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md" role="menuitem">🔄 Load Selected</button>
-                            <button id="deleteWorkspaceBtn" class="block w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50 rounded-md mt-1" role="menuitem">🗑️ Delete Selected</button>
-                            <hr class="my-2">
-                            <button id="exportWorkspaceBtn" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md" role="menuitem">📤 Export to File</button>
-                            <input type="file" id="importWorkspaceInput" style="display: none;">
-                            <button id="importWorkspaceBtn" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md" role="menuitem">📥 Import from File</button>
-                            <hr class="my-2">
-                            <button id="publishWorkspaceBtn" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md" role="menuitem">🚀 Publish</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Node Addition Controls -->
-            <div id="node-add-controls" class="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                <!-- Dropdown for adding nodes -->
-                <div class="relative inline-block text-left">
-                    <button id="addNodeToggle" class="button button-primary">➕ Add Node</button>
-                    <div id="addNodeDropdown" class="origin-top-left absolute left-0 mt-2 w-64 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-10">
+                    <button id="addNodeToggle" class="button button-primary">➕</button>
+                    <div id="addNodeDropdown" class="origin-bottom-right absolute right-0 bottom-full mb-2 w-64 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-30">
                         <div class="grid grid-cols-2 gap-2 p-2" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
                             <button id="addToneGeneratorNodeBtn" class="button button-secondary w-full text-xs">🔊 Tone Gen</button>
                             <button id="addNoiseGeneratorNodeBtn" class="button button-secondary w-full text-xs">🌫️ Noise Gen</button>
@@ -330,19 +301,42 @@ layout: none
                         </div>
                     </div>
                 </div>
-                <button id="clearEditorBtn" class="button button-danger" disabled>🗑️ Clear All</button>
-                <button id="toggleVisualizerBtn" class="button button-secondary">👁️ Show Visualizer</button>
+                <button id="playStopBtn" class="button button-primary">▶️</button>
+                <!-- Settings Menu -->
+                <div class="relative inline-block text-left">
+                    <button id="settingsToggle" class="button button-secondary">⚙️</button>
+                    <div id="settingsDropdown" class="origin-bottom-right absolute right-0 bottom-full mb-2 w-80 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-30 p-4 flex flex-col gap-4">
+                        <h3 class="text-lg font-bold text-center">Settings</h3>
+                        <!-- Recording Controls -->
+                        <div class="flex flex-col gap-2 p-3 bg-gray-50 rounded-lg border">
+                            <h4 class="font-semibold text-center">Recording</h4>
+                            <div class="flex justify-center gap-2">
+                                <button id="recordBtn" class="button button-danger flex-1">⏺️ Record</button>
+                                <button id="downloadRecordBtn" class="button button-secondary flex-1" disabled>💾 Download</button>
+                            </div>
+                        </div>
+                        <!-- Workspace Controls -->
+                        <div class="flex flex-col gap-2 p-3 bg-gray-50 rounded-lg border">
+                            <h4 class="font-semibold text-center">Workspace</h4>
+                            <input type="text" id="workspaceName" placeholder="Workspace Name" class="p-2 border rounded-md">
+                            <div class="grid grid-cols-2 gap-2">
+                                <button id="saveWorkspaceBtn" class="button button-primary">💾 Save</button>
+                                <button id="deleteWorkspaceBtn" class="button button-danger">🗑️ Delete</button>
+                            </div>
+                            <select id="workspaceSelector" class="w-full p-2 border rounded-md"></select>
+                            <button id="loadWorkspaceBtn" class="button button-secondary">🔄 Load Selected</button>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button id="exportWorkspaceBtn" class="button button-secondary">📤 Export</button>
+                                <input type="file" id="importWorkspaceInput" class="hidden">
+                                <button id="importWorkspaceBtn" class="button button-secondary">📥 Import</button>
+                            </div>
+                            <button id="publishWorkspaceBtn" class="button button-secondary mt-2">🚀 Publish</button>
+                        </div>
+                         <button id="clearEditorBtn" class="button button-danger" disabled>🗑️ Clear All</button>
+                    </div>
+                </div>
             </div>
         </div>
-
-        <div id="messageBox" class="message-box hidden"></div>
-        <canvas id="visualizer" class="w-full h-64 border border-gray-300 rounded-lg mt-4" style="display: none;"></canvas>
-
-        {{ content }}
-
-        <div id="rete" class="relative">
-            </div>
-
     </div>
 
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/rete@2.0.0-beta.6/rete.min.js"></script>
@@ -410,24 +404,23 @@ layout: none
         const addToneGeneratorNodeBtn = document.getElementById('addToneGeneratorNodeBtn');
         const addNoiseGeneratorNodeBtn = document.getElementById('addNoiseGeneratorNodeBtn');
         const addWavePlayerNodeBtn = document.getElementById('addWavePlayerNodeBtn');
-        const addChordGeneratorNodeBtn = document.getElementById('addChordGeneratorNodeBtn'); // New Chord Generator Button
+        const addChordGeneratorNodeBtn = document.getElementById('addChordGeneratorNodeBtn');
         const addGainNodeBtn = document.getElementById('addGainNodeBtn');
         const addMixerNodeBtn = document.getElementById('addMixerNodeBtn');
         const addMasterGainOutputNodeBtn = document.getElementById('addMasterGainOutputNodeBtn');
         const addFilterNodeBtn = document.getElementById('addFilterNodeBtn');
         const addDelayNodeBtn = document.getElementById('addDelayNodeBtn');
-        const addArpeggiatorNodeBtn = document.getElementById('addArpeggiatorNodeBtn'); // New Button
-        const addLFONodeBtn = document.getElementById('addLFONodeBtn'); // New LFO button
-        const addADSREnvelopeNodeBtn = document.getElementById('addADSREnvelopeNodeBtn'); // New ADSR button
-        const addBitcrusherNodeBtn = document.getElementById('addBitcrusherNodeBtn'); // New Bitcrusher button
+        const addArpeggiatorNodeBtn = document.getElementById('addArpeggiatorNodeBtn');
+        const addLFONodeBtn = document.getElementById('addLFONodeBtn');
+        const addADSREnvelopeNodeBtn = document.getElementById('addADSREnvelopeNodeBtn');
+        const addBitcrusherNodeBtn = document.getElementById('addBitcrusherNodeBtn');
         const addSequencerNodeBtn = document.getElementById('addSequencerNodeBtn');
         const clearEditorBtn = document.getElementById('clearEditorBtn');
         const reteContainer = document.getElementById('rete');
         const messageBox = document.getElementById('messageBox');
         const recordBtn = document.getElementById('recordBtn');
-        const stopRecordBtn = document.getElementById('stopRecordBtn');
-        const playRecordBtn = document.getElementById('playRecordBtn');
         const downloadRecordBtn = document.getElementById('downloadRecordBtn');
+        const playStopBtn = document.getElementById('playStopBtn');
 
 
         // Rete.js Editor and Engine
@@ -829,7 +822,6 @@ workspace_data: ${base64Data}
                 await audioContext.resume();
             }
 
-                stopRecordBtn.disabled = false;
                 clearEditorBtn.disabled = false;
                 showMessage('Audio context started! Nodes in the editor are now active.', 'success');
 
@@ -880,8 +872,10 @@ workspace_data: ${base64Data}
                 };
 
                 mediaRecorder.start();
+                recordBtn.textContent = 'Recording...';
                 recordBtn.disabled = true;
-                stopRecordBtn.disabled = false;
+                playStopBtn.textContent = '⏹️';
+                audioState = 'recording';
                 showMessage('Recording started.', 'info');
             } else {
                 showMessage('Could not start audio context. Cannot record.', 'error');
@@ -891,8 +885,8 @@ workspace_data: ${base64Data}
         function stopAll() {
             if (mediaRecorder && mediaRecorder.state === 'recording') {
                 mediaRecorder.stop();
+                recordBtn.textContent = '⏺️ Record';
                 recordBtn.disabled = false;
-                stopRecordBtn.disabled = true;
                 showMessage('Recording stopped.', 'info');
             } else if (loopSource) {
                 stopPlaybackAndResetUI();
@@ -922,9 +916,8 @@ workspace_data: ${base64Data}
                         loopSource.connect(audioContext.destination);
                         loopSource.start(0);
 
-                        playRecordBtn.disabled = true;
-                        recordBtn.disabled = true;
-                        stopRecordBtn.disabled = false;
+                        playStopBtn.textContent = '⏹️';
+                        audioState = 'playing';
                         showMessage('Playing recording.', 'info');
                     } catch (e) {
                         console.error('Error playing recording:', e);
@@ -940,11 +933,9 @@ workspace_data: ${base64Data}
             if (loopSource) {
                 loopSource.stop();
                 loopSource = null;
-                playRecordBtn.disabled = false;
+                playStopBtn.textContent = '▶️';
+                audioState = 'stopped';
                 recordBtn.disabled = false;
-                if (!mediaRecorder || mediaRecorder.state !== 'recording') {
-                    stopRecordBtn.disabled = true;
-                }
                 showMessage('Playback stopped.', 'info');
             }
         }
@@ -1009,7 +1000,10 @@ workspace_data: ${base64Data}
                 audioContext = null;
             }
 
-            stopRecordBtn.disabled = true;
+            audioState = 'stopped';
+            playStopBtn.textContent = '▶️';
+            recordBtn.textContent = '⏺️ Record';
+            recordBtn.disabled = false;
             showMessage('Audio stopped.', 'info');
         }
 
@@ -3687,6 +3681,7 @@ workspace_data: ${base64Data}
             const setupDropdown = (toggleId, dropdownId) => {
                 const toggle = document.getElementById(toggleId);
                 const dropdown = document.getElementById(dropdownId);
+                if (!toggle || !dropdown) return;
                 toggle.addEventListener('click', (e) => {
                     e.stopPropagation();
                     // Close other dropdowns
@@ -3697,9 +3692,8 @@ workspace_data: ${base64Data}
                 });
             };
 
-            setupDropdown('recordingActionsToggle', 'recordingActionsDropdown');
-            setupDropdown('workspaceActionsToggle', 'workspaceActionsDropdown');
             setupDropdown('addNodeToggle', 'addNodeDropdown');
+            setupDropdown('settingsToggle', 'settingsDropdown');
 
             // Close dropdowns if clicking outside
             document.addEventListener('click', (e) => {
@@ -3715,34 +3709,66 @@ workspace_data: ${base64Data}
             document.getElementById('saveWorkspaceBtn').addEventListener('click', saveWorkspace);
             document.getElementById('loadWorkspaceBtn').addEventListener('click', () => {
                 loadWorkspace();
-                document.getElementById('workspaceActionsDropdown').classList.add('hidden'); // Close dropdown
+                document.getElementById('settingsDropdown').classList.add('hidden');
             });
             document.getElementById('deleteWorkspaceBtn').addEventListener('click', () => {
                 deleteWorkspace();
-                document.getElementById('workspaceActionsDropdown').classList.add('hidden');
+                 document.getElementById('settingsDropdown').classList.add('hidden');
             });
             document.getElementById('exportWorkspaceBtn').addEventListener('click', () => {
                 exportWorkspace();
-                document.getElementById('workspaceActionsDropdown').classList.add('hidden');
+                 document.getElementById('settingsDropdown').classList.add('hidden');
             });
             document.getElementById('importWorkspaceBtn').addEventListener('click', () => {
                 document.getElementById('importWorkspaceInput').click();
-                document.getElementById('workspaceActionsDropdown').classList.add('hidden');
+                 document.getElementById('settingsDropdown').classList.add('hidden');
             });
             document.getElementById('importWorkspaceInput').addEventListener('change', importWorkspace);
             document.getElementById('publishWorkspaceBtn').addEventListener('click', () => {
                 publishWorkspace();
-                document.getElementById('workspaceActionsDropdown').classList.add('hidden');
+                 document.getElementById('settingsDropdown').classList.add('hidden');
             });
 
 
-            // --- Recording Button Logic ---
-            recordBtn.addEventListener('click', startRecording);
-            stopRecordBtn.addEventListener('click', stopAll);
-            playRecordBtn.addEventListener('click', startAudio);
+            // --- Main Controls Logic ---
+            let audioState = 'stopped'; // 'stopped', 'playing', 'recording'
+
+            playStopBtn.addEventListener('click', async () => {
+                if (audioState === 'stopped') {
+                    await startAudio();
+                    audioState = 'playing';
+                    playStopBtn.textContent = '⏹️';
+                } else if (audioState === 'recording') {
+                    if (mediaRecorder && mediaRecorder.state === 'recording') {
+                        mediaRecorder.stop();
+                        recordBtn.textContent = '⏺️ Record';
+                        recordBtn.disabled = false;
+                        showMessage('Recording stopped.', 'info');
+                    }
+                    // After stopping recording, we often want to stop the audio graph too.
+                    await stopAudio();
+                    audioState = 'stopped';
+                    playStopBtn.textContent = '▶️';
+                }
+                else {
+                    await stopAudio();
+                    audioState = 'stopped';
+                    playStopBtn.textContent = '▶️';
+                }
+            });
+
+            recordBtn.addEventListener('click', async () => {
+                if (audioState !== 'recording') {
+                    await startRecording();
+                    audioState = 'recording';
+                    playStopBtn.textContent = '⏹️';
+                    recordBtn.textContent = 'Recording...';
+                    recordBtn.disabled = true;
+                }
+            });
+
             downloadRecordBtn.addEventListener('click', () => {
                 downloadRecording();
-                document.getElementById('recordingActionsDropdown').classList.add('hidden');
             });
 
             // --- Node Addition & Editor ---
@@ -3758,8 +3784,11 @@ workspace_data: ${base64Data}
             clearEditorBtn.disabled = false; // Initially enabled to allow clearing default workspace
 
             // --- Visualizer Toggle ---
-            const toggleVisualizerBtn = document.getElementById('toggleVisualizerBtn');
             const visualizerCanvas = document.getElementById('visualizer');
+            const workspaceTab = document.getElementById('workspace-tab');
+            const visualizerTab = document.getElementById('visualizer-tab');
+            const workspaceView = document.getElementById('workspace-view');
+            const visualizerView = document.getElementById('visualizer-view');
             let gl;
             let shaderProgram;
             let positionBuffer;
@@ -3836,7 +3865,7 @@ workspace_data: ${base64Data}
             }
 
             function visualize() {
-                if (visualizerCanvas.style.display === 'none') {
+                if (visualizerView.classList.contains('hidden')) {
                     return;
                 }
 
@@ -3856,16 +3885,23 @@ workspace_data: ${base64Data}
                 requestAnimationFrame(visualize);
             }
 
-            toggleVisualizerBtn.addEventListener('click', () => {
-                const isHidden = visualizerCanvas.style.display === 'none';
-                visualizerCanvas.style.display = isHidden ? 'block' : 'none';
-                toggleVisualizerBtn.textContent = isHidden ? '👁️ Hide Visualizer' : '👁️ Show Visualizer';
-                if (isHidden) {
-                    if (!gl) {
-                        initWebGL();
-                    }
-                    visualize();
+            workspaceTab.addEventListener('click', () => {
+                workspaceView.classList.remove('hidden');
+                visualizerView.classList.add('hidden');
+                workspaceTab.classList.replace('button-secondary', 'button-primary');
+                visualizerTab.classList.replace('button-primary', 'button-secondary');
+            });
+
+            visualizerTab.addEventListener('click', () => {
+                workspaceView.classList.add('hidden');
+                visualizerView.classList.remove('hidden');
+                visualizerTab.classList.replace('button-secondary', 'button-primary');
+                workspaceTab.classList.replace('button-primary', 'button-secondary');
+
+                if (!gl) {
+                    initWebGL();
                 }
+                visualize();
             });
         };
     </script>
