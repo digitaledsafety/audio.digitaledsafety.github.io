@@ -317,7 +317,6 @@ layout: none
                             <h4 class="font-semibold text-center">Recording</h4>
                             <div class="flex justify-center gap-2">
                                 <button id="recordBtn" class="button button-danger flex-1">⏺️ Record</button>
-                                <button id="downloadRecordBtn" class="button button-secondary flex-1" disabled>💾 Download</button>
                             </div>
                         </div>
                         <!-- Workspace Controls -->
@@ -424,7 +423,6 @@ layout: none
         const reteContainer = document.getElementById('rete-container');
         const messageBox = document.getElementById('messageBox');
         const recordBtn = document.getElementById('recordBtn');
-        const downloadRecordBtn = document.getElementById('downloadRecordBtn');
         const playStopBtn = document.getElementById('playStopBtn');
 
 
@@ -916,7 +914,10 @@ workspace_data: ${base64Data}
             if (recordedAudioUrl) {
                 const a = document.createElement('a');
                 a.href = recordedAudioUrl;
-                a.download = 'recording.webm';
+                const workspaceName = document.getElementById('workspaceName').value;
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const filename = workspaceName ? `${workspaceName}-${timestamp}.webm` : `recording-${timestamp}.webm`;
+                a.download = filename;
                 a.click();
             }
         }
@@ -3734,7 +3735,6 @@ workspace_data: ${base64Data}
                     // --- Start Recording ---
                     if (mediaStreamDestination) {
                         recordedChunks = [];
-                        downloadRecordBtn.disabled = true; 
                         mediaRecorder = new MediaRecorder(mediaStreamDestination.stream);
 
                         mediaRecorder.ondataavailable = event => {
@@ -3744,10 +3744,10 @@ workspace_data: ${base64Data}
                         mediaRecorder.onstop = () => {
                             const blob = new Blob(recordedChunks, { type: 'audio/webm' });
                             recordedAudioUrl = URL.createObjectURL(blob);
-                            downloadRecordBtn.disabled = false;
                             recordBtn.textContent = '⏺️ Record';
                             recordBtn.classList.replace('button-secondary', 'button-danger');
-                            showMessage('Recording finished.', 'success');
+                            showMessage('Recording finished. Downloading...', 'success');
+                            downloadRecording();
                         };
 
                         mediaRecorder.start();
@@ -3756,10 +3756,6 @@ workspace_data: ${base64Data}
                         showMessage('Recording started.', 'info');
                     }
                 }
-            });
-
-            downloadRecordBtn.addEventListener('click', () => {
-                downloadRecording();
             });
 
             // --- Node Addition & Editor ---
