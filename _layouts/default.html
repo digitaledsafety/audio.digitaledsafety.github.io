@@ -23,22 +23,27 @@ layout: none
             display: flex;
             flex-direction: column;
         }
-        .container {
+        .rete-container {
             flex-grow: 1;
             display: flex;
             flex-direction: column;
-            padding-bottom: 60px; /* Height of the bottom nav bar */
             height: 100vh;
             width: 100%;
             box-sizing: border-box;
         }
         .button {
-            padding: 0.75rem 1.5rem;
+            padding: 0.5rem 1rem;
             border-radius: 0.5rem;
             font-weight: 600;
             cursor: pointer;
             transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        #bottom-nav {
+            background-color: #f0f2f5;
+        }
+        #bottom-nav .button {
+            padding: 0.25rem 0.5rem;
         }
         .button-primary {
             background-color: #4f46e5;
@@ -81,7 +86,7 @@ layout: none
         }
 
         /* Rete.js specific styles */
-        #rete {
+        #rete-container {
             width: 100%;
             height: 100%;
             background-color: #f9fafb;
@@ -255,14 +260,14 @@ layout: none
         <p>Create, experiment, and share your sound with a powerful node-based synthesizer, right here in your browser.</p>
         <button id="cta-button">Enter the Studio</button>
     </div>
-    <div class="container">
+    <div class="rete-container">
         <div id="messageBox" class="message-box hidden"></div>
-
+        
         <div id="workspace-view" class="flex-grow h-full">
             {{ content }}
-            <div id="rete" class="relative h-full"></div>
+            <div id="rete-container" class="relative h-full"></div>
         </div>
-
+        
         <div id="visualizer-view" class="hidden h-full">
             <canvas id="visualizer" class="w-full h-full border-none"></canvas>
         </div>
@@ -271,8 +276,8 @@ layout: none
         <div id="bottom-nav" class="fixed bottom-0 left-0 right-0 bg-white shadow-lg flex justify-between items-center p-2 z-20">
             <!-- Tabs -->
             <div class="flex gap-2">
-                <button id="workspace-tab" class="button button-primary">Workspace</button>
-                <button id="visualizer-tab" class="button button-secondary">Visualizer</button>
+                <button id="workspace-tab" class="button button-primary">🎛️</button>
+                <button id="visualizer-tab" class="button button-secondary">✨</button>
             </div>
             <!-- Action Buttons -->
             <div class="flex gap-2 items-center">
@@ -416,7 +421,7 @@ layout: none
         const addBitcrusherNodeBtn = document.getElementById('addBitcrusherNodeBtn');
         const addSequencerNodeBtn = document.getElementById('addSequencerNodeBtn');
         const clearEditorBtn = document.getElementById('clearEditorBtn');
-        const reteContainer = document.getElementById('rete');
+        const reteContainer = document.getElementById('rete-container');
         const messageBox = document.getElementById('messageBox');
         const recordBtn = document.getElementById('recordBtn');
         const downloadRecordBtn = document.getElementById('downloadRecordBtn');
@@ -849,39 +854,6 @@ workspace_data: ${base64Data}
             updateAudioGraphConnections();
         }
 
-        async function startRecording() {
-            if (!audioContext || audioContext.state === 'closed' || audioContext.state === 'suspended') {
-                await startAudio();
-            }
-
-            if (audioContext && mediaStreamDestination && audioContext.state === 'running') {
-                recordedChunks = [];
-                mediaRecorder = new MediaRecorder(mediaStreamDestination.stream);
-
-                mediaRecorder.ondataavailable = event => {
-                    if (event.data.size > 0) {
-                        recordedChunks.push(event.data);
-                    }
-                };
-
-                mediaRecorder.onstop = () => {
-                    const blob = new Blob(recordedChunks, { type: 'audio/webm' });
-                    recordedAudioUrl = URL.createObjectURL(blob);
-                    playRecordBtn.disabled = false;
-                    downloadRecordBtn.disabled = false;
-                };
-
-                mediaRecorder.start();
-                recordBtn.textContent = 'Recording...';
-                recordBtn.disabled = true;
-                playStopBtn.textContent = '⏹️';
-                audioState = 'recording';
-                showMessage('Recording started.', 'info');
-            } else {
-                showMessage('Could not start audio context. Cannot record.', 'error');
-            }
-        }
-
         function stopAll() {
             if (mediaRecorder && mediaRecorder.state === 'recording') {
                 mediaRecorder.stop();
@@ -999,7 +971,7 @@ workspace_data: ${base64Data}
                 console.log('AudioContext closed.');
                 audioContext = null;
             }
-
+            
             audioState = 'stopped';
             playStopBtn.textContent = '▶️';
             recordBtn.textContent = '⏺️ Record';
@@ -3731,39 +3703,58 @@ workspace_data: ${base64Data}
 
 
             // --- Main Controls Logic ---
-            let audioState = 'stopped'; // 'stopped', 'playing', 'recording'
+            let audioState = 'stopped'; // 'stopped', 'playing'
 
             playStopBtn.addEventListener('click', async () => {
                 if (audioState === 'stopped') {
                     await startAudio();
                     audioState = 'playing';
                     playStopBtn.textContent = '⏹️';
-                } else if (audioState === 'recording') {
+                } else { // 'playing'
                     if (mediaRecorder && mediaRecorder.state === 'recording') {
-                        mediaRecorder.stop();
-                        recordBtn.textContent = '⏺️ Record';
-                        recordBtn.disabled = false;
-                        showMessage('Recording stopped.', 'info');
+                        mediaRecorder.stop(); // Stop recording if it's active
                     }
-                    // After stopping recording, we often want to stop the audio graph too.
-                    await stopAudio();
                     audioState = 'stopped';
                     playStopBtn.textContent = '▶️';
-                }
-                else {
                     await stopAudio();
-                    audioState = 'stopped';
-                    playStopBtn.textContent = '▶️';
+                    // stopAudio resets the button text and audioState
                 }
             });
 
             recordBtn.addEventListener('click', async () => {
-                if (audioState !== 'recording') {
-                    await startRecording();
-                    audioState = 'recording';
-                    playStopBtn.textContent = '⏹️';
-                    recordBtn.textContent = 'Recording...';
-                    recordBtn.disabled = true;
+                if (!audioContext || audioContext.state !== 'running') {
+                    showMessage('Please start audio before recording.', 'error');
+                    return;
+                }
+
+                if (mediaRecorder && mediaRecorder.state === 'recording') {
+                    // --- Stop Recording ---
+                    mediaRecorder.stop();
+                } else {
+                    // --- Start Recording ---
+                    if (mediaStreamDestination) {
+                        recordedChunks = [];
+                        downloadRecordBtn.disabled = true; 
+                        mediaRecorder = new MediaRecorder(mediaStreamDestination.stream);
+
+                        mediaRecorder.ondataavailable = event => {
+                            if (event.data.size > 0) recordedChunks.push(event.data);
+                        };
+
+                        mediaRecorder.onstop = () => {
+                            const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+                            recordedAudioUrl = URL.createObjectURL(blob);
+                            downloadRecordBtn.disabled = false;
+                            recordBtn.textContent = '⏺️ Record';
+                            recordBtn.classList.replace('button-secondary', 'button-danger');
+                            showMessage('Recording finished.', 'success');
+                        };
+
+                        mediaRecorder.start();
+                        recordBtn.textContent = '⏹️ Stop';
+                        recordBtn.classList.replace('button-danger', 'button-secondary');
+                        showMessage('Recording started.', 'info');
+                    }
                 }
             });
 
