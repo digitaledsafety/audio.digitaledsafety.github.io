@@ -3774,15 +3774,41 @@ workspace_data: ${base64Data}
             document.addEventListener('keydown', (e) => {
                 if (e.code === 'Space' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA' && document.activeElement.tagName !== 'SELECT') {
                     e.preventDefault();
-                    playStopBtn.click();
+                    // Assuming 'playStopBtn' is globally available or defined earlier
+                    if (typeof playStopBtn !== 'undefined' && playStopBtn.click) {
+                        playStopBtn.click();
+                    }
                 }
             });
 
             // --- Two-finger tap for Play/Stop on mobile ---
+            let lastTapTime = 0;
             document.addEventListener('touchstart', (e) => {
+                // 1. Check if the required number of fingers are touching
                 if (e.touches.length === 2) {
+                    // Prevent default behavior (like zooming) for this gesture
                     e.preventDefault();
-                    playStopBtn.click();
+            
+                    const currentTime = new Date().getTime();
+                    const timeDifference = currentTime - lastTapTime;
+            
+                    // 2. Check if the current tap is within the 300 of the last tap
+                    if (timeDifference < 300 && timeDifference > 0) {
+                        // --- 🚀 DOUBLE TAP DETECTED 🚀 ---
+                        console.log("Two-Finger Double Tap!");
+                        
+                        // Execute your desired action
+                        // Assuming 'playStopBtn' is globally available or defined earlier
+                        if (typeof playStopBtn !== 'undefined' && playStopBtn.click) {
+                            playStopBtn.click();
+                        }
+            
+                        // Reset the lastTapTime to 0 after a successful double tap
+                        lastTapTime = 0;
+                    } else {
+                        // This is the first tap of a potential double tap
+                        lastTapTime = currentTime;
+                    }
                 }
             });
             
