@@ -828,7 +828,7 @@ workspace_data: ${base64Data}
             }
 
                 clearEditorBtn.disabled = false;
-                showMessage('Audio context started! Nodes in the editor are now active.', 'success');
+                //showMessage('Audio context started! Nodes in the editor are now active.', 'success');
 
             // Initialize/start audio nodes that are already in the editor
             for (const reteNode of editor.getNodes()) {
@@ -976,7 +976,7 @@ workspace_data: ${base64Data}
             playStopBtn.textContent = '▶️';
             recordBtn.textContent = '⏺️ Record';
             recordBtn.disabled = false;
-            showMessage('Audio stopped.', 'info');
+            //showMessage('Audio stopped.', 'info');
         }
 
 
@@ -3770,7 +3770,22 @@ workspace_data: ${base64Data}
                 }
             });
 
+           // --- Hotkey for Play/Stop ---
+            document.addEventListener('keydown', (e) => {
+                if (e.code === 'Space' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA' && document.activeElement.tagName !== 'SELECT') {
+                    e.preventDefault();
+                    playStopBtn.click();
+                }
+            });
 
+            // --- Two-finger tap for Play/Stop on mobile ---
+            document.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 2) {
+                    e.preventDefault();
+                    playStopBtn.click();
+                }
+            });
+            
             // --- Initial State ---
             clearEditorBtn.disabled = false; // Initially enabled to allow clearing default workspace
 
