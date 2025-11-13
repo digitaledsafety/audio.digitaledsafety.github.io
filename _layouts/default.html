@@ -3739,7 +3739,7 @@ workspace_data: ${base64Data}
             // --- Recording Button Logic ---
             recordBtn.addEventListener('click', startRecording);
             stopRecordBtn.addEventListener('click', stopAll);
-            playRecordBtn.addEventListener('click', playRecording);
+            playRecordBtn.addEventListener('click', startAudio);
             downloadRecordBtn.addEventListener('click', () => {
                 downloadRecording();
                 document.getElementById('recordingActionsDropdown').classList.add('hidden');
