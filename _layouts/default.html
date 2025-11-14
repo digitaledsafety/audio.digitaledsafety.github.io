@@ -337,6 +337,25 @@ layout: none
                             </div>
                             <button id="publishWorkspaceBtn" class="button button-secondary mt-2">🚀 Publish</button>
                         </div>
+                        <!-- Multiplayer Controls -->
+                        <div class="flex flex-col gap-2 p-3 bg-gray-50 rounded-lg border">
+                            <h4 class="font-semibold text-center">Multiplayer</h4>
+                            <p class="text-xs text-center">Your ID: <span id="peerIdDisplay" class="font-mono bg-gray-200 px-1 rounded truncate">...</span></p>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button id="createSessionBtn" class="button button-primary">🤝 Create</button>
+                                <button id="disconnectBtn" class="button button-danger hidden">🔌 Disconnect</button>
+                            </div>
+                            <div class="flex gap-2">
+                                <input type="text" id="shareLinkInput" readonly placeholder="Session link will appear here" class="w-full p-2 border rounded-md bg-gray-100">
+                                <button id="copyLinkBtn" class="button button-secondary">📋</button>
+                            </div>
+                            <div>
+                                <h5 class="text-sm font-semibold text-center mt-2">Connected Users</h5>
+                                <ul id="connectedUsersList" class="text-xs text-center text-gray-600 mt-1 h-16 overflow-y-auto bg-gray-100 rounded p-1">
+                                    <!-- User list will be populated here -->
+                                </ul>
+                            </div>
+                        </div>
                          <button id="clearEditorBtn" class="button button-danger" disabled>🗑️ Clear All</button>
                     </div>
                 </div>
@@ -355,8 +374,8 @@ layout: none
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/rete-connection-plugin@2.0.0-beta.7/rete-connection-plugin.min.js"></script>
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/rete-context-menu-plugin@2.0.0-beta.6/rete-context-menu-plugin.min.js"></script>
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/rete-engine@2.0.0-beta.7/rete-engine.min.js"></script>
-
-    
+    <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+    <script type="text/javascript" src="/assets/js/multiplayer.js"></script>
 
     <script>
         // Capture global Rete.js objects into local constants after all CDN scripts have loaded
@@ -439,6 +458,8 @@ layout: none
         let analyser;
         let mediaStreamDestination;
         let loopSource;
+        let multiplayer;
+        let _isLocalChange = true;
 
         // --- Utility Functions ---
 
@@ -1025,6 +1046,30 @@ workspace_data: ${base64Data}
                     source.disconnect(masterGain);
                 } catch (e) {
                     // Ignore errors, the node may not have been connected.
+                }
+            });
+
+            multiplayer.on('connections-updated', (connections) => {
+                const usersList = document.getElementById('connectedUsersList');
+                usersList.innerHTML = ''; // Clear the list
+
+                // Add the current user (self)
+                const selfLi = document.createElement('li');
+                selfLi.textContent = `${multiplayer.getPeerId()} (You)`;
+                selfLi.classList.add('font-semibold');
+                usersList.appendChild(selfLi);
+
+                // Add other connected peers
+                connections.forEach(conn => {
+                    const userLi = document.createElement('li');
+                    userLi.textContent = conn.peer;
+                    usersList.appendChild(userLi);
+                });
+
+                // Show disconnect button when connected to a session
+                if (multiplayer.isConnected()) {
+                    document.getElementById('createSessionBtn').classList.add('hidden');
+                    document.getElementById('disconnectBtn').classList.remove('hidden');
                 }
             });
 
@@ -3303,6 +3348,10 @@ workspace_data: ${base64Data}
 
             // Rete.js v2: Events are handled differently via pipes
             editor.addPipe(async (context) => {
+                if (_isLocalChange && ['nodecreate', 'noderemove', 'connectioncreate', 'connectionremove', 'nodedragged'].includes(context.type)) {
+                    const workspaceData = editorToJSON();
+                    multiplayer.broadcast(workspaceData);
+                }
 
                 if (context.type === 'nodecreate' && context.data instanceof WebAudioNode) {
                     if (context.data.label === 'Master') {
@@ -3701,6 +3750,63 @@ workspace_data: ${base64Data}
                 publishWorkspace();
                  document.getElementById('settingsDropdown').classList.add('hidden');
             });
+
+            // --- Multiplayer Logic ---
+            multiplayer = new Multiplayer();
+            multiplayer.initialize();
+
+            multiplayer.on('peer-id-ready', (id) => {
+                document.getElementById('peerIdDisplay').textContent = id;
+            });
+
+            document.getElementById('createSessionBtn').addEventListener('click', () => {
+                multiplayer.startHosting();
+                const peerId = multiplayer.getPeerId();
+                if (peerId) {
+                    const sessionUrl = `${window.location.origin}${window.location.pathname}?session=${peerId}`;
+                    document.getElementById('shareLinkInput').value = sessionUrl;
+                    showMessage('Session created! Share the link with others.', 'success');
+                    document.getElementById('createSessionBtn').classList.add('hidden');
+                    document.getElementById('disconnectBtn').classList.remove('hidden');
+                } else {
+                    showMessage('Peer connection not yet established. Please wait a moment.', 'error');
+                }
+            });
+
+            document.getElementById('disconnectBtn').addEventListener('click', () => {
+                multiplayer.disconnect();
+                document.getElementById('shareLinkInput').value = '';
+                document.getElementById('createSessionBtn').classList.remove('hidden');
+                document.getElementById('disconnectBtn').classList.add('hidden');
+                document.getElementById('connectedUsersList').innerHTML = '';
+                showMessage('Disconnected from session.', 'info');
+            });
+
+            document.getElementById('copyLinkBtn').addEventListener('click', () => {
+                const linkInput = document.getElementById('shareLinkInput');
+                if (linkInput.value) {
+                    linkInput.select();
+                    document.execCommand('copy');
+                    showMessage('Link copied to clipboard!', 'success');
+                }
+            });
+
+            multiplayer.on('data-received', async (data) => {
+                _isLocalChange = false;
+                await editorFromJSON(data);
+                _isLocalChange = true;
+            });
+
+            multiplayer.on('request-initial-workspace', (peerId) => {
+                const workspaceData = editorToJSON();
+                multiplayer.sendInitialWorkspace(peerId, workspaceData);
+            });
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionId = urlParams.get('session');
+            if (sessionId) {
+                multiplayer.connectTo(sessionId);
+            }
 
 
             // --- Main Controls Logic ---
