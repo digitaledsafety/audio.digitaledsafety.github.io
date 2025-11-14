@@ -518,78 +518,84 @@ layout: none
         }
 
         async function editorFromJSON(json) {
-            console.log('Loading editor from JSON:', json);
-            await editor.clear();
+            try
+            {
+                console.log('Loading editor from JSON:', json);
+                await editor.clear();
 
-            // TODO: How do we avoid hardcoding any new node types here?
-            const nodeConstructors = {
-                'Tone Generator': ToneGeneratorNode,
-                'Noise Generator': NoiseGeneratorNode,
-                'Wave Player': WavePlayerNode,
-                'Chord Generator': ChordGeneratorNode,
-                'Gain': GainNode,
-                'Mixer': MixerNode,
-                'Master': MasterGainOutputNode,
-                'Filter': FilterNode,
-                'Delay': DelayNode,
-                'Distortion': DistortionNode,
-                'Compressor': CompressorNode,
-                'Reverb': ReverbNode,
-                'Arpeggiator': ArpeggiatorNode,
-                'Scale Arpeggiator': ScaleArpeggiatorNode,
-                'LFO': LFONode,
-                'ADSR Envelope': ADSREnvelopeNode,
-                'Bitcrusher': BitcrusherNode,
-                'Sequencer': SequencerNode
-            };
+                // TODO: How do we avoid hardcoding any new node types here?
+                const nodeConstructors = {
+                    'Tone Generator': ToneGeneratorNode,
+                    'Noise Generator': NoiseGeneratorNode,
+                    'Wave Player': WavePlayerNode,
+                    'Chord Generator': ChordGeneratorNode,
+                    'Gain': GainNode,
+                    'Mixer': MixerNode,
+                    'Master': MasterGainOutputNode,
+                    'Filter': FilterNode,
+                    'Delay': DelayNode,
+                    'Distortion': DistortionNode,
+                    'Compressor': CompressorNode,
+                    'Reverb': ReverbNode,
+                    'Arpeggiator': ArpeggiatorNode,
+                    'LFO': LFONode,
+                    'ADSR Envelope': ADSREnvelopeNode,
+                    'Bitcrusher': BitcrusherNode,
+                    'Sequencer': SequencerNode
+                };
 
-            // Create nodes first
-            for (const nodeData of json.nodes) {
-                const Constructor = nodeConstructors[nodeData.label];
-                if (Constructor) {
-                    const node = new Constructor();
-                    node.id = nodeData.id;
-                    
-                    // Critical: Overwrite the default data with saved data
-                    node.data = { ...node.data, ...nodeData.data };
+                // Create nodes first
+                for (const nodeData of json.nodes) {
+                    const Constructor = nodeConstructors[nodeData.label];
+                    if (Constructor) {
+                        const node = new Constructor();
+                        node.id = nodeData.id;
+                        
+                        // Critical: Overwrite the default data with saved data
+                        node.data = { ...node.data, ...nodeData.data };
 
-                    // Re-apply control values from data to the control objects BEFORE adding the node
-                    for (const key in node.controls) {
-                        const control = node.controls[key];
-                         if (node.data.hasOwnProperty(key)) {
-                             control.value = node.data[key];
+                        // Re-apply control values from data to the control objects BEFORE adding the node
+                        for (const key in node.controls) {
+                            const control = node.controls[key];
+                            if (node.data.hasOwnProperty(key)) {
+                                control.value = node.data[key];
+                            }
                         }
-                    }
 
-                    await editor.addNode(node);
-                    await area.translate(node.id, nodeData.position);
+                        await editor.addNode(node);
+                        await area.translate(node.id, nodeData.position);
 
-                    area.update('node', node.id);
+                        area.update('node', node.id);
 
 
-                } else {
-                    console.warn(`Node type "${nodeData.label}" not found.`);
-                }
-            }
-
-            // Then create connections
-            for (const connData of json.connections) {
-                const sourceNode = editor.getNode(connData.source);
-                const targetNode = editor.getNode(connData.target);
-
-                if (sourceNode && targetNode) {
-                    const sourceOutput = connData.sourceOutput;
-                    const targetInput = connData.targetInput;
-                    
-                    if (sourceOutput && targetInput) {
-                        await editor.addConnection(new Classic.Connection(sourceNode, sourceOutput, targetNode, targetInput));
                     } else {
-                         console.warn(`Could not find socket for connection:`, connData);
+                        console.warn(`Node type "${nodeData.label}" not found.`);
                     }
-                } else {
-                    console.warn(`Could not find nodes for connection:`, connData);
+                }
+
+                // Then create connections
+                for (const connData of json.connections) {
+                    const sourceNode = editor.getNode(connData.source);
+                    const targetNode = editor.getNode(connData.target);
+
+                    if (sourceNode && targetNode) {
+                        const sourceOutput = connData.sourceOutput;
+                        const targetInput = connData.targetInput;
+                        
+                        if (sourceOutput && targetInput) {
+                            await editor.addConnection(new Classic.Connection(sourceNode, sourceOutput, targetNode, targetInput));
+                        } else {
+                            console.warn(`Could not find socket for connection:`, connData);
+                        }
+                    } else {
+                        console.warn(`Could not find nodes for connection:`, connData);
+                    }
                 }
             }
+            catch (error) {
+                showMessage('Error syncing workspace: ' + error.message, 'error');
+            }
+
         }        
 
         function getWorkspaces() {
@@ -3756,10 +3762,6 @@ workspace_data: ${base64Data}
 
             // Rete.js v2: Events are handled differently via pipes
             editor.addPipe(async (context) => {
-                if (_isLocalChange && ['nodecreate', 'noderemove', 'connectioncreate', 'connectionremove', 'nodedragged'].includes(context.type)) {
-                    const workspaceData = editorToJSON();
-                    multiplayer.broadcast(workspaceData);
-                }
 
                 if (context.type === 'nodecreate' && context.data instanceof WebAudioNode) {
                     if (context.data.label === 'Master') {
@@ -3849,6 +3851,12 @@ workspace_data: ${base64Data}
                      // This event fires after the initial editor rendering
                     AreaExtensions.zoomAt(area, editor.getNodes());
                 }
+
+                if (_isLocalChange && ['nodecreate', 'noderemove', 'connectioncreate', 'connectionremove', 'nodedragged'].includes(context.type)) {
+                    const workspaceData = editorToJSON();
+                    multiplayer.broadcast(workspaceData);
+                }         
+                       
                 return context;
             });
 
@@ -4209,7 +4217,12 @@ workspace_data: ${base64Data}
 
             multiplayer.on('data-received', async (data) => {
                 _isLocalChange = false;
-                await editorFromJSON(data);
+                try {
+                    await editorFromJSON(data);
+                } catch (e) {
+                    console.error('Error loading data-received:', e);
+                    showMessage('Error loading workspace data-received.', 'error');
+                }                
                 _isLocalChange = true;
             });
 
