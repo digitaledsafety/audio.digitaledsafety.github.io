@@ -1405,9 +1405,8 @@ workspace_data: ${base64Data}
 
 
         class MultiplayerPlugin {
-            constructor(multiplayer, editorToJSON, area) {
+            constructor(multiplayer, area) {
                 this.multiplayer = multiplayer;
-                this.editorToJSON = editorToJSON;
                 this.area = area;
             }
 
@@ -3728,7 +3727,7 @@ workspace_data: ${base64Data}
             }));*/
 
             // Rete.js v2: Register plugins with the AreaPlugin
-            const multiplayerPlugin = new MultiplayerPlugin(multiplayer, editorToJSON, area);
+            const multiplayerPlugin = new MultiplayerPlugin(multiplayer, area);
             editor.use(multiplayerPlugin);            
             editor.use(area);
 
