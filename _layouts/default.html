@@ -2847,7 +2847,7 @@ workspace_data: ${base64Data}
             }
         }
 
-        class MasterClockNode extends WebAudioNode {
+        class MasterClockNode extends ModulatorNode {
             constructor() {
                 super('Master Clock');
                 this.addOutput('clock', new Classic.Output(clockSocket, 'Clock Out'));
