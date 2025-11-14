@@ -1221,30 +1221,6 @@ workspace_data: ${base64Data}
                 }
             });
 
-            multiplayer.on('connections-updated', (connections) => {
-                const usersList = document.getElementById('connectedUsersList');
-                usersList.innerHTML = ''; // Clear the list
-
-                // Add the current user (self)
-                const selfLi = document.createElement('li');
-                selfLi.textContent = `${multiplayer.getPeerId()} (You)`;
-                selfLi.classList.add('font-semibold');
-                usersList.appendChild(selfLi);
-
-                // Add other connected peers
-                connections.forEach(conn => {
-                    const userLi = document.createElement('li');
-                    userLi.textContent = conn.peer;
-                    usersList.appendChild(userLi);
-                });
-
-                // Show disconnect button when connected to a session
-                if (multiplayer.isConnected()) {
-                    document.getElementById('createSessionBtn').classList.add('hidden');
-                    document.getElementById('disconnectBtn').classList.remove('hidden');
-                }
-            });
-
             for (const connection of editor.getConnections()) {
                 const sourceReteNode = editor.getNode(connection.source);
                 const targetReteNode = editor.getNode(connection.target);
@@ -4253,6 +4229,30 @@ workspace_data: ${base64Data}
                 const workspaceData = editorToJSON();
                 multiplayer.sendInitialWorkspace(peerId, workspaceData);
             });
+
+            multiplayer.on('connections-updated', (connections) => {
+                const usersList = document.getElementById('connectedUsersList');
+                usersList.innerHTML = ''; // Clear the list
+
+                // Add the current user (self)
+                const selfLi = document.createElement('li');
+                selfLi.textContent = `${multiplayer.getPeerId()} (You)`;
+                selfLi.classList.add('font-semibold');
+                usersList.appendChild(selfLi);
+
+                // Add other connected peers
+                connections.forEach(conn => {
+                    const userLi = document.createElement('li');
+                    userLi.textContent = conn.peer;
+                    usersList.appendChild(userLi);
+                });
+
+                // Show disconnect button when connected to a session
+                if (multiplayer.isConnected()) {
+                    document.getElementById('createSessionBtn').classList.add('hidden');
+                    document.getElementById('disconnectBtn').classList.remove('hidden');
+                }
+            });            
 
             const urlParams = new URLSearchParams(window.location.search);
             const sessionId = urlParams.get('session');
