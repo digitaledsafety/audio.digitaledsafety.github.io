@@ -298,7 +298,8 @@ layout: none
                             <button id="addDistortionNodeBtn" class="button button-secondary w-full text-xs">🎸 Distortion</button>
                             <button id="addCompressorNodeBtn" class="button button-secondary w-full text-xs">📊 Compressor</button>
                             <button id="addReverbNodeBtn" class="button button-secondary w-full text-xs">🏞️ Reverb</button>
-                            <button id="addArpeggiatorNodeBtn" class="button button-secondary w-full text-xs">🎹 Arpeggiator</button>
+                            <button id="addArpeggiatorNodeBtn" class="button button-secondary w-full text-xs">🎹 Chord Arp</button>
+                            <button id="addScaleArpeggiatorNodeBtn" class="button button-secondary w-full text-xs">🎹 Scale Arp</button>
                             <button id="addLFONodeBtn" class="button button-secondary w-full text-xs">🌊 LFO</button>
                             <button id="addADSREnvelopeNodeBtn" class="button button-secondary w-full text-xs">✉️ ADSR</button>
                             <button id="addBitcrusherNodeBtn" class="button button-secondary w-full text-xs">👾 Bitcrusher</button>
@@ -413,6 +414,30 @@ layout: none
           'Major 7#11': [0, 4, 7, 11, 18],
           'Dominant 7b9': [0, 4, 7, 10, 13]
         };
+
+        const SCALE_TYPES = {
+            // Diatonic & Minor Scales
+            'Major (Ionian)': [0, 2, 4, 5, 7, 9, 11],
+            'Natural Minor (Aeolian)': [0, 2, 3, 5, 7, 8, 10],
+            'Harmonic Minor': [0, 2, 3, 5, 7, 8, 11],
+            'Melodic Minor': [0, 2, 3, 5, 7, 9, 11], // Ascending form
+
+            // Modes (Dorian, Phrygian, Lydian, Mixolydian, Locrian)
+            'Dorian Mode': [0, 2, 3, 5, 7, 9, 10],
+            'Phrygian Mode': [0, 1, 3, 5, 7, 8, 10],
+            'Lydian Mode': [0, 2, 4, 6, 7, 9, 11],
+            'Mixolydian Mode': [0, 2, 4, 5, 7, 9, 10],
+            'Locrian Mode': [0, 1, 3, 5, 6, 8, 10],
+
+            // Common non-diatonic scales
+            'Pentatonic Major': [0, 2, 4, 7, 9],
+            'Pentatonic Minor': [0, 3, 5, 7, 10],
+            'Blues Scale': [0, 3, 5, 6, 7, 10], // Minor Blues with the flat 5th
+            'Whole Tone': [0, 2, 4, 6, 8, 10],
+            'Diminished (Whole-Half)': [0, 2, 3, 5, 6, 8, 9, 11],
+            'Diminished (Half-Whole)': [0, 1, 3, 4, 6, 7, 9, 10],
+            'Chromatic Scale': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        };
         
         const ROOT_NOTES = {
             'C1': 24, 'C#1': 25, 'D1': 26, 'D#1': 27, 'E1': 28, 'F1': 29, 'F#1': 30, 'G1': 31, 'G#1': 32, 'A1': 33, 'A#1': 34, 'B1': 35,
@@ -434,6 +459,7 @@ layout: none
         const addFilterNodeBtn = document.getElementById('addFilterNodeBtn');
         const addDelayNodeBtn = document.getElementById('addDelayNodeBtn');
         const addArpeggiatorNodeBtn = document.getElementById('addArpeggiatorNodeBtn');
+        const addScaleArpeggiatorNodeBtn = document.getElementById('addScaleArpeggiatorNodeBtn');
         const addLFONodeBtn = document.getElementById('addLFONodeBtn');
         const addADSREnvelopeNodeBtn = document.getElementById('addADSREnvelopeNodeBtn');
         const addBitcrusherNodeBtn = document.getElementById('addBitcrusherNodeBtn');
@@ -924,6 +950,220 @@ workspace_data: ${base64Data}
                     }
                 } else {
                     showMessage('Could not start audio context. Cannot play recording.', 'error');
+                }
+            }
+        }
+
+        class ScaleArpeggiator {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+                this.started = false;
+                this.intervalId = null;
+                this.currentNoteIndex = 0;
+                this.midiListeners = [];
+                this.mainOutput = this.audioContext.createGain();
+                this.mainOutput.gain.value = 0.5;
+                this.setupNotesAndScales();
+            }
+
+            addMidiListener(callback) {
+                if (typeof callback === 'function' && !this.midiListeners.includes(callback)) {
+                    this.midiListeners.push(callback);
+                }
+            }
+
+            removeMidiListener(callback) {
+                const index = this.midiListeners.indexOf(callback);
+                if (index > -1) {
+                    this.midiListeners.splice(index, 1);
+                }
+            }
+
+            setupNotesAndScales() {
+                this.scaleTypes = SCALE_TYPES;
+                this.rootNotes = ROOT_NOTES;
+            }
+
+            getArpeggioNotes() {
+                const rootMidi = this.rootNotes[this.data.rootNote] || 60;
+                const scaleOffsets = this.scaleTypes[this.data.scaleType] || this.scaleTypes['Major (Ionian)'];
+                const octaveRange = this.data.octaveRange || 1;
+                const arpeggioNotes = [];
+
+                for (let oct = 0; oct < octaveRange; oct++) {
+                    scaleOffsets.forEach(offset => {
+                        arpeggioNotes.push(rootMidi + offset + (oct * 12));
+                    });
+                }
+
+                const sortedNotes = [...arpeggioNotes].sort((a, b) => a - b);
+                let patternResult = [];
+
+                switch (this.data.arpeggioPattern) {
+                    case 'Down':
+                        patternResult = [...sortedNotes].reverse();
+                        break;
+                    case 'Up-Down':
+                        const reversedUpdown = [...sortedNotes].reverse();
+                        patternResult = sortedNotes.concat(reversedUpdown.slice(1, -1));
+                        break;
+                    case 'Down-Up':
+                        const reversedDownUp = [...sortedNotes].reverse();
+                        patternResult = reversedDownUp.concat(sortedNotes.slice(1, -1));
+                        break;
+                    case 'Random':
+                        patternResult = [...sortedNotes];
+                        for (let i = patternResult.length - 1; i > 0; i--) {
+                            const j = Math.floor(Math.random() * (i + 1));
+                            [patternResult[i], patternResult[j]] = [patternResult[j], patternResult[i]];
+                        }
+                        break;
+                    default: // 'Up'
+                        patternResult = sortedNotes;
+                        break;
+                }
+                return patternResult;
+            }
+
+            scheduleNote(midiNotes, durationSeconds) {
+                if (!this.audioContext) return;
+                const notesToPlay = Array.isArray(midiNotes) ? midiNotes : [midiNotes];
+                notesToPlay.forEach(midiNote => {
+                    const frequency = midiToFrequency(midiNote);
+                    const osc = this.audioContext.createOscillator();
+                    const gainNode = this.audioContext.createGain();
+                    osc.type = this.data.waveform || 'sine';
+                    osc.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+                    const attackTime = 0.01, releaseTime = 0.1, rampTime = 0.001;
+                    gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+                    gainNode.gain.linearRampToValueAtTime(0.3 / notesToPlay.length, this.audioContext.currentTime + attackTime);
+                    let myRampTime = this.audioContext.currentTime + durationSeconds - releaseTime;
+                    gainNode.gain.exponentialRampToValueAtTime(rampTime, ((myRampTime < rampTime) ? rampTime : myRampTime));
+                    gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + durationSeconds);
+                    osc.connect(gainNode);
+                    gainNode.connect(this.mainOutput);
+                    osc.start(this.audioContext.currentTime);
+                    osc.stop(this.audioContext.currentTime + durationSeconds);
+                    osc.onended = () => {
+                        osc.disconnect();
+                        gainNode.disconnect();
+                    };
+                });
+            }
+
+            start() {
+                if (this.started || !this.audioContext) return;
+                this.started = true;
+                this.currentNoteIndex = 0;
+                const notes = this.getArpeggioNotes();
+                const bpm = this.data.bpm || 120;
+                const noteDurationMap = { '1': 1, '1/2': 2, '1/4': 1, '1/8': 0.5, '1/16': 0.25, '1/32': 0.125 };
+                const noteValue = noteDurationMap[this.data.noteDuration] || 0.25;
+                const secondsPerBeat = 60 / bpm;
+                const intervalMs = (secondsPerBeat * noteValue) * 1000;
+                const playNextNote = () => {
+                    if (!this.started) { clearInterval(this.intervalId); return; }
+                    if (notes.length === 0) return;
+                    const currentStep = notes[this.currentNoteIndex];
+                    this.scheduleNote(currentStep, secondsPerBeat * noteValue);
+                    const midiNotesToBroadcast = Array.isArray(currentStep) ? currentStep : [currentStep];
+                    if (this.midiListeners.length > 0) {
+                        this.midiListeners.forEach(callback => callback(midiNotesToBroadcast));
+                    }
+                    this.currentNoteIndex = (this.currentNoteIndex + 1) % notes.length;
+                };
+                playNextNote();
+                this.intervalId = setInterval(playNextNote, intervalMs);
+            }
+
+            stop() {
+                if (!this.started) return;
+                clearInterval(this.intervalId);
+                this.intervalId = null;
+                this.started = false;
+            }
+
+            updateParameter(param, value) {
+                this.data[param] = value;
+                if (this.started) {
+                    this.stop();
+                    this.start();
+                }
+            }
+        }
+
+        class ScaleArpeggiatorNode extends WebAudioNode {
+            constructor() {
+                super('Scale Arpeggiator');
+                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
+                this.addOutput('midi', new Classic.Output(midiSocket, 'MIDI Out'));
+
+                this.data.bpm = 120;
+                this.addControl('bpm', new SliderControl('arpBpm', 'BPM', 60, 240, 1, this.data.bpm, (val) => {
+                    this.data.bpm = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('bpm', val);
+                }));
+
+                this.data.noteDuration = '1/16';
+                this.addControl('noteDuration', new SelectControl('arpNoteDuration', 'Note Duration', ['1', '1/2', '1/4', '1/8', '1/16', '1/32'], this.data.noteDuration, (val) => {
+                    this.data.noteDuration = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('noteDuration', val);
+                }));
+
+                this.data.scaleType = 'Major (Ionian)';
+                this.addControl('scaleType', new SelectControl('arpScaleType', 'Scale Type', Object.keys(SCALE_TYPES), this.data.scaleType, (val) => {
+                    this.data.scaleType = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('scaleType', val);
+                }));
+
+                this.data.rootNote = 'C4';
+                const rootNoteOptions = Object.keys(ROOT_NOTES);
+                this.addControl('rootNote', new SelectControl('arpRootNote', 'Root Note', rootNoteOptions, this.data.rootNote, (val) => {
+                    this.data.rootNote = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('rootNote', val);
+                }));
+
+                this.data.arpeggioPattern = 'Up';
+                this.addControl('arpeggioPattern', new SelectControl('arpPattern', 'Pattern', ['Up', 'Down', 'Up-Down', 'Down-Up', 'Random'], this.data.arpeggioPattern, (val) => {
+                    this.data.arpeggioPattern = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('arpeggioPattern', val);
+                }));
+
+                this.data.octaveRange = 1;
+                this.addControl('octaveRange', new SliderControl('arpOctaveRange', 'Octaves', 1, 5, 1, this.data.octaveRange, (val) => {
+                    this.data.octaveRange = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('octaveRange', val);
+                }));
+
+                this.data.waveform = 'sine';
+                this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveform, (val) => {
+                    this.data.waveform = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('waveform', val);
+                }));
+            }
+
+            build(audioContext) {
+                return new ScaleArpeggiator(audioContext, this.id, this.data);
+            }
+
+            start() {
+                const audioNode = reteAudioNodes.get(this.id);
+                if (audioNode && audioNode.start && !audioNode.started) {
+                    try {
+                        audioNode.start();
+                        audioNode.started = true;
+                    } catch (e) {
+                        console.warn(`Could not start ${this.label} for node ${this.id}:`, e);
+                    }
                 }
             }
         }
@@ -2044,6 +2284,11 @@ workspace_data: ${base64Data}
                         patternResult = sortedNotes.concat(reversedUpdown.slice(1, -1));
                         break;
 
+                    case 'Down-Up':
+                        const reversedDownUp = [...sortedNotes].reverse();
+                        patternResult = reversedDownUp.concat(sortedNotes.slice(1, -1));
+                        break;
+
                     case 'Converge':
                         // Starts from the lowest and highest notes, moving towards the middle
                         let lowIdxConverge = 0;
@@ -2091,39 +2336,22 @@ workspace_data: ${base64Data}
                         }
                         break;
 
-                    case 'Root-5th':
-                        // This pattern prioritizes the root (lowest) and its perfect 5th (7 semitones above).
-                        // It's implemented as "Outside-In" for simplicity within the reordering context,
-                        // as generating precise 5ths not present in `arpeggioNotes` would require more complex logic.
-                        // It plays lowest, highest, then second-lowest, second-highest, etc.
-                        let lowIdxRoot5th = 0;
-                        let highIdxRoot5th = sortedNotes.length - 1;
-                        while (lowIdxRoot5th <= highIdxRoot5th) {
-                            if (lowIdxRoot5th === highIdxRoot5th) {
-                                patternResult.push(sortedNotes[lowIdxRoot5th]);
-                            } else {
-                                patternResult.push(sortedNotes[lowIdxRoot5th]);
-                                patternResult.push(sortedNotes[highIdxRoot5th]);
-                            }
-                            lowIdxRoot5th++;
-                            highIdxRoot5th--;
+                    case 'Alberti Bass':
+                        if (sortedNotes.length >= 3) {
+                            // 1-5-3-5 pattern from the chord's notes
+                            const root = sortedNotes[0];
+                            const third = sortedNotes[1];
+                            const fifth = sortedNotes[2];
+                            patternResult = [root, fifth, third, fifth];
+                        } else {
+                            // Fallback for chords with less than 3 notes
+                            patternResult = sortedNotes;
                         }
-                        // Note: This is functionally the same as 'Converge' in terms of final note order,
-                        // but 'Root-5th' often implies specific interval generation beyond simple reordering.
-                        // If you need a more strict 'Root-5th' (e.g., C-G-C'-G'), the arpeggiator logic
-                        // would need to generate notes based on intervals from the root, not just reorder.
                         break;
 
-                    case 'Chord Following':
-                        // In the context of an arpeggiator that plays notes sequentially,
-                        // "Chord Following" often means simply playing the notes of the held chord
-                        // in their natural (ascending) order.
-                        // If "Chord Following" meant playing all notes *simultaneously* at each step,
-                        // the arpeggiator's core playback loop would need to be re-designed to handle arrays of notes.
-                        patternResult = sortedNotes; // Plays the entire chord in ascending order
-                        // Comment: If this pattern is selected, the arpeggiator effectively acts as a chord repeater,
-                        // playing all held notes together (if your arpeggiator's playNextNote logic supports it for a single step)
-                        // or just sequentially playing them as 'Up'. For sequential playback, it's identical to 'Up'.
+                    case 'Chord':
+                        // This will be a single step in the sequence, containing all notes
+                        patternResult = [sortedNotes];
                         break;
 
                     case 'Melodic':
@@ -2153,40 +2381,42 @@ workspace_data: ${base64Data}
                 return patternResult;
             }
 
-            scheduleNote(midiNote, durationSeconds) {
+            scheduleNote(midiNotes, durationSeconds) {
                 if (!this.audioContext) return;
 
-                const frequency = midiToFrequency(midiNote);
-                const osc = this.audioContext.createOscillator();
-                const gainNode = this.audioContext.createGain();
+                // Ensure midiNotes is always an array
+                const notesToPlay = Array.isArray(midiNotes) ? midiNotes : [midiNotes];
 
-                osc.type = this.data.waveform || 'sine'; // Use waveform from node data
-                osc.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+                notesToPlay.forEach(midiNote => {
+                    const frequency = midiToFrequency(midiNote);
+                    const osc = this.audioContext.createOscillator();
+                    const gainNode = this.audioContext.createGain();
 
-                // Simple ADSR-like envelope (Attack and Release)
-                const attackTime = 0.01;
-                const releaseTime = 0.1;
-                const rampTime = 0.001;
+                    osc.type = this.data.waveform || 'sine';
+                    osc.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
 
-                gainNode.gain.setValueAtTime(0, this.audioContext.currentTime); // Start at 0
-                gainNode.gain.linearRampToValueAtTime(0.3, this.audioContext.currentTime + attackTime); // Attack
+                    const attackTime = 0.01;
+                    const releaseTime = 0.1;
+                    const rampTime = 0.001;
 
-                let myRampTime = this.audioContext.currentTime + durationSeconds - releaseTime;
-                // Error when myRampTime less than 0.001
-                gainNode.gain.exponentialRampToValueAtTime(rampTime, ((myRampTime < rampTime) ? rampTime : myRampTime)); // Release
-                gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + durationSeconds); // Turn off
+                    gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+                    gainNode.gain.linearRampToValueAtTime(0.3 / notesToPlay.length, this.audioContext.currentTime + attackTime);
 
-                osc.connect(gainNode);
-                gainNode.connect(this.mainOutput); // Connect to arpeggiator's main output
+                    let myRampTime = this.audioContext.currentTime + durationSeconds - releaseTime;
+                    gainNode.gain.exponentialRampToValueAtTime(rampTime, ((myRampTime < rampTime) ? rampTime : myRampTime));
+                    gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + durationSeconds);
 
-                osc.start(this.audioContext.currentTime);
-                osc.stop(this.audioContext.currentTime + durationSeconds);
+                    osc.connect(gainNode);
+                    gainNode.connect(this.mainOutput);
 
-                // Clean up nodes after they stop
-                osc.onended = () => {
-                    osc.disconnect();
-                    gainNode.disconnect();
-                };
+                    osc.start(this.audioContext.currentTime);
+                    osc.stop(this.audioContext.currentTime + durationSeconds);
+
+                    osc.onended = () => {
+                        osc.disconnect();
+                        gainNode.disconnect();
+                    };
+                });
             }
 
             start() {
@@ -2206,19 +2436,19 @@ workspace_data: ${base64Data}
                 const intervalMs = (secondsPerBeat * noteValue) * 1000;
 
                 const playNextNote = () => {
-                    if (!this.started) { // Check if arpeggiator is still active
+                    if (!this.started) {
                         clearInterval(this.intervalId);
                         return;
                     }
                     if (notes.length === 0) return;
 
-                    const midiNote = notes[this.currentNoteIndex];
-                    this.scheduleNote(midiNote, secondsPerBeat * noteValue); // Use noteValue as duration
+                    const currentStep = notes[this.currentNoteIndex];
+                    this.scheduleNote(currentStep, secondsPerBeat * noteValue);
 
-                     // Broadcast the MIDI note to listeners
+                    const midiNotesToBroadcast = Array.isArray(currentStep) ? currentStep : [currentStep];
                     if (this.midiListeners.length > 0) {
                         this.midiListeners.forEach(callback => {
-                            callback([midiNote]); // Send as an array of notes
+                            callback(midiNotesToBroadcast);
                         });
                     }
 
@@ -2288,7 +2518,7 @@ workspace_data: ${base64Data}
                 }));
 
                 this.data.arpeggioPattern = 'Up';
-                this.addControl('arpeggioPattern', new SelectControl('arpPattern', 'Pattern', ['Up', 'Down', 'Up-Down', 'Converge', 'Diverge', 'Random', 'Root-5th', 'Chord Following', 'Melodic'], this.data.arpeggioPattern, (val) => {
+                this.addControl('arpeggioPattern', new SelectControl('arpPattern', 'Pattern', ['Up', 'Down', 'Up-Down', 'Down-Up', 'Converge', 'Diverge', 'Random', 'Alberti Bass', 'Chord', 'Melodic'], this.data.arpeggioPattern, (val) => {
                     this.data.arpeggioPattern = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.updateParameter) audioNode.updateParameter('arpeggioPattern', val);
@@ -3443,6 +3673,7 @@ workspace_data: ${base64Data}
                     ['Compressor', () => new CompressorNode()],   // New Context Menu Item
                     ['Reverb', () => new ReverbNode()],            // New Context Menu Item
                     ['Arpeggiator', () => new ArpeggiatorNode()], // Add Arpeggiator to context menu
+                    ['Scale Arpeggiator', () => new ScaleArpeggiatorNode()],
                     ['LFO', () => new LFONode()], // New: LFO
                     ['ADSR Envelope', () => new ADSREnvelopeNode()], // New: ADSR
                     ['Bitcrusher', () => new BitcrusherNode()], // New: Bitcrusher
@@ -3751,6 +3982,14 @@ workspace_data: ${base64Data}
 
         addArpeggiatorNodeBtn.addEventListener('click', async () => {
             const node = new ArpeggiatorNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false;
+        });
+
+        addScaleArpeggiatorNodeBtn.addEventListener('click', async () => {
+            const node = new ScaleArpeggiatorNode();
             const existingNodesCount = editor.getNodes().length;
             node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
             await editor.addNode(node);
