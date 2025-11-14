@@ -1094,80 +1094,6 @@ workspace_data: ${base64Data}
             }
         }
 
-        class ScaleArpeggiatorNode extends WebAudioNode {
-            constructor() {
-                super('Scale Arpeggiator');
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
-                this.addOutput('midi', new Classic.Output(midiSocket, 'MIDI Out'));
-
-                this.data.bpm = 120;
-                this.addControl('bpm', new SliderControl('arpBpm', 'BPM', 60, 240, 1, this.data.bpm, (val) => {
-                    this.data.bpm = val;
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('bpm', val);
-                }));
-
-                this.data.noteDuration = '1/16';
-                this.addControl('noteDuration', new SelectControl('arpNoteDuration', 'Note Duration', ['1', '1/2', '1/4', '1/8', '1/16', '1/32'], this.data.noteDuration, (val) => {
-                    this.data.noteDuration = val;
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('noteDuration', val);
-                }));
-
-                this.data.scaleType = 'Major (Ionian)';
-                this.addControl('scaleType', new SelectControl('arpScaleType', 'Scale Type', Object.keys(SCALE_TYPES), this.data.scaleType, (val) => {
-                    this.data.scaleType = val;
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('scaleType', val);
-                }));
-
-                this.data.rootNote = 'C4';
-                const rootNoteOptions = Object.keys(ROOT_NOTES);
-                this.addControl('rootNote', new SelectControl('arpRootNote', 'Root Note', rootNoteOptions, this.data.rootNote, (val) => {
-                    this.data.rootNote = val;
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('rootNote', val);
-                }));
-
-                this.data.arpeggioPattern = 'Up';
-                this.addControl('arpeggioPattern', new SelectControl('arpPattern', 'Pattern', ['Up', 'Down', 'Up-Down', 'Down-Up', 'Random'], this.data.arpeggioPattern, (val) => {
-                    this.data.arpeggioPattern = val;
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('arpeggioPattern', val);
-                }));
-
-                this.data.octaveRange = 1;
-                this.addControl('octaveRange', new SliderControl('arpOctaveRange', 'Octaves', 1, 5, 1, this.data.octaveRange, (val) => {
-                    this.data.octaveRange = val;
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('octaveRange', val);
-                }));
-
-                this.data.waveform = 'sine';
-                this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveform, (val) => {
-                    this.data.waveform = val;
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('waveform', val);
-                }));
-            }
-
-            build(audioContext) {
-                return new ScaleArpeggiator(audioContext, this.id, this.data);
-            }
-
-            start() {
-                const audioNode = reteAudioNodes.get(this.id);
-                if (audioNode && audioNode.start && !audioNode.started) {
-                    try {
-                        audioNode.start();
-                        audioNode.started = true;
-                    } catch (e) {
-                        console.warn(`Could not start ${this.label} for node ${this.id}:`, e);
-                    }
-                }
-            }
-        }
-
         function stopPlaybackAndResetUI() {
             if (loopSource) {
                 loopSource.stop();
@@ -3315,6 +3241,80 @@ workspace_data: ${base64Data}
                 return audioNode;
             }
         }
+
+        class ScaleArpeggiatorNode extends WebAudioNode {
+            constructor() {
+                super('Scale Arpeggiator');
+                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
+                this.addOutput('midi', new Classic.Output(midiSocket, 'MIDI Out'));
+
+                this.data.bpm = 120;
+                this.addControl('bpm', new SliderControl('arpBpm', 'BPM', 60, 240, 1, this.data.bpm, (val) => {
+                    this.data.bpm = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('bpm', val);
+                }));
+
+                this.data.noteDuration = '1/16';
+                this.addControl('noteDuration', new SelectControl('arpNoteDuration', 'Note Duration', ['1', '1/2', '1/4', '1/8', '1/16', '1/32'], this.data.noteDuration, (val) => {
+                    this.data.noteDuration = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('noteDuration', val);
+                }));
+
+                this.data.scaleType = 'Major (Ionian)';
+                this.addControl('scaleType', new SelectControl('arpScaleType', 'Scale Type', Object.keys(SCALE_TYPES), this.data.scaleType, (val) => {
+                    this.data.scaleType = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('scaleType', val);
+                }));
+
+                this.data.rootNote = 'C4';
+                const rootNoteOptions = Object.keys(ROOT_NOTES);
+                this.addControl('rootNote', new SelectControl('arpRootNote', 'Root Note', rootNoteOptions, this.data.rootNote, (val) => {
+                    this.data.rootNote = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('rootNote', val);
+                }));
+
+                this.data.arpeggioPattern = 'Up';
+                this.addControl('arpeggioPattern', new SelectControl('arpPattern', 'Pattern', ['Up', 'Down', 'Up-Down', 'Down-Up', 'Random'], this.data.arpeggioPattern, (val) => {
+                    this.data.arpeggioPattern = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('arpeggioPattern', val);
+                }));
+
+                this.data.octaveRange = 1;
+                this.addControl('octaveRange', new SliderControl('arpOctaveRange', 'Octaves', 1, 5, 1, this.data.octaveRange, (val) => {
+                    this.data.octaveRange = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('octaveRange', val);
+                }));
+
+                this.data.waveform = 'sine';
+                this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveform, (val) => {
+                    this.data.waveform = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('waveform', val);
+                }));
+            }
+
+            build(audioContext) {
+                return new ScaleArpeggiator(audioContext, this.id, this.data);
+            }
+
+            start() {
+                const audioNode = reteAudioNodes.get(this.id);
+                if (audioNode && audioNode.start && !audioNode.started) {
+                    try {
+                        audioNode.start();
+                        audioNode.started = true;
+                    } catch (e) {
+                        console.warn(`Could not start ${this.label} for node ${this.id}:`, e);
+                    }
+                }
+            }
+        }        
 
         class Multiplayer {
             constructor() {
