@@ -3999,9 +3999,7 @@ workspace_data: ${base64Data}
         // Initialize editor on window load
         window.onload = async () => {
             document.getElementById('cta-button').addEventListener('click', async () => {
-                // Load default workspace only if no specific workspace is being loaded from page data
-                {% unless page.workspace_data %}
-                const defaultWorkspace = {
+                let workspaceData = {
                   "nodes": [
                     {
                       "id": "1",
@@ -4041,23 +4039,24 @@ workspace_data: ${base64Data}
                     { "id": "conn4", "source": "4", "sourceOutput": "audio", "target": "5", "targetInput": "audio" }
                   ]
                 };
-                await editorFromJSON(defaultWorkspace);
-                {% endunless %}
-
+                
+                {% if page.workspace_data %}
+                try {
+                    workspaceData = JSON.parse(atob('{{ page.workspace_data }}'));
+                    //await editorFromJSON(workspaceData);
+                } catch (e) {
+                    console.error('Error loading workspace data:', e);
+                    showMessage('Error loading workspace data.', 'error');
+                }
+                {% endif %}
+            
+                await editorFromJSON(workspaceData);
                 await startAudio();
                 document.getElementById('hero-overlay').remove();
             });
             await createEditor();
 
-            {% if page.workspace_data %}
-            try {
-                const workspaceData = JSON.parse(atob('{{ page.workspace_data }}'));
-                await editorFromJSON(workspaceData);
-            } catch (e) {
-                console.error('Error loading workspace data:', e);
-                showMessage('Error loading workspace data.', 'error');
-            }
-            {% endif %}
+
 
             populateWorkspacesDropdown();
             showMessage('Editor ready. Add nodes and then click "Record" or "Play" to start audio.', 'info');
