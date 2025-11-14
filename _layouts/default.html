@@ -1404,6 +1404,38 @@ workspace_data: ${base64Data}
         }
 
 
+        class MultiplayerPlugin {
+            constructor(multiplayer, editorToJSON, area) {
+                this.multiplayer = multiplayer;
+                this.editorToJSON = editorToJSON;
+                this.area = area;
+            }
+
+            install(editor) {
+                const broadcast = () => {
+                    if (!_isLocalChange) return;
+                    setTimeout(() => {
+                        const workspaceData = this.editorToJSON();
+                        this.multiplayer.broadcast(workspaceData);
+                    }, 0);
+                };
+
+                editor.addPipe(context => {
+                    if (['nodecreate', 'noderemove', 'connectioncreate', 'connectionremove'].includes(context.type)) {
+                        broadcast();
+                    }
+                    return context;
+                });
+
+                this.area.addPipe(context => {
+                    if (context.type === 'nodedragged') {
+                        broadcast();
+                    }
+                    return context;
+                });
+            }
+        }
+
         // --- Rete.js v2 Setup ---
 
         class ConnectionStrategy {
@@ -3696,6 +3728,8 @@ workspace_data: ${base64Data}
             }));*/
 
             // Rete.js v2: Register plugins with the AreaPlugin
+            const multiplayerPlugin = new MultiplayerPlugin(multiplayer, editorToJSON, area);
+            editor.use(multiplayerPlugin);            
             editor.use(area);
 
             area.use(connection);
@@ -3850,12 +3884,7 @@ workspace_data: ${base64Data}
                 } else if (context.type === 'nodeeditorrendered') {
                      // This event fires after the initial editor rendering
                     AreaExtensions.zoomAt(area, editor.getNodes());
-                }
-
-                if (_isLocalChange && ['nodecreate', 'noderemove', 'connectioncreate', 'connectionremove', 'nodedragged'].includes(context.type)) {
-                    const workspaceData = editorToJSON();
-                    multiplayer.broadcast(workspaceData);
-                }         
+                }      
                        
                 return context;
             });
@@ -4217,12 +4246,7 @@ workspace_data: ${base64Data}
 
             multiplayer.on('data-received', async (data) => {
                 _isLocalChange = false;
-                try {
-                    await editorFromJSON(data);
-                } catch (e) {
-                    console.error('Error loading data-received:', e);
-                    showMessage('Error loading workspace data-received.', 'error');
-                }                
+                await editorFromJSON(data);
                 _isLocalChange = true;
             });
 
