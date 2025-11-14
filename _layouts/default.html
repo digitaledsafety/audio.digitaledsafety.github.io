@@ -1379,38 +1379,6 @@ workspace_data: ${base64Data}
             }
         }
 
-
-        class MultiplayerPlugin {
-            constructor(multiplayer, area) {
-                this.multiplayer = multiplayer;
-                this.area = area;
-            }
-
-            install(editor) {
-                const broadcast = () => {
-                    if (!_isLocalChange) return;
-                    setTimeout(() => {
-                        const workspaceData = this.editorToJSON();
-                        this.multiplayer.broadcast(workspaceData);
-                    }, 0);
-                };
-
-                editor.addPipe(context => {
-                    if (['nodecreate', 'noderemove', 'connectioncreate', 'connectionremove'].includes(context.type)) {
-                        broadcast();
-                    }
-                    return context;
-                });
-
-                this.area.addPipe(context => {
-                    if (context.type === 'nodedragged') {
-                        broadcast();
-                    }
-                    return context;
-                });
-            }
-        }
-
         // --- Rete.js v2 Setup ---
 
         class ConnectionStrategy {
@@ -3658,6 +3626,9 @@ workspace_data: ${base64Data}
             });
             */
 
+            // --- Multiplayer Logic ---
+            multiplayer = new Multiplayer();
+            multiplayer.initialize();            
 
             const connection = new ConnectionPlugin();
             // Corrected: ContextMenuPlugin is instantiated with the editor instance, and then its preset is added
@@ -3702,9 +3673,7 @@ workspace_data: ${base64Data}
                 ]
             }));*/
 
-            // Rete.js v2: Register plugins with the AreaPlugin
-            const multiplayerPlugin = new MultiplayerPlugin(multiplayer, area);
-            editor.use(multiplayerPlugin);            
+            // Rete.js v2: Register plugins with the AreaPlugin          
             editor.use(area);
 
             area.use(connection);
@@ -3724,6 +3693,10 @@ workspace_data: ${base64Data}
             // Rete.js v2: Register custom node rendering (plain JS DOM manipulation)
             area.addPipe((context) => {
               //console.log(context);
+                if (context.type === 'nodedragged') {
+                    const workspaceData = editorToJSON();
+                    multiplayer.broadcast(workspaceData);
+                }                
                 if (context.type === 'render' && context.data.type === 'node') {
                     // Check if node data is valid and it's a known node type
                     if (context.data.payload instanceof WebAudioNode) {
@@ -3771,7 +3744,10 @@ workspace_data: ${base64Data}
 
             // Rete.js v2: Events are handled differently via pipes
             editor.addPipe(async (context) => {
-
+                if (['nodecreate', 'noderemove', 'connectioncreate', 'connectionremove'].includes(context.type)) {
+                    const workspaceData = editorToJSON();
+                    multiplayer.broadcast(workspaceData);
+                }
                 if (context.type === 'nodecreate' && context.data instanceof WebAudioNode) {
                     if (context.data.label === 'Master') {
                         const existingMaster = editor.getNodes().find(n => n.label === 'Master');
@@ -4179,9 +4155,7 @@ workspace_data: ${base64Data}
                  document.getElementById('settingsDropdown').classList.add('hidden');
             });
 
-            // --- Multiplayer Logic ---
-            multiplayer = new Multiplayer();
-            multiplayer.initialize();
+
 
             multiplayer.on('peer-id-ready', (id) => {
                 document.getElementById('peerIdDisplay').textContent = id;
