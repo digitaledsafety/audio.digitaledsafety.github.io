@@ -1,9 +1,9 @@
 const CACHE_NAME = 'web-audio-playground-cache-v1';
 const urlsToCache = [
-  '/',
-  '/manifest.json',
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png',
+  './',
+  './manifest.json',
+  './icons/icon-192x192.png',
+  './icons/icon-512x512.png',
   'https://cdn.tailwindcss.com',
   'https://cdn.jsdelivr.net/npm/rete@2.0.0-beta.6/rete.min.js',
   'https://unpkg.com/react-is@17.0.2/umd/react-is.production.min.js',
@@ -38,7 +38,10 @@ self.addEventListener('fetch', event => {
 
         return fetch(event.request).then(
           response => {
-            if(!response || response.status !== 200 || response.type !== 'basic') {
+            // Check if we received a valid response to cache.
+            // We don't cache opaque responses (type 'opaque') for cross-origin requests
+            // without CORS headers, as their status is 0, which fails this check.
+            if(!response || response.status !== 200) {
               return response;
             }
 
