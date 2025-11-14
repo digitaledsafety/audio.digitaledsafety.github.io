@@ -3531,12 +3531,6 @@ workspace_data: ${base64Data}
 
             // Rete.js v2: Events are handled differently via pipes
             editor.addPipe(async (context) => {
-                if (_isLocalChange && ['nodecreate', 'noderemove', 'connectioncreate', 'connectionremove', 'nodedragged'].includes(context.type)) {
-                   setTimeout(() => {
-                        const workspaceData = editorToJSON();
-                        multiplayer.broadcast(workspaceData);
-                    }, 0);
-                }
 
                 if (context.type === 'nodecreate' && context.data instanceof WebAudioNode) {
                     if (context.data.label === 'Master') {
@@ -3626,6 +3620,12 @@ workspace_data: ${base64Data}
                      // This event fires after the initial editor rendering
                     AreaExtensions.zoomAt(area, editor.getNodes());
                 }
+
+                if (_isLocalChange && ['nodecreate', 'noderemove', 'connectioncreate', 'connectionremove', 'nodedragged'].includes(context.type)) {
+                    const workspaceData = editorToJSON();
+                    multiplayer.broadcast(workspaceData);
+                }         
+                       
                 return context;
             });
 
