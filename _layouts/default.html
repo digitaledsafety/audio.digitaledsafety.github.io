@@ -3693,7 +3693,7 @@ workspace_data: ${base64Data}
             // Rete.js v2: Register custom node rendering (plain JS DOM manipulation)
             area.addPipe((context) => {
               //console.log(context);
-                if (context.type === 'nodedragged') {
+                if (_isLocalChange && context.type === 'nodedragged') {
                     const workspaceData = editorToJSON();
                     multiplayer.broadcast(workspaceData);
                 }                
@@ -3744,7 +3744,7 @@ workspace_data: ${base64Data}
 
             // Rete.js v2: Events are handled differently via pipes
             editor.addPipe(async (context) => {
-                if (['nodecreate', 'noderemove', 'connectioncreate', 'connectionremove'].includes(context.type)) {
+                if (_isLocalChange && ['nodecreate', 'noderemove', 'connectioncreate', 'connectionremove'].includes(context.type)) {
                     const workspaceData = editorToJSON();
                     multiplayer.broadcast(workspaceData);
                 }
