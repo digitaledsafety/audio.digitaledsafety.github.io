@@ -521,6 +521,10 @@ layout: none
         async function editorFromJSON(json) {
             try
             {
+                if (!audioContext || audioContext.state === 'closed') {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
                 console.log('Loading editor from JSON:', json);
                 await editor.clear();
 
