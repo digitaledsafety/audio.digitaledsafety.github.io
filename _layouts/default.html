@@ -291,7 +291,7 @@ layout: none
                             <button id="addNoiseGeneratorNodeBtn" class="button button-secondary w-full text-xs">🌫️ Noise Gen</button>
                             <button id="addWavePlayerNodeBtn" class="button button-secondary w-full text-xs">🎵 Wave Player</button>
                             <button id="addChordGeneratorNodeBtn" class="button button-secondary w-full text-xs">🎼 Chord Gen</button>
-                            <button id="addGainNodeBtn" class="button button-secondary w-full text-xs">🎚️ Gain</button>
+                            <button id="addVCANodeBtn" class="button button-secondary w-full text-xs">🎚️ VCA</button>
                             <button id="addMixerNodeBtn" class="button button-secondary w-full text-xs">🎛️ Mixer</button>
                             <button id="addMasterGainOutputNodeBtn" class="button button-secondary w-full text-xs">🔊 Master</button>
                             <button id="addFilterNodeBtn" class="button button-secondary w-full text-xs">📉 Filter</button>
@@ -305,6 +305,7 @@ layout: none
                             <button id="addADSREnvelopeNodeBtn" class="button button-secondary w-full text-xs">✉️ ADSR</button>
                             <button id="addBitcrusherNodeBtn" class="button button-secondary w-full text-xs">👾 Bitcrusher</button>
                             <button id="addSequencerNodeBtn" class="button button-secondary w-full text-xs">🎶 Sequencer</button>
+                            <button id="addAttenuverterNodeBtn" class="button button-secondary w-full text-xs">🔄 Attenuverter</button>
                             <button id="addMasterClockNodeBtn" class="button button-secondary w-full text-xs">⏱️ Master Clock</button>
                         </div>
                     </div>
@@ -454,7 +455,7 @@ layout: none
         const addNoiseGeneratorNodeBtn = document.getElementById('addNoiseGeneratorNodeBtn');
         const addWavePlayerNodeBtn = document.getElementById('addWavePlayerNodeBtn');
         const addChordGeneratorNodeBtn = document.getElementById('addChordGeneratorNodeBtn');
-        const addGainNodeBtn = document.getElementById('addGainNodeBtn');
+        const addVCANodeBtn = document.getElementById('addVCANodeBtn');
         const addMixerNodeBtn = document.getElementById('addMixerNodeBtn');
         const addMasterGainOutputNodeBtn = document.getElementById('addMasterGainOutputNodeBtn');
         const addFilterNodeBtn = document.getElementById('addFilterNodeBtn');
@@ -465,6 +466,7 @@ layout: none
         const addADSREnvelopeNodeBtn = document.getElementById('addADSREnvelopeNodeBtn');
         const addBitcrusherNodeBtn = document.getElementById('addBitcrusherNodeBtn');
         const addSequencerNodeBtn = document.getElementById('addSequencerNodeBtn');
+        const addAttenuverterNodeBtn = document.getElementById('addAttenuverterNodeBtn');
         const addMasterClockNodeBtn = document.getElementById('addMasterClockNodeBtn');
         const clearEditorBtn = document.getElementById('clearEditorBtn');
         const reteContainer = document.getElementById('rete-container');
@@ -530,7 +532,7 @@ layout: none
                     'Noise Generator': NoiseGeneratorNode,
                     'Wave Player': WavePlayerNode,
                     'Chord Generator': ChordGeneratorNode,
-                    'Gain': GainNode,
+                    'VCA': VCANode,
                     'Mixer': MixerNode,
                     'Master': MasterGainOutputNode,
                     'Filter': FilterNode,
@@ -543,6 +545,7 @@ layout: none
                     'ADSR Envelope': ADSREnvelopeNode,
                     'Bitcrusher': BitcrusherNode,
                     'Sequencer': SequencerNode,
+                    'Attenuverter': AttenuverterNode,
                     'Master Clock': MasterClockNode
                 };
 
@@ -1183,7 +1186,7 @@ workspace_data: ${base64Data}
 
             const connectionStrategies = {
                 'audio': new AudioConnectionStrategy(),
-                'fm': new FmConnectionStrategy(),
+                'cv': new CvConnectionStrategy(),
                 'mixer': new MixerConnectionStrategy(),
                 'midi': new MidiConnectionStrategy(),
                 'clock': new ClockConnectionStrategy(),
@@ -1193,6 +1196,8 @@ workspace_data: ${base64Data}
             function getDisconnectionStrategy(targetReteNode, targetInputKey, sourceSocket) {
                  if (sourceSocket === midiSocket) {
                     return connectionStrategies['midi'];
+                } else if (sourceSocket === cvSocket) {
+                    return connectionStrategies['cv'];
                 }
                  if (sourceSocket === clockSocket) {
                     return connectionStrategies['clock'];
@@ -1207,12 +1212,16 @@ workspace_data: ${base64Data}
                 if (sourceSocket === midiSocket) {
                     return connectionStrategies['midi'];
                 }
+
+                if (sourceSocket === cvSocket || targetInputKey === 'freq' || targetInputKey === 'q_cv' || targetInputKey === 'delay_cv' || targetInputKey === 'gain_cv') {
+                    return connectionStrategies['cv'];
                 if (sourceSocket === clockSocket) {
                     return connectionStrategies['clock'];
                 }
                 if (targetInputKey === 'fm') {
                     return connectionStrategies['fm'];
                 }
+
                 if (targetReteNode.label === 'Mixer' && targetInputKey.startsWith('in')) {
                     return connectionStrategies['mixer'];
                 }
@@ -1446,16 +1455,33 @@ workspace_data: ${base64Data}
             }
         }
 
-        class FmConnectionStrategy extends ConnectionStrategy {
+        class CvConnectionStrategy extends ConnectionStrategy {
             connect(sourceNode, targetNode, targetInputKey) {
-                if (targetNode.frequency) {
-                    sourceNode.connect(targetNode.frequency);
+                const audioParam = this.getAudioParam(targetNode, targetInputKey);
+                if (audioParam) {
+                    sourceNode.connect(audioParam);
                 }
             }
 
             disconnect(sourceNode, targetNode, targetInputKey) {
-                if (targetNode.frequency) {
-                    sourceNode.disconnect(targetNode.frequency);
+                const audioParam = this.getAudioParam(targetNode, targetInputKey);
+                if (audioParam) {
+                    sourceNode.disconnect(audioParam);
+                }
+            }
+
+            getAudioParam(targetNode, targetInputKey) {
+                switch (targetInputKey) {
+                    case 'freq':
+                        return targetNode.frequency;
+                    case 'q_cv':
+                        return targetNode.Q;
+                    case 'delay_cv':
+                        return targetNode.delayTime;
+                    case 'gain_cv':
+                         return targetNode.gain;
+                    default:
+                        return null;
                 }
             }
         }
@@ -1573,6 +1599,7 @@ workspace_data: ${base64Data}
         // Define the common Audio Socket
         const audioSocket = new Classic.Socket('audio');
         const midiSocket = new Classic.Socket('midi');
+        const cvSocket = new Classic.Socket('cv');
         const clockSocket = new Classic.Socket('clock');
 
         // --- New ChordGenerator Internal Class ---
@@ -1704,7 +1731,7 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Tone Generator');
 
-                this.addInput('fm', new Classic.Input(audioSocket, 'FM In'));
+                this.addInput('freq', new Classic.Input(cvSocket, 'Freq CV'));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
 
                 this.data.frequency = 440;
@@ -1712,10 +1739,8 @@ workspace_data: ${base64Data}
                     this.data.frequency = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.frequency) {
-                        audioNode.frequency.value = val;
+                        audioNode.frequency.setTargetAtTime(val, audioContext.currentTime, 0.01);
                     }
-                    if (audioNode instanceof ModulatorNode) audioNode.updateParameter('frequency', val);
-                    //area.update('node', this.id); // Trigger re-render to update control value display
                 }));
 
                 this.data.waveform = 'sine';
@@ -1963,27 +1988,27 @@ workspace_data: ${base64Data}
         }
 
 
-        class GainNode extends WebAudioNode {
+        class VCANode extends WebAudioNode {
             constructor() {
-                super('Gain');
+                super('VCA');
 
                 this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
+                this.addInput('gain_cv', new Classic.Input(cvSocket, 'Gain CV'));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
 
                 this.data.gain = 1;
-                this.addControl('gain', new SliderControl('gainSlider', 'Gain', 0, 100, 0.01, this.data.gain, (val) => {
+                this.addControl('gain', new SliderControl('gainSlider', 'Gain', 0, 1, 0.01, this.data.gain, (val) => {
                     this.data.gain = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.gain) {
-                        audioNode.gain.value = val;
+                        audioNode.gain.setTargetAtTime(val, audioContext.currentTime, 0.01);
                     }
-                    //area.update('node', this.id);
                 }));
             }
 
             build(audioContext) {
                 const audioNode = audioContext.createGain();
-                audioNode.gain.value = this.data.gain !== undefined ? this.data.gain : 1;
+                audioNode.gain.value = this.data.gain;
                 return audioNode;
             }
         }
@@ -2085,7 +2110,8 @@ workspace_data: ${base64Data}
                 super('Filter');
 
                 this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
-                this.addInput('fm', new Classic.Input(audioSocket, 'FM In'));
+                this.addInput('freq', new Classic.Input(cvSocket, 'Freq CV'));
+                this.addInput('q_cv', new Classic.Input(cvSocket, 'Q CV'));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
 
                 this.data.frequency = 2000;
@@ -2093,11 +2119,8 @@ workspace_data: ${base64Data}
                     this.data.frequency = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.frequency) {
-                        audioNode.frequency.value = val;
+                        audioNode.frequency.setTargetAtTime(val, audioContext.currentTime, 0.01);
                     }
-                    if (audioNode instanceof ModulatorNode) audioNode.updateParameter('frequency', val);
-                    
-                    //area.update('node', this.id);
                 }));
 
                 this.data.q = 1;
@@ -2105,9 +2128,8 @@ workspace_data: ${base64Data}
                     this.data.q = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.Q) {
-                        audioNode.Q.value = val;
+                        audioNode.Q.setTargetAtTime(val, audioContext.currentTime, 0.01);
                     }
-                    //area.update('node', this.id);
                 }));
 
                 this.data.filterType = 'lowpass';
@@ -2135,6 +2157,7 @@ workspace_data: ${base64Data}
                 super('Delay');
 
                 this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
+                this.addInput('delay_cv', new Classic.Input(cvSocket, 'Delay CV'));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
 
                 this.data.delayTime = 0.5;
@@ -2142,9 +2165,8 @@ workspace_data: ${base64Data}
                     this.data.delayTime = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.delayTime) {
-                        audioNode.delayTime.value = val;
+                        audioNode.delayTime.setTargetAtTime(val, audioContext.currentTime, 0.01);
                     }
-                    //area.update('node', this.id);
                 }));
             }
 
@@ -3194,7 +3216,7 @@ workspace_data: ${base64Data}
         class LFONode extends ModulatorNode {
             constructor() {
                 super('LFO');
-                this.addOutput('audio', new Classic.Output(audioSocket, 'LFO Out')); // Can be used for modulation
+                this.addOutput('cv', new Classic.Output(cvSocket, 'CV Out')); // Can be used for modulation
 
                 this.data.frequency = 5;
                 this.addControl('frequency', new SliderControl('lfoFreq', 'Frequency (Hz)', 0.1, 20, 0.1, this.data.frequency, (val) => {
@@ -3315,7 +3337,7 @@ workspace_data: ${base64Data}
         class ADSREnvelopeNode extends ModulatorNode {
             constructor() {
                 super('ADSR Envelope');
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Envelope Out')); // This outputs a gain value
+                this.addOutput('cv', new Classic.Output(cvSocket, 'CV Out')); // This outputs a control signal
 
                 this.data.attack = 0.1;
                 this.addControl('attack', new SliderControl('adsrAttack', 'Attack (s)', 0.01, 2, 0.01, this.data.attack, (val) => {
@@ -3406,6 +3428,28 @@ workspace_data: ${base64Data}
             }
         }
 
+        class AttenuverterNode extends WebAudioNode {
+            constructor() {
+                super('Attenuverter');
+                this.addInput('in', new Classic.Input(cvSocket, 'In'));
+                this.addOutput('out', new Classic.Output(cvSocket, 'Out'));
+
+                this.data.level = 1;
+                this.addControl('level', new SliderControl('levelSlider', 'Level', -1, 1, 0.01, this.data.level, (val) => {
+                    this.data.level = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.gain) {
+                        audioNode.gain.setTargetAtTime(val, audioContext.currentTime, 0.01);
+                    }
+                }));
+            }
+
+            build(audioContext) {
+                const audioNode = audioContext.createGain();
+                audioNode.gain.value = this.data.level;
+                return audioNode;
+            }
+        }
         class ScaleArpeggiatorNode extends WebAudioNode {
             constructor() {
                 super('Scale Arpeggiator');
@@ -3831,7 +3875,7 @@ workspace_data: ${base64Data}
                     ['Noise Generator', () => new NoiseGeneratorNode()],
                     ['Wave Player', () => new WavePlayerNode()],
                     ['Chord Generator', () => new ChordGeneratorNode()], // Add Chord Generator to Context Menu
-                    ['Gain', () => new GainNode()],
+                    ['VCA', () => new VCANode()],
                     ['Mixer', () => new MixerNode()],
                     ['Master', () => new MasterGainOutputNode()],
                     ['Filter', () => new FilterNode()],
@@ -3845,6 +3889,7 @@ workspace_data: ${base64Data}
                     ['ADSR Envelope', () => new ADSREnvelopeNode()], // New: ADSR
                     ['Bitcrusher', () => new BitcrusherNode()], // New: Bitcrusher
                     ['Sequencer', () => new SequencerNode()],
+                    ['Attenuverter', () => new AttenuverterNode()],
                     ['Master Clock', () => new MasterClockNode()],
 
                 ])
@@ -3857,7 +3902,6 @@ workspace_data: ${base64Data}
             /*contextMenu.addPreset(ContextMenuPresets.classic.setup({
                 items: [
                     ['Tone Generator', () => new ToneGeneratorNode()],
-                    ['Gain', () => new GainNode()],
                     ['Filter', () => new FilterNode()],
                     ['Delay', () => new DelayNode()]
                 ]
@@ -4103,8 +4147,8 @@ workspace_data: ${base64Data}
         });
 
 
-        addGainNodeBtn.addEventListener('click', async () => {
-            const node = new GainNode();
+        addVCANodeBtn.addEventListener('click', async () => {
+            const node = new VCANode();
             const existingNodesCount = editor.getNodes().length;
             node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
             await editor.addNode(node);
@@ -4186,6 +4230,11 @@ workspace_data: ${base64Data}
             clearEditorBtn.disabled = false;
         });
 
+        addAttenuverterNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new AttenuverterNode());
+            clearEditorBtn.disabled = false;
+        });
+          
         addMasterClockNodeBtn.addEventListener('click', async () => {
             await editor.addNode(new MasterClockNode());
             clearEditorBtn.disabled = false;
