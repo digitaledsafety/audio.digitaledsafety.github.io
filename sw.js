@@ -1,9 +1,9 @@
 const CACHE_NAME = 'web-audio-playground-cache-v1';
 const urlsToCache = [
-  './',
-  './manifest.json',
-  './icons/icon-192x192.png',
-  './icons/icon-512x512.png',
+  '/audio/',
+  '/audio/manifest.json',
+  '/audio/icons/icon-192x192.png',
+  '/audio/icons/icon-512x512.png',
   'https://cdn.tailwindcss.com',
   'https://cdn.jsdelivr.net/npm/rete@2.0.0-beta.6/rete.min.js',
   'https://unpkg.com/react-is@17.0.2/umd/react-is.production.min.js',
