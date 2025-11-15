@@ -303,6 +303,7 @@ layout: none
                             <button id="addADSREnvelopeNodeBtn" class="button button-secondary w-full text-xs">✉️ ADSR</button>
                             <button id="addBitcrusherNodeBtn" class="button button-secondary w-full text-xs">👾 Bitcrusher</button>
                             <button id="addSequencerNodeBtn" class="button button-secondary w-full text-xs">🎶 Sequencer</button>
+                            <button id="addMasterClockNodeBtn" class="button button-secondary w-full text-xs">⏱️ Master Clock</button>
                         </div>
                     </div>
                 </div>
@@ -515,7 +516,8 @@ layout: none
                     'LFO': LFONode,
                     'ADSR Envelope': ADSREnvelopeNode,
                     'Bitcrusher': BitcrusherNode,
-                    'Sequencer': SequencerNode
+                    'Sequencer': SequencerNode,
+                    'Master Clock': MasterClockNode
                 };
 
                 // Create nodes first
@@ -1015,10 +1017,14 @@ workspace_data: ${base64Data}
                 'fm': new FmConnectionStrategy(),
                 'mixer': new MixerConnectionStrategy(),
                 'midi': new MidiConnectionStrategy(),
+                'clock': new ClockConnectionStrategy(),
                 'default': new AudioConnectionStrategy()
             };
 
             function getDisconnectionStrategy(targetReteNode, targetInputKey, sourceSocket) {
+                if (sourceSocket === clockSocket) {
+                    return connectionStrategies['clock'];
+                }
                  if (sourceSocket === midiSocket) {
                     return connectionStrategies['midi'];
                 }
@@ -1029,6 +1035,9 @@ workspace_data: ${base64Data}
             }
 
             function getConnectionStrategy(targetReteNode, targetInputKey, sourceSocket) {
+                if (sourceSocket === clockSocket) {
+                    return connectionStrategies['clock'];
+                }
                 if (sourceSocket === midiSocket) {
                     return connectionStrategies['midi'];
                 }
@@ -1240,6 +1249,33 @@ workspace_data: ${base64Data}
 
         // --- Rete.js v2 Setup ---
 
+        class ClockConnectionStrategy extends ConnectionStrategy {
+            connect(sourceReteNode, targetAudioNode) {
+                if (targetAudioNode && typeof targetAudioNode.onTick === 'function') {
+                    const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
+                    if (sourceAudioNode && typeof sourceAudioNode.addTickListener === 'function') {
+                        const listener = targetAudioNode.onTick.bind(targetAudioNode);
+                        if (!targetAudioNode._tickListeners) {
+                            targetAudioNode._tickListeners = new Map();
+                        }
+                        targetAudioNode._tickListeners.set(sourceReteNode.id, listener);
+                        sourceAudioNode.addTickListener(listener);
+                    }
+                }
+            }
+
+            disconnect(sourceReteNode, targetAudioNode) {
+                const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
+                if (sourceAudioNode && typeof sourceAudioNode.removeTickListener === 'function') {
+                    if (targetAudioNode._tickListeners && targetAudioNode._tickListeners.has(sourceReteNode.id)) {
+                        const listener = targetAudioNode._tickListeners.get(sourceReteNode.id);
+                        sourceAudioNode.removeTickListener(listener);
+                        targetAudioNode._tickListeners.delete(sourceReteNode.id);
+                    }
+                }
+            }
+        }
+
         class ConnectionStrategy {
             connect(sourceNode, targetNode, targetInputKey) {
                 throw new Error("Connect method must be implemented by subclass.");
@@ -1393,6 +1429,7 @@ workspace_data: ${base64Data}
         // Define the common Audio Socket
         const audioSocket = new Classic.Socket('audio');
         const midiSocket = new Classic.Socket('midi');
+        const clockSocket = new Classic.Socket('clock');
 
         // --- New ChordGenerator Internal Class ---
         class ChordGenerator {
@@ -1899,6 +1936,103 @@ workspace_data: ${base64Data}
             }
         }
 
+        class MasterClock {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+                this.started = false;
+                this.tickListeners = [];
+                this.nextTickTime = 0;
+                this.timeoutId = null;
+            }
+
+            addTickListener(callback) {
+                if (typeof callback === 'function' && !this.tickListeners.includes(callback)) {
+                    this.tickListeners.push(callback);
+                }
+            }
+
+            removeTickListener(callback) {
+                const index = this.tickListeners.indexOf(callback);
+                if (index > -1) {
+                    this.tickListeners.splice(index, 1);
+                }
+            }
+
+            start() {
+                if (this.started || !this.audioContext) return;
+                this.started = true;
+                this.nextTickTime = this.audioContext.currentTime;
+                this.scheduleTick();
+                console.log('Master Clock started.');
+            }
+
+            stop() {
+                if (!this.started) return;
+                this.started = false;
+                if (this.timeoutId) {
+                    clearTimeout(this.timeoutId);
+                    this.timeoutId = null;
+                }
+                console.log('Master Clock stopped.');
+            }
+
+            scheduleTick() {
+                if (!this.started) return;
+
+                while (this.nextTickTime < this.audioContext.currentTime + 0.1) {
+                    // Emit tick to all listeners
+                    const tickTime = this.nextTickTime;
+                    this.tickListeners.forEach(listener => listener(tickTime));
+
+                    const secondsPerBeat = 60.0 / this.data.bpm;
+                    this.nextTickTime += secondsPerBeat;
+                }
+                this.timeoutId = setTimeout(() => this.scheduleTick(), 25);
+            }
+
+            updateParameter(param, value) {
+                this.data[param] = value;
+                // No restart needed for BPM, the scheduler will pick up the new value
+            }
+        }
+
+        class MasterClockNode extends WebAudioNode {
+            constructor() {
+                super('Master Clock');
+                this.addOutput('clock', new Classic.Output(clockSocket, 'Clock'));
+
+                this.data.bpm = 120;
+                this.addControl('bpm', new SliderControl('masterBpm', 'BPM', 60, 240, 1, this.data.bpm, (val) => {
+                    this.data.bpm = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('bpm', val);
+                }));
+
+                this.addControl('start', new ButtonControl('startButton', 'Start', () => {
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.start();
+                }));
+
+                this.addControl('stop', new ButtonControl('stopButton', 'Stop', () => {
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.stop();
+                }));
+            }
+
+            build(audioContext) {
+                return new MasterClock(audioContext, this.id, this.data);
+            }
+
+            start() {
+                const audioNode = reteAudioNodes.get(this.id);
+                if (audioNode && !audioNode.started) {
+                    audioNode.start();
+                }
+            }
+        }
+
         class FilterNode extends WebAudioNode {
             constructor() {
                 super('Filter');
@@ -1982,11 +2116,11 @@ workspace_data: ${base64Data}
                 this.reteNodeId = reteNodeId;
                 this.data = data; // Reference to the Rete.js node's data
                 this.started = false;
-                this.intervalId = null;
+                this.timeoutId = null;
                 this.currentNoteIndex = 0;
-                this.oscillators = [];
-                this.gainNodes = [];
+                this.nextStepTime = 0;
                 this.midiListeners = [];
+                this.isExternallyClocked = false;
 
                 // Master gain for the Arpeggiator output
                 this.mainOutput = this.audioContext.createGain();
@@ -2189,54 +2323,71 @@ workspace_data: ${base64Data}
                 };
             }
 
+            onTick(tickTime) {
+                this.isExternallyClocked = true;
+                if (!this.started || !this.audioContext) return;
+
+                const notes = this.getArpeggioNotes();
+                if (notes.length === 0) return;
+
+                const midiNote = notes[this.currentNoteIndex];
+
+                const bpm = this.data.bpm || 120;
+                const noteDurationMap = { '1': 4, '1/2': 2, '1/4': 1, '1/8': 0.5, '1/16': 0.25, '1/32': 0.125 };
+                const noteValue = noteDurationMap[this.data.noteDuration] || 0.25;
+                const secondsPerBeat = 60.0 / bpm;
+                const noteDuration = secondsPerBeat * noteValue;
+
+                this.scheduleNote(midiNote, noteDuration);
+
+                if (this.midiListeners.length > 0) {
+                    this.midiListeners.forEach(callback => callback([midiNote]));
+                }
+
+                this.currentNoteIndex = (this.currentNoteIndex + 1) % notes.length;
+            }
+
             start() {
                 if (this.started || !this.audioContext) return;
-
                 this.started = true;
                 this.currentNoteIndex = 0;
 
-                const notes = this.getArpeggioNotes();
-                const bpm = this.data.bpm || 120;
-                const noteDurationMap = {
-                    '1': 1, '1/2': 2, '1/4': 1, '1/8': 0.5, '1/16': 0.25, '1/32': 0.125
-                };
-                const noteValue = noteDurationMap[this.data.noteDuration] || 0.25; // Default to 1/16th note
-
-                const secondsPerBeat = 60 / bpm;
-                const intervalMs = (secondsPerBeat * noteValue) * 1000;
-
-                const playNextNote = () => {
-                    if (!this.started) { // Check if arpeggiator is still active
-                        clearInterval(this.intervalId);
-                        return;
+                // Defer checking for external clock until the graph is updated
+                setTimeout(() => {
+                    if (!this.isExternallyClocked) {
+                        this.nextStepTime = this.audioContext.currentTime;
+                        this.scheduleStep();
                     }
-                    if (notes.length === 0) return;
+                }, 100);
 
-                    const midiNote = notes[this.currentNoteIndex];
-                    this.scheduleNote(midiNote, secondsPerBeat * noteValue); // Use noteValue as duration
+                console.log(`Arpeggiator started with BPM: ${this.data.bpm}, Note Duration: ${this.data.noteDuration}`);
+            }
 
-                     // Broadcast the MIDI note to listeners
-                    if (this.midiListeners.length > 0) {
-                        this.midiListeners.forEach(callback => {
-                            callback([midiNote]); // Send as an array of notes
-                        });
-                    }
+            scheduleStep() {
+                if (!this.started || this.isExternallyClocked) return;
 
-                    this.currentNoteIndex = (this.currentNoteIndex + 1) % notes.length;
-                };
+                while (this.nextStepTime < this.audioContext.currentTime + 0.1) {
+                    this.onTick(this.nextStepTime); // Use onTick for internal scheduling too
 
-                // Play first note immediately, then schedule interval
-                playNextNote();
-                this.intervalId = setInterval(playNextNote, intervalMs);
+                    const bpm = this.data.bpm || 120;
+                    const noteDurationMap = { '1': 4, '1/2': 2, '1/4': 1, '1/8': 0.5, '1/16': 0.25, '1/32': 0.125 };
+                    const noteValue = noteDurationMap[this.data.noteDuration] || 0.25;
+                    const secondsPerBeat = 60.0 / bpm;
+                    const stepDuration = secondsPerBeat * noteValue;
 
-                console.log(`Arpeggiator started with BPM: ${bpm}, Note Duration: ${this.data.noteDuration}`);
+                    this.nextStepTime += stepDuration;
+                }
+                this.timeoutId = setTimeout(() => this.scheduleStep(), 25);
             }
 
             stop() {
                 if (!this.started) return;
-                clearInterval(this.intervalId);
-                this.intervalId = null;
+                if (this.timeoutId) {
+                    clearTimeout(this.timeoutId);
+                    this.timeoutId = null;
+                }
                 this.started = false;
+                this.isExternallyClocked = false; // Reset on stop
                 console.log('Arpeggiator stopped.');
             }
 
@@ -2254,6 +2405,7 @@ workspace_data: ${base64Data}
         class ArpeggiatorNode extends WebAudioNode {
             constructor() {
                 super('Arpeggiator');
+                this.addInput('clock', new Classic.Input(clockSocket, 'Clock In'));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
                 this.addOutput('midi', new Classic.Output(midiSocket, 'MIDI Out'));
 
@@ -2337,8 +2489,10 @@ workspace_data: ${base64Data}
                 this.reteNodeId = reteNodeId;
                 this.data = data; // Reference to the Rete.js node's data
                 this.started = false;
-                this.intervalId = null;
-                this.currentNoteIndex = 0;
+                this.timeoutId = null;
+                this.currentStep = 0;
+                this.nextStepTime = 0;
+                this.isExternallyClocked = false;
 
                 // Master gain for the Sequencer output
                 this.mainOutput = this.audioContext.createGain();
@@ -2563,73 +2717,88 @@ workspace_data: ${base64Data}
                 };
             }
 
-            start() {
-                if (this.started || !this.audioContext) return;
-
-                this.started = true;
-                this.currentStep = 0;
-                this.nextStepTime = this.audioContext.currentTime;
+            onTick(tickTime) {
+                this.isExternallyClocked = true;
+                if (!this.started || !this.audioContext) return;
 
                 const sequenceEvents = this.parseSequence();
-                if (sequenceEvents.length === 0) {
-                    this.stop();
+                if (sequenceEvents.length === 0) return;
+
+                const event = sequenceEvents[this.currentStep];
+                const representativeEvent = Array.isArray(event) ? event[0] : event;
+
+                if (!representativeEvent) {
+                    this.currentStep = (this.currentStep + 1) % sequenceEvents.length;
                     return;
                 }
 
-                const schedule = () => {
-                    while (this.nextStepTime < this.audioContext.currentTime + 0.1) {
-                        const event = sequenceEvents[this.currentStep];
+                const bpm = this.data.bpm || 120;
+                const noteDurationMap = { '1': 4, '1/2': 2, '1/4': 1, '1/8': 0.5, '1/16': 0.25, '1/32': 0.125 };
+                const baseNoteDuration = noteDurationMap[this.data.noteDuration] || 0.25;
+                const secondsPerBeat = 60.0 / bpm;
+                const stepDuration = secondsPerBeat * baseNoteDuration * (1 / representativeEvent.speed) * representativeEvent.duration;
 
-                        // Determine the properties for the step's duration from the first note in the event (or the event itself)
+                if (Array.isArray(event)) {
+                    for (const note of event) {
+                        if (note.midi !== null) this.scheduleNote(note.midi, stepDuration * note.elongation);
+                    }
+                } else {
+                    if (event.midi !== null) this.scheduleNote(event.midi, stepDuration * event.elongation);
+                }
+
+                this.currentStep = (this.currentStep + 1) % sequenceEvents.length;
+            }
+
+            start() {
+                if (this.started || !this.audioContext) return;
+                this.started = true;
+                this.currentStep = 0;
+
+                setTimeout(() => {
+                    if (!this.isExternallyClocked) {
+                        this.nextStepTime = this.audioContext.currentTime;
+                        this.scheduleStep();
+                    }
+                }, 100);
+
+                console.log(`Sequencer started with BPM: ${this.data.bpm}, Note Duration: ${this.data.noteDuration}`);
+            }
+
+            scheduleStep() {
+                if (!this.started || this.isExternallyClocked) return;
+
+                while (this.nextStepTime < this.audioContext.currentTime + 0.1) {
+                    this.onTick(this.nextStepTime);
+
+                    const sequenceEvents = this.parseSequence();
+                    if (sequenceEvents.length > 0) {
+                        const event = sequenceEvents[(this.currentStep - 1 + sequenceEvents.length) % sequenceEvents.length];
                         const representativeEvent = Array.isArray(event) ? event[0] : event;
 
-                        // Handle empty groups gracefully
-                        if (!representativeEvent) {
-                            this.currentStep = (this.currentStep + 1) % sequenceEvents.length;
-                            continue; // Skip to the next iteration
-                        }
-
-                        const bpm = this.data.bpm || 120;
-                        const noteDurationMap = { '1': 1, '1/2': 0.5, '1/4': 0.25, '1/8': 0.125, '1/16': 0.0625, '1/32': 0.03125 };
-                        const baseNoteDuration = noteDurationMap[this.data.noteDuration] || 0.25;
-                        const secondsPerBeat = 60.0 / bpm;
-
-                        const stepDuration = secondsPerBeat * 4 * baseNoteDuration * (1 / representativeEvent.speed) * representativeEvent.duration;
-
-                        if (Array.isArray(event)) {
-                            // It's a chord, schedule all notes
-                            for (const note of event) {
-                                if (note.midi !== null) {
-                                    const noteLength = stepDuration * note.elongation;
-                                    this.scheduleNote(note.midi, noteLength);
-                                }
-                            }
+                        if(representativeEvent) {
+                             const bpm = this.data.bpm || 120;
+                            const noteDurationMap = { '1': 4, '1/2': 2, '1/4': 1, '1/8': 0.5, '1/16': 0.25, '1/32': 0.125 };
+                            const baseNoteDuration = noteDurationMap[this.data.noteDuration] || 0.25;
+                            const secondsPerBeat = 60.0 / bpm;
+                            const stepDuration = secondsPerBeat * baseNoteDuration * (1 / representativeEvent.speed) * representativeEvent.duration;
+                            this.nextStepTime += stepDuration;
                         } else {
-                            // It's a single note
-                            if (event.midi !== null) {
-                                const noteLength = stepDuration * event.elongation;
-                                this.scheduleNote(event.midi, noteLength);
-                            }
+                            // If event is empty, just advance time by a default step
+                            this.nextStepTime += (60.0 / this.data.bpm) * 0.25;
                         }
-
-                        this.nextStepTime += stepDuration;
-                        this.currentStep = (this.currentStep + 1) % sequenceEvents.length;
                     }
-
-                    if (this.started) {
-                        this.timeoutId = setTimeout(schedule, 25);
-                    }
-                };
-
-                schedule();
-                console.log(`Sequencer started with BPM: ${this.data.bpm}, Note Duration: ${this.data.noteDuration}`);
+                }
+                this.timeoutId = setTimeout(() => this.scheduleStep(), 25);
             }
 
             stop() {
                 if (!this.started) return;
-                clearTimeout(this.timeoutId);
-                this.timeoutId = null;
+                if (this.timeoutId) {
+                    clearTimeout(this.timeoutId);
+                    this.timeoutId = null;
+                }
                 this.started = false;
+                this.isExternallyClocked = false;
                 console.log('Sequencer stopped.');
             }
 
@@ -2647,6 +2816,7 @@ workspace_data: ${base64Data}
         class SequencerNode extends WebAudioNode {
             constructor() {
                 super('Sequencer');
+                this.addInput('clock', new Classic.Input(clockSocket, 'Clock In'));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
 
                 this.data.bpm = 120;
@@ -3447,6 +3617,7 @@ workspace_data: ${base64Data}
                     ['ADSR Envelope', () => new ADSREnvelopeNode()], // New: ADSR
                     ['Bitcrusher', () => new BitcrusherNode()], // New: Bitcrusher
                     ['Sequencer', () => new SequencerNode()],
+                    ['Master Clock', () => new MasterClockNode()],
 
                 ])
             });
@@ -3774,6 +3945,11 @@ workspace_data: ${base64Data}
 
         addSequencerNodeBtn.addEventListener('click', async () => {
             await editor.addNode(new SequencerNode());
+            clearEditorBtn.disabled = false;
+        });
+
+        addMasterClockNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new MasterClockNode());
             clearEditorBtn.disabled = false;
         });
 
