@@ -1215,6 +1215,7 @@ workspace_data: ${base64Data}
 
                 if (sourceSocket === cvSocket || targetInputKey === 'freq' || targetInputKey === 'q_cv' || targetInputKey === 'delay_cv' || targetInputKey === 'gain_cv') {
                     return connectionStrategies['cv'];
+                }
                 if (sourceSocket === clockSocket) {
                     return connectionStrategies['clock'];
                 }
