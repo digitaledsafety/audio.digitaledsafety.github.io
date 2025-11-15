@@ -4306,14 +4306,11 @@ workspace_data: ${base64Data}
             document.getElementById('cta-button').addEventListener('click', async () => {
                 let workspaceData = {
                     "nodes": [
-                        { "id": "1", "label": "Master Clock", "data": { "bpm": 120 }, "position": { "x": 50, "y": 200 } },
                         { "id": "2", "label": "Sequencer", "data": { "bpm": 120, "noteDuration": "1/16", "sequence": "C4 G3 D4 A3", "waveform": "sawtooth" }, "position": { "x": 300, "y": 100 } },
                         { "id": "3", "label": "Arpeggiator", "data": { "bpm": 120, "noteDuration": "1/8", "chordType": "Minor 7th", "rootNote": "A3", "arpeggioPattern": "Up-Down", "octaveRange": 2, "waveform": "sine" }, "position": { "x": 300, "y": 400 } },
                         { "id": "4", "label": "Master", "data": { "gain": 0.4 }, "position": { "x": 600, "y": 250 } }
                     ],
                     "connections": [
-                        { "id": "conn1", "source": "1", "sourceOutput": "clock", "target": "2", "targetInput": "clock" },
-                        { "id": "conn2", "source": "1", "sourceOutput": "clock", "target": "3", "targetInput": "clock" },
                         { "id": "conn3", "source": "2", "sourceOutput": "audio", "target": "4", "targetInput": "audio" },
                         { "id": "conn4", "source": "3", "sourceOutput": "audio", "target": "4", "targetInput": "audio" }
                     ]
