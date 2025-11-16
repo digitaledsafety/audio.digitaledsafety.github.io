@@ -501,6 +501,14 @@ layout: none
         let multiplayer;
         let _isLocalChange = true;
 
+        function showMessage(message, type = 'info') {
+            messageBox.textContent = message;
+            messageBox.className = `message-box ${type} block`;
+            setTimeout(() => {
+                messageBox.classList.add('hidden');
+            }, 5000);
+        }
+        
         class ScaleArpeggiator {
             constructor(audioContext, reteNodeId, data) {
                 this.audioContext = audioContext;
@@ -4567,14 +4575,6 @@ workspace_data: ${base64Data}
             a.download = `${name.toLowerCase().replace(/\s+/g, '-')}.md`;
             a.click();
             URL.revokeObjectURL(url);
-        }
-
-        function showMessage(message, type = 'info') {
-            messageBox.textContent = message;
-            messageBox.className = `message-box ${type} block`;
-            setTimeout(() => {
-                messageBox.classList.add('hidden');
-            }, 5000);
         }
 
 
