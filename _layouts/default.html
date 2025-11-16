@@ -3304,10 +3304,16 @@ workspace_data: ${base64Data}
                 this.audioContext = audioContext;
                 this.reteNodeId = reteNodeId;
                 this.data = data;
-                this.started = false; // Indicates if an envelope is currently active
+                this.started = false;
+
+                this.internalSource = this.audioContext.createConstantSource();
+                this.internalSource.offset.value = 1.0;
 
                 this.mainOutput = this.audioContext.createGain();
-                this.mainOutput.gain.value = 0; // Starts at 0
+                this.mainOutput.gain.value = 0;
+
+                this.internalSource.connect(this.mainOutput);
+                this.internalSource.start();
 
                 this.updateParameter('attack', this.data.attack || 0.1, false);
                 this.updateParameter('decay', this.data.decay || 0.1, false);
@@ -3315,49 +3321,39 @@ workspace_data: ${base64Data}
                 this.updateParameter('release', this.data.release || 0.2, false);
             }
 
-            // This method would be called by a trigger (e.g., MIDI Note On)
             trigger() {
                 if (!this.audioContext || this.audioContext.state !== 'running') return;
 
                 const now = this.audioContext.currentTime;
-                const gain = this.mainOutput.gain;
+                const gainParam = this.mainOutput.gain;
 
-                // Cancel any ongoing ramps
-                gain.cancelScheduledValues(now);
-                gain.setValueAtTime(gain.value, now); // Set value at current time to avoid clicks if re-triggered
+                gainParam.cancelScheduledValues(now);
+                gainParam.setValueAtTime(gainParam.value, now);
 
-                // Attack
-                gain.linearRampToValueAtTime(1.0, now + this.data.attack);
-                // Decay
-                gain.linearRampToValueAtTime(this.data.sustain, now + this.data.attack + this.data.decay);
+                const attackDuration = this.data.attack || 0.01;
+                const decayDuration = this.data.decay || 0.1;
+                const sustainLevel = this.data.sustain !== undefined ? this.data.sustain : 0.5;
+
+                gainParam.linearRampToValueAtTime(1.0, now + attackDuration);
+                gainParam.linearRampToValueAtTime(sustainLevel, now + attackDuration + decayDuration);
 
                 this.started = true;
                 console.log(`ADSR ${this.reteNodeId} triggered.`);
             }
 
-            // This method would be called by a trigger (e.g., MIDI Note Off)
             release() {
                 if (!this.audioContext || this.audioContext.state !== 'running' || !this.started) return;
 
                 const now = this.audioContext.currentTime;
-                const gain = this.mainOutput.gain;
+                const gainParam = this.mainOutput.gain;
 
-                // Cancel any ongoing ramps
-                gain.cancelScheduledValues(now);
-                gain.setValueAtTime(gain.value, now); // Set value at current time
+                gainParam.cancelScheduledValues(now);
+                gainParam.setValueAtTime(gainParam.value, now);
 
-                // Release
-                gain.linearRampToValueAtTime(0, now + this.data.release);
+                const releaseDuration = this.data.release || 0.1;
+                gainParam.linearRampToValueAtTime(0, now + releaseDuration);
 
-                // Set a flag or listener to indicate when the envelope is fully off
-                gain.onended = () => {
-                    this.started = false;
-                    gain.onended = null;
-                };
-                // It might be more robust to use a timeout if onended isn't reliable for gain nodes
-                setTimeout(() => {
-                    this.started = false;
-                }, this.data.release * 1000 + 50); // Small buffer
+                this.started = false;
                 
                 console.log(`ADSR ${this.reteNodeId} released.`);
             }
