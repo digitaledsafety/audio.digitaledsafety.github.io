@@ -500,30 +500,6 @@ layout: none
         let loopSource;
         let multiplayer;
         let _isLocalChange = true;
-        
-        const nodeConstructors = {
-            'tone-generator': ToneGeneratorNode,
-            'noise-generator': NoiseGeneratorNode,
-            'wave-player': WavePlayerNode,
-            'chord-generator': ChordGeneratorNode,
-            'vca': VCANode,
-            'mixer': MixerNode,
-            'master': MasterGainOutputNode,
-            'filter': FilterNode,
-            'delay': DelayNode,
-            'distortion': DistortionNode,
-            'compressor': CompressorNode,
-            'reverb': ReverbNode,
-            'arpeggiator': ArpeggiatorNode,
-            'scale-arpeggiator': ScaleArpeggiatorNode,
-            'lfo': LFONode,
-            'adsr-envelope': ADSREnvelopeNode,
-            'bitcrusher': BitcrusherNode,
-            'sequencer': SequencerNode,
-            'attenuverter': AttenuverterNode,
-            'master-clock': MasterClockNode
-        };
-        
 
         class ScaleArpeggiator {
             constructor(audioContext, reteNodeId, data) {
@@ -4818,6 +4794,30 @@ workspace_data: ${base64Data}
                 }
             }
         }
+
+        
+        const nodeConstructors = {
+            'tone-generator': ToneGeneratorNode,
+            'noise-generator': NoiseGeneratorNode,
+            'wave-player': WavePlayerNode,
+            'chord-generator': ChordGeneratorNode,
+            'vca': VCANode,
+            'mixer': MixerNode,
+            'master': MasterGainOutputNode,
+            'filter': FilterNode,
+            'delay': DelayNode,
+            'distortion': DistortionNode,
+            'compressor': CompressorNode,
+            'reverb': ReverbNode,
+            'arpeggiator': ArpeggiatorNode,
+            'scale-arpeggiator': ScaleArpeggiatorNode,
+            'lfo': LFONode,
+            'adsr-envelope': ADSREnvelopeNode,
+            'bitcrusher': BitcrusherNode,
+            'sequencer': SequencerNode,
+            'attenuverter': AttenuverterNode,
+            'master-clock': MasterClockNode
+        };
             
             // --- Visualizer Toggle ---
             const visualizerCanvas = document.getElementById('visualizer');
