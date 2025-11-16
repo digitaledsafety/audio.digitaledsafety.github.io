@@ -3545,6 +3545,31 @@ layout: none
             'master-clock': MasterClockNode
         };
 
+        function migrateV0ToV1(oldJson) {
+            const labelToTypeMap = {
+                'Tone Generator': 'tone-generator',
+                'Noise Generator': 'noise-generator',
+                'Wave Player': 'wave-player',
+                'Chord Generator': 'chord-generator',
+                'VCA': 'vca',
+                'Mixer': 'mixer',
+                'Master': 'master',
+                'Filter': 'filter',
+                'Delay': 'delay',
+                'Distortion': 'distortion',
+                'Compressor': 'compressor',
+                'Reverb': 'reverb',
+                'Arpeggiator': 'arpeggiator',
+                'Scale Arpeggiator': 'scale-arpeggiator',
+                'LFO': 'lfo',
+                'ADSR Envelope': 'adsr-envelope',
+                'Bitcrusher': 'bitcrusher',
+                'Sequencer': 'sequencer',
+                'Attenuverter': 'attenuverter',
+                'Master Clock': 'master-clock'
+            };
+
+
         async function editorFromJSON(json) {
             try {
                 console.log('Loading editor from JSON:', json);
@@ -4368,29 +4393,6 @@ layout: none
 
 
 
-        function migrateV0ToV1(oldJson) {
-            const labelToTypeMap = {
-                'Tone Generator': 'tone-generator',
-                'Noise Generator': 'noise-generator',
-                'Wave Player': 'wave-player',
-                'Chord Generator': 'chord-generator',
-                'VCA': 'vca',
-                'Mixer': 'mixer',
-                'Master': 'master',
-                'Filter': 'filter',
-                'Delay': 'delay',
-                'Distortion': 'distortion',
-                'Compressor': 'compressor',
-                'Reverb': 'reverb',
-                'Arpeggiator': 'arpeggiator',
-                'Scale Arpeggiator': 'scale-arpeggiator',
-                'LFO': 'lfo',
-                'ADSR Envelope': 'adsr-envelope',
-                'Bitcrusher': 'bitcrusher',
-                'Sequencer': 'sequencer',
-                'Attenuverter': 'attenuverter',
-                'Master Clock': 'master-clock'
-            };
 
             const controlKeyToIdMap = {
                 'tone-generator': { frequency: 'freqSlider', waveform: 'waveformSelect' },
