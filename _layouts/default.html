@@ -500,6 +500,30 @@ layout: none
         let loopSource;
         let multiplayer;
         let _isLocalChange = true;
+        
+        const nodeConstructors = {
+            'tone-generator': ToneGeneratorNode,
+            'noise-generator': NoiseGeneratorNode,
+            'wave-player': WavePlayerNode,
+            'chord-generator': ChordGeneratorNode,
+            'vca': VCANode,
+            'mixer': MixerNode,
+            'master': MasterGainOutputNode,
+            'filter': FilterNode,
+            'delay': DelayNode,
+            'distortion': DistortionNode,
+            'compressor': CompressorNode,
+            'reverb': ReverbNode,
+            'arpeggiator': ArpeggiatorNode,
+            'scale-arpeggiator': ScaleArpeggiatorNode,
+            'lfo': LFONode,
+            'adsr-envelope': ADSREnvelopeNode,
+            'bitcrusher': BitcrusherNode,
+            'sequencer': SequencerNode,
+            'attenuverter': AttenuverterNode,
+            'master-clock': MasterClockNode
+        };
+        
 
         class ScaleArpeggiator {
             constructor(audioContext, reteNodeId, data) {
@@ -3465,6 +3489,132 @@ layout: none
             }
         }
 
+        function editorToJSON() {
+            const nodes = [];
+            for (const node of editor.getNodes()) {
+                const nodeData = {
+                    id: node.id,
+                    type: node.type,
+                    data: {
+                        controls: {}
+                    },
+                    position: area.nodeViews.get(node.id).position
+                };
+
+                // Serialize control values using their stable IDs
+                for (const key in node.controls) {
+                    const control = node.controls[key];
+                    nodeData.data.controls[control.id] = control.value;
+                }
+
+                nodes.push(nodeData);
+            }
+
+            const connections = [];
+            for (const conn of editor.getConnections()) {
+                const sourceNode = editor.getNode(conn.source);
+                const targetNode = editor.getNode(conn.target);
+
+                // Find the key for the source output socket
+                const sourceOutputKey = Object.keys(sourceNode.outputs).find(key => sourceNode.outputs[key] === conn.sourceOutput);
+                // Find the key for the target input socket
+                const targetInputKey = Object.keys(targetNode.inputs).find(key => targetNode.inputs[key] === conn.targetInput);
+
+                if (sourceOutputKey && targetInputKey) {
+                    connections.push({
+                        id: conn.id,
+                        source: conn.source,
+                        sourceOutput: sourceOutputKey,
+                        target: conn.target,
+                        targetInput: targetInputKey
+                    });
+                }
+            }
+
+            return {
+                workspaceFormatVersion: '1.0',
+                nodes,
+                connections
+            };
+        }
+
+        async function editorFromJSON(json) {
+            try {
+                console.log('Loading editor from JSON:', json);
+                await editor.clear();
+
+                // Version check and migration
+                if (!json.workspaceFormatVersion) {
+                    json = migrateV0ToV1(json);
+                    console.log('Migrated workspace from v0 to v1');
+                }
+
+                // Create nodes first
+                for (const nodeData of json.nodes) {
+                    const Constructor = nodeConstructors[nodeData.type];
+                    if (Constructor) {
+                        const node = new Constructor();
+                        node.id = nodeData.id;
+                        
+                        if (node.deprecated) {
+                            console.warn(`DeprecationWarning: Node type "${node.label}" (${node.type}) is deprecated and will be removed in a future version.`);
+                            // Here you could also add a visual indicator to the node in the UI
+                        }
+
+                        // Overwrite default control values with saved data
+                        if (nodeData.data.controls) {
+                            for (const controlId in nodeData.data.controls) {
+                                let controlFound = false;
+                                for (const key in node.controls) {
+                                    if (node.controls[key].id === controlId) {
+                                        node.controls[key].value = nodeData.data.controls[controlId];
+                                        controlFound = true;
+                                        break;
+                                    }
+                                }
+                                if (!controlFound) {
+                                    showMessage(`A control on node "${node.label}" was removed. Its saved value has been discarded.`, 'error');
+                                }
+                            }
+                        }
+
+                        await editor.addNode(node);
+                        await area.translate(node.id, nodeData.position);
+
+                        area.update('node', node.id);
+
+                    } else {
+                        showMessage(`Workspace loaded, but the node type "${nodeData.type}" is no longer supported. It has been removed.`, 'error');
+                        console.warn(`Node type "${nodeData.type}" not found.`);
+                    }
+                }
+
+                // Then create connections
+                for (const connData of json.connections) {
+                    const sourceNode = editor.getNode(connData.source);
+                    const targetNode = editor.getNode(connData.target);
+
+                    if (sourceNode && targetNode) {
+                        const sourceOutputSocket = sourceNode.outputs[connData.sourceOutput];
+                        const targetInputSocket = targetNode.inputs[connData.targetInput];
+                        
+                        if (sourceOutputSocket && targetInputSocket) {
+                            await editor.addConnection(new Classic.Connection(sourceNode, sourceOutputSocket, targetNode, targetInputSocket));
+                        } else {
+                            showMessage(`A connection between "${sourceNode.label}" and "${targetNode.label}" could not be restored because an input or output was removed.`, 'error');
+                            console.warn(`Could not restore connection because a socket was not found:`, connData);
+                        }
+                    } else {
+                        console.warn(`Could not find one of the nodes for a connection:`, connData);
+                    }
+                }
+            }
+            catch (error) {
+                showMessage('Error syncing workspace: ' + error.message, 'error');
+            }
+
+        }  
+
 
         async function createEditor() {
             // Rete.js v2: Define schemes
@@ -4209,77 +4359,7 @@ layout: none
 
         // --- Utility Functions ---
 
-        function editorToJSON() {
-            const nodes = [];
-            for (const node of editor.getNodes()) {
-                const nodeData = {
-                    id: node.id,
-                    type: node.type,
-                    data: {
-                        controls: {}
-                    },
-                    position: area.nodeViews.get(node.id).position
-                };
 
-                // Serialize control values using their stable IDs
-                for (const key in node.controls) {
-                    const control = node.controls[key];
-                    nodeData.data.controls[control.id] = control.value;
-                }
-
-                nodes.push(nodeData);
-            }
-
-            const connections = [];
-            for (const conn of editor.getConnections()) {
-                const sourceNode = editor.getNode(conn.source);
-                const targetNode = editor.getNode(conn.target);
-
-                // Find the key for the source output socket
-                const sourceOutputKey = Object.keys(sourceNode.outputs).find(key => sourceNode.outputs[key] === conn.sourceOutput);
-                // Find the key for the target input socket
-                const targetInputKey = Object.keys(targetNode.inputs).find(key => targetNode.inputs[key] === conn.targetInput);
-
-                if (sourceOutputKey && targetInputKey) {
-                    connections.push({
-                        id: conn.id,
-                        source: conn.source,
-                        sourceOutput: sourceOutputKey,
-                        target: conn.target,
-                        targetInput: targetInputKey
-                    });
-                }
-            }
-
-            return {
-                workspaceFormatVersion: '1.0',
-                nodes,
-                connections
-            };
-        }
-
-        const nodeConstructors = {
-            'tone-generator': ToneGeneratorNode,
-            'noise-generator': NoiseGeneratorNode,
-            'wave-player': WavePlayerNode,
-            'chord-generator': ChordGeneratorNode,
-            'vca': VCANode,
-            'mixer': MixerNode,
-            'master': MasterGainOutputNode,
-            'filter': FilterNode,
-            'delay': DelayNode,
-            'distortion': DistortionNode,
-            'compressor': CompressorNode,
-            'reverb': ReverbNode,
-            'arpeggiator': ArpeggiatorNode,
-            'scale-arpeggiator': ScaleArpeggiatorNode,
-            'lfo': LFONode,
-            'adsr-envelope': ADSREnvelopeNode,
-            'bitcrusher': BitcrusherNode,
-            'sequencer': SequencerNode,
-            'attenuverter': AttenuverterNode,
-            'master-clock': MasterClockNode
-        };
 
         function migrateV0ToV1(oldJson) {
             const labelToTypeMap = {
@@ -4375,84 +4455,7 @@ layout: none
             };
 
             return newJson;
-        }
-
-        async function editorFromJSON(json) {
-            try {
-                console.log('Loading editor from JSON:', json);
-                await editor.clear();
-
-                // Version check and migration
-                if (!json.workspaceFormatVersion) {
-                    json = migrateV0ToV1(json);
-                    console.log('Migrated workspace from v0 to v1');
-                }
-
-                // Create nodes first
-                for (const nodeData of json.nodes) {
-                    const Constructor = nodeConstructors[nodeData.type];
-                    if (Constructor) {
-                        const node = new Constructor();
-                        node.id = nodeData.id;
-                        
-                        if (node.deprecated) {
-                            console.warn(`DeprecationWarning: Node type "${node.label}" (${node.type}) is deprecated and will be removed in a future version.`);
-                            // Here you could also add a visual indicator to the node in the UI
-                        }
-
-                        // Overwrite default control values with saved data
-                        if (nodeData.data.controls) {
-                            for (const controlId in nodeData.data.controls) {
-                                let controlFound = false;
-                                for (const key in node.controls) {
-                                    if (node.controls[key].id === controlId) {
-                                        node.controls[key].value = nodeData.data.controls[controlId];
-                                        controlFound = true;
-                                        break;
-                                    }
-                                }
-                                if (!controlFound) {
-                                    showMessage(`A control on node "${node.label}" was removed. Its saved value has been discarded.`, 'error');
-                                }
-                            }
-                        }
-
-                        await editor.addNode(node);
-                        await area.translate(node.id, nodeData.position);
-
-                        area.update('node', node.id);
-
-                    } else {
-                        showMessage(`Workspace loaded, but the node type "${nodeData.type}" is no longer supported. It has been removed.`, 'error');
-                        console.warn(`Node type "${nodeData.type}" not found.`);
-                    }
-                }
-
-                // Then create connections
-                for (const connData of json.connections) {
-                    const sourceNode = editor.getNode(connData.source);
-                    const targetNode = editor.getNode(connData.target);
-
-                    if (sourceNode && targetNode) {
-                        const sourceOutputSocket = sourceNode.outputs[connData.sourceOutput];
-                        const targetInputSocket = targetNode.inputs[connData.targetInput];
-                        
-                        if (sourceOutputSocket && targetInputSocket) {
-                            await editor.addConnection(new Classic.Connection(sourceNode, sourceOutputSocket, targetNode, targetInputSocket));
-                        } else {
-                            showMessage(`A connection between "${sourceNode.label}" and "${targetNode.label}" could not be restored because an input or output was removed.`, 'error');
-                            console.warn(`Could not restore connection because a socket was not found:`, connData);
-                        }
-                    } else {
-                        console.warn(`Could not find one of the nodes for a connection:`, connData);
-                    }
-                }
-            }
-            catch (error) {
-                showMessage('Error syncing workspace: ' + error.message, 'error');
-            }
-
-        }        
+        }      
 
         function getWorkspaces() {
             const workspaces = localStorage.getItem('rete-workspaces');
