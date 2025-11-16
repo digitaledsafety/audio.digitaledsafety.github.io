@@ -552,6 +552,29 @@ layout: none
             };
         }
 
+        const nodeConstructors = {
+            'tone-generator': ToneGeneratorNode,
+            'noise-generator': NoiseGeneratorNode,
+            'wave-player': WavePlayerNode,
+            'chord-generator': ChordGeneratorNode,
+            'vca': VCANode,
+            'mixer': MixerNode,
+            'master': MasterGainOutputNode,
+            'filter': FilterNode,
+            'delay': DelayNode,
+            'distortion': DistortionNode,
+            'compressor': CompressorNode,
+            'reverb': ReverbNode,
+            'arpeggiator': ArpeggiatorNode,
+            'scale-arpeggiator': ScaleArpeggiatorNode,
+            'lfo': LFONode,
+            'adsr-envelope': ADSREnvelopeNode,
+            'bitcrusher': BitcrusherNode,
+            'sequencer': SequencerNode,
+            'attenuverter': AttenuverterNode,
+            'master-clock': MasterClockNode
+        };
+
         function migrateV0ToV1(oldJson) {
             const labelToTypeMap = {
                 'Tone Generator': 'tone-generator',
@@ -658,29 +681,6 @@ layout: none
                     json = migrateV0ToV1(json);
                     console.log('Migrated workspace from v0 to v1');
                 }
-
-                const nodeConstructors = {
-                    'tone-generator': ToneGeneratorNode,
-                    'noise-generator': NoiseGeneratorNode,
-                    'wave-player': WavePlayerNode,
-                    'chord-generator': ChordGeneratorNode,
-                    'vca': VCANode,
-                    'mixer': MixerNode,
-                    'master': MasterGainOutputNode,
-                    'filter': FilterNode,
-                    'delay': DelayNode,
-                    'distortion': DistortionNode,
-                    'compressor': CompressorNode,
-                    'reverb': ReverbNode,
-                    'arpeggiator': ArpeggiatorNode,
-                    'scale-arpeggiator': ScaleArpeggiatorNode,
-                    'lfo': LFONode,
-                    'adsr-envelope': ADSREnvelopeNode,
-                    'bitcrusher': BitcrusherNode,
-                    'sequencer': SequencerNode,
-                    'attenuverter': AttenuverterNode,
-                    'master-clock': MasterClockNode
-                };
 
                 // Create nodes first
                 for (const nodeData of json.nodes) {
@@ -4516,20 +4516,7 @@ workspace_data: ${base64Data}
         // Initialize editor on window load
         window.onload = async () => {
             document.getElementById('cta-button').addEventListener('click', async () => {
-                let workspaceData = {
-                    "nodes": [
-                        { "id": "1", "label": "Master Clock", "data": { "bpm": 120 }, "position": { "x": 50, "y": 200 } },
-                        { "id": "2", "label": "Sequencer", "data": { "bpm": 120, "noteDuration": "1/16", "sequence": "C4 G3 D4 A3", "waveform": "sawtooth" }, "position": { "x": 300, "y": 100 } },
-                        { "id": "3", "label": "Arpeggiator", "data": { "bpm": 120, "noteDuration": "1/8", "chordType": "Minor 7th", "rootNote": "A3", "arpeggioPattern": "Up-Down", "octaveRange": 2, "waveform": "sine" }, "position": { "x": 300, "y": 400 } },
-                        { "id": "4", "label": "Master", "data": { "gain": 0.4 }, "position": { "x": 600, "y": 250 } }
-                    ],
-                    "connections": [
-                        { "id": "conn1", "source": "1", "sourceOutput": "clock", "target": "2", "targetInput": "clock" },
-                        { "id": "conn2", "source": "1", "sourceOutput": "clock", "target": "3", "targetInput": "clock" },
-                        { "id": "conn3", "source": "2", "sourceOutput": "audio", "target": "4", "targetInput": "audio" },
-                        { "id": "conn4", "source": "3", "sourceOutput": "audio", "target": "4", "targetInput": "audio" }
-                    ]
-                };
+                let workspaceData = {"workspaceFormatVersion":"1.0","nodes":[{"id":"309","type":"tone-generator","data":{"controls":{"freqSlider":220,"waveformSelect":"sawtooth"}},"position":{"x":-47.81787264883449,"y":-139.69931350501162}},{"id":"310","type":"lfo","data":{"controls":{"lfoFreq":10,"lfoWaveform":"square","lfoAmount":100}},"position":{"x":-42.333984375,"y":109.33333587646484}},{"id":"311","type":"noise-generator","data":{"controls":{"gainSlider":0.1}},"position":{"x":-38.333984375,"y":302.33333587646484}},{"id":"312","type":"mixer","data":{"controls":{"gainSlider1":0.5,"gainSlider2":0.2,"gainSlider3":0.5,"gainSlider4":0.5}},"position":{"x":242.666015625,"y":-3.6666641235351562}},{"id":"313","type":"master","data":{"controls":{"gainSlider":0.5}},"position":{"x":533.666015625,"y":-5.666664123535156}}],"connections":[{"id":"566","source":"310","sourceOutput":"cv","target":"309","targetInput":"freq"},{"id":"567","source":"309","sourceOutput":"audio","target":"312","targetInput":"in1"},{"id":"568","source":"311","sourceOutput":"audio","target":"312","targetInput":"in2"},{"id":"569","source":"312","sourceOutput":"audio","target":"313","targetInput":"audio"}]};
                 
                 {% if page.workspace_data %}
                 try {
