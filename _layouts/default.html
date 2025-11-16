@@ -919,7 +919,13 @@ workspace_data: ${base64Data}
 
                 // Start the audio node by calling its start method.
                 // The node itself will handle whether it needs to perform an action.
-                reteNode.start();
+                if (reteNode.label === 'Master Clock' && audioNode.start) {
+                    audioNode.start();
+                    reteNode.controls.startStop.label = 'Stop';
+                    area.update('node', reteNode.id);
+                } else {
+                    reteNode.start();
+                }
             }
             updateAudioGraphConnections();
         }
@@ -3019,15 +3025,7 @@ workspace_data: ${base64Data}
                 const tickDuration = secondsPerBeat / ppqn;
 
                 while (this.nextStepTime < this.audioContext.currentTime + 0.1) {
-                    if (this.beatCount % ppqn === 0) { // Trigger on the beat
-                        const indicator = document.querySelector(`[data-node-id='${this.reteNodeId}'] .clock-indicator`);
-                        if (indicator) {
-                            indicator.classList.add('blinking');
-                            setTimeout(() => indicator.classList.remove('blinking'), 50);
-                        }
-                    }
-
-                    this.tickListeners.forEach(listener => listener(this.nextStepTime, tickDuration));
+                    this.tickListeners.forEach(listener => listener(this.nextStepTime, tickDuration, this.beatCount));
                     this.nextStepTime += tickDuration;
                     this.beatCount++;
                 }
@@ -3055,7 +3053,10 @@ workspace_data: ${base64Data}
                     if (audioNode) audioNode.updateParameter('bpm', val);
                 }));
 
-                this.addControl('startStop', new ButtonControl('startStopBtn', 'Start', () => {
+                this.addControl('startStop', new ButtonControl('startStopBtn', 'Start', async () => {
+                    if (!audioContext || audioContext.state !== 'running') {
+                        await startAudio(); // Start the main audio context if it's not already running
+                    }
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode) {
                         if (audioNode.started) {
@@ -3071,10 +3072,32 @@ workspace_data: ${base64Data}
             }
 
             build(audioContext) {
-                return new MasterClock(audioContext, this.id, this.data);
+                const clock = new MasterClock(audioContext, this.id, this.data);
+                // Add a permanent listener to the clock instance to update the UI
+                clock.addTickListener((time, duration, beatCount) => {
+                    // This will be called on every tick
+                    if (beatCount % 24 === 0) { // Assuming 24 PPQN, blink on the quarter note
+                         const nodeView = area.nodeViews.get(this.id);
+                        if (nodeView) {
+                            const indicator = nodeView.element.querySelector('.clock-indicator');
+                            if (indicator) {
+                                indicator.classList.add('blinking');
+                                setTimeout(() => indicator.classList.remove('blinking'), 50);
+                            }
+                        }
+                    }
+                });
+                return clock;
             }
 
-            // MasterClock doesn't produce audio, so start/stop are handled by the button control
+            start() {
+                const audioNode = reteAudioNodes.get(this.id);
+                if (audioNode && audioNode.start && !audioNode.started) {
+                    audioNode.start();
+                    this.controls.startStop.label = 'Stop';
+                    area.update('node', this.id);
+                }
+            }
         }
 
 
@@ -3312,13 +3335,19 @@ workspace_data: ${base64Data}
                 this.mainOutput = this.audioContext.createGain();
                 this.mainOutput.gain.value = 0;
 
+                this.scalingNode = this.audioContext.createGain();
+                this.scalingNode.gain.value = this.data.depth || 100;
+
                 this.internalSource.connect(this.mainOutput);
+                this.mainOutput.connect(this.scalingNode);
+
                 this.internalSource.start();
 
                 this.updateParameter('attack', this.data.attack || 0.1, false);
                 this.updateParameter('decay', this.data.decay || 0.1, false);
                 this.updateParameter('sustain', this.data.sustain || 0.5, false);
                 this.updateParameter('release', this.data.release || 0.2, false);
+                this.updateParameter('depth', this.data.depth || 100, false);
             }
 
             trigger() {
@@ -3368,6 +3397,9 @@ workspace_data: ${base64Data}
 
             updateParameter(paramName, value) {
                 this.data[paramName] = value;
+                if (paramName === 'depth') {
+                    this.scalingNode.gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
+                }
             }
         }
 
@@ -3404,14 +3436,26 @@ workspace_data: ${base64Data}
                     if (audioNode instanceof ADSREnvelope) audioNode.updateParameter('release', val);
                 }));
 
-                this.addControl('triggerBtn', new ButtonControl('triggerButton', 'Trigger', () => {
+                this.data.depth = 100;
+                this.addControl('depth', new SliderControl('adsrDepth', 'Depth', 0, 2000, 1, this.data.depth, (val) => {
+                    this.data.depth = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof ADSREnvelope) audioNode.updateParameter('depth', val);
+                }));
+
+                this.data.gateOpen = false; // Add state to the node data
+                this.addControl('gateBtn', new ButtonControl('gateButton', 'Gate', () => {
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode instanceof ADSREnvelope) {
-                        audioNode.trigger();
-                        // Automatically release after a short time for a full envelope
-                        setTimeout(() => {
+                        this.data.gateOpen = !this.data.gateOpen; // Toggle state
+                        if (this.data.gateOpen) {
+                            audioNode.trigger();
+                            this.controls.gateBtn.label = 'Gate (On)';
+                        } else {
                             audioNode.release();
-                        }, (this.data.attack + this.data.decay + 0.1) * 1000); // Trigger release after A+D phase plus a bit
+                            this.controls.gateBtn.label = 'Gate';
+                        }
+                        area.update('node', this.id); // Re-render the node to show the new button label
                     }
                 }));
             }
