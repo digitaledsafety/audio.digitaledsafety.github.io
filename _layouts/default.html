@@ -500,15 +500,17 @@ layout: none
         let loopSource;
         let multiplayer;
         let _isLocalChange = true;
+        let nodeConstructors;
 
         // --- Utility Functions ---
 
         function editorToJSON() {
             const nodes = [];
             for (const node of editor.getNodes()) {
+                // Save the static `type` property instead of the label
                 nodes.push({
                     id: node.id,
-                    label: node.label,
+                    type: node.constructor.type,
                     data: node.data,
                     position: area.nodeViews.get(node.id).position
                 });
@@ -516,58 +518,57 @@ layout: none
 
             const connections = [];
             for (const conn of editor.getConnections()) {
-                
                 const sourceNode = editor.getNode(conn.source);
                 const targetNode = editor.getNode(conn.target);
 
-                connections.push({
-                    id: conn.id,
-                    source: conn.source,
-                    sourceOutput: conn.sourceOutput,
-                    target: conn.target,
-                    targetInput: conn.targetInput
-                });
+                // Find the string key for the source output socket
+                const sourceOutputKey = Object.keys(sourceNode.outputs).find(key => sourceNode.outputs[key] === conn.sourceOutput);
+                // Find the string key for the target input socket
+                const targetInputKey = Object.keys(targetNode.inputs).find(key => targetNode.inputs[key] === conn.targetInput);
+
+                if (sourceOutputKey && targetInputKey) {
+                    connections.push({
+                        id: conn.id,
+                        source: conn.source,
+                        sourceOutput: sourceOutputKey, // Save the key
+                        target: conn.target,
+                        targetInput: targetInputKey   // Save the key
+                    });
+                } else {
+                    console.warn('Could not find socket keys for connection, skipping:', conn);
+                }
             }
 
-            return { nodes, connections };
+            // Add a version number to the workspace data
+            return {
+                workspaceFormatVersion: '1.0',
+                nodes,
+                connections
+            };
         }
 
+        const nodeClasses = [
+            ToneGeneratorNode, NoiseGeneratorNode, WavePlayerNode, ChordGeneratorNode,
+            VCANode, MixerNode, MasterGainOutputNode, FilterNode, DelayNode,
+            DistortionNode, CompressorNode, ReverbNode, ArpeggiatorNode,
+            LFONode, ADSREnvelopeNode, BitcrusherNode, SequencerNode,
+            AttenuverterNode, MasterClockNode, ScaleArpeggiatorNode
+        ];
+        nodeConstructors = new Map(nodeClasses.map(cls => [cls.type, cls]));
+
         async function editorFromJSON(json) {
-            try
-            {                
+            try {
                 console.log('Loading editor from JSON:', json);
                 await editor.clear();
 
-                // TODO: How do we avoid hardcoding any new node types here?
-                const nodeConstructors = {
-                    'Tone Generator': ToneGeneratorNode,
-                    'Noise Generator': NoiseGeneratorNode,
-                    'Wave Player': WavePlayerNode,
-                    'Chord Generator': ChordGeneratorNode,
-                    'VCA': VCANode,
-                    'Mixer': MixerNode,
-                    'Master': MasterGainOutputNode,
-                    'Filter': FilterNode,
-                    'Delay': DelayNode,
-                    'Distortion': DistortionNode,
-                    'Compressor': CompressorNode,
-                    'Reverb': ReverbNode,
-                    'Arpeggiator': ArpeggiatorNode,
-                    'LFO': LFONode,
-                    'ADSR Envelope': ADSREnvelopeNode,
-                    'Bitcrusher': BitcrusherNode,
-                    'Sequencer': SequencerNode,
-                    'Attenuverter': AttenuverterNode,
-                    'Master Clock': MasterClockNode
-                };
-
                 // Create nodes first
                 for (const nodeData of json.nodes) {
-                    const Constructor = nodeConstructors[nodeData.label];
+                    // Use the `type` property to find the constructor
+                    const Constructor = nodeConstructors.get(nodeData.type);
                     if (Constructor) {
                         const node = new Constructor();
                         node.id = nodeData.id;
-                        
+
                         // Critical: Overwrite the default data with saved data
                         node.data = { ...node.data, ...nodeData.data };
 
@@ -583,10 +584,9 @@ layout: none
                         await area.translate(node.id, nodeData.position);
 
                         area.update('node', node.id);
-
-
                     } else {
-                        console.warn(`Node type "${nodeData.label}" not found.`);
+                        console.warn(`Node type "${nodeData.type}" not found.`);
+                        showMessage(`Warning: Node type "${nodeData.type}" is not recognized and was not loaded.`, 'error');
                     }
                 }
 
@@ -596,24 +596,25 @@ layout: none
                     const targetNode = editor.getNode(connData.target);
 
                     if (sourceNode && targetNode) {
-                        const sourceOutput = connData.sourceOutput;
-                        const targetInput = connData.targetInput;
-                        
+                        // Use the saved keys to find the actual socket objects
+                        const sourceOutput = sourceNode.outputs[connData.sourceOutput];
+                        const targetInput = targetNode.inputs[connData.targetInput];
+
                         if (sourceOutput && targetInput) {
                             await editor.addConnection(new Classic.Connection(sourceNode, sourceOutput, targetNode, targetInput));
                         } else {
-                            console.warn(`Could not find socket for connection:`, connData);
+                            console.warn(`Could not find socket for connection, skipping:`, connData);
+                            showMessage(`Warning: A connection could not be restored. Its nodes may have changed.`, 'error');
                         }
                     } else {
-                        console.warn(`Could not find nodes for connection:`, connData);
+                        console.warn(`Could not find nodes for connection, skipping:`, connData);
                     }
                 }
             }
             catch (error) {
-                showMessage('Error syncing workspace: ' + error.message, 'error');
+                showMessage('Error loading workspace: ' + error.message, 'error');
             }
-
-        }        
+        }
 
         function getWorkspaces() {
             const workspaces = localStorage.getItem('rete-workspaces');
@@ -646,6 +647,83 @@ layout: none
             showMessage(`Workspace "${name}" saved.`, 'success');
         }
 
+        function migrateV0ToV1(data) {
+            console.log('Migrating workspace from v0 to v1 format.');
+            const migratedData = {
+                workspaceFormatVersion: '1.0',
+                nodes: [],
+                connections: []
+            };
+
+            const labelToTypeMap = new Map([
+                ['Tone Generator', 'tone-generator'],
+                ['Noise Generator', 'noise-generator'],
+                ['Wave Player', 'wave-player'],
+                ['Chord Generator', 'chord-generator'],
+                ['VCA', 'vca'],
+                ['Mixer', 'mixer'],
+                ['Master', 'master'],
+                ['Filter', 'filter'],
+                ['Delay', 'delay'],
+                ['Distortion', 'distortion'],
+                ['Compressor', 'compressor'],
+                ['Reverb', 'reverb'],
+                ['Arpeggiator', 'arpeggiator'],
+                ['LFO', 'lfo'],
+                ['ADSR Envelope', 'adsr-envelope'],
+                ['Bitcrusher', 'bitcrusher'],
+                ['Sequencer', 'sequencer'],
+                ['Attenuverter', 'attenuverter'],
+                ['Master Clock', 'master-clock'],
+                ['Scale Arpeggiator', 'scale-arpeggiator']
+            ]);
+
+            for (const nodeData of data.nodes) {
+                const type = labelToTypeMap.get(nodeData.label);
+                if (type) {
+                    migratedData.nodes.push({
+                        id: nodeData.id,
+                        type: type,
+                        data: nodeData.data,
+                        position: nodeData.position
+                    });
+                } else {
+                    console.warn(`Could not migrate node with unknown label: ${nodeData.label}`);
+                }
+            }
+
+            const tempEditor = new NodeEditor();
+            for (const conn of data.connections) {
+                const sourceNodeData = data.nodes.find(n => n.id === conn.source);
+                const targetNodeData = data.nodes.find(n => n.id === conn.target);
+                if (!sourceNodeData || !targetNodeData) continue;
+
+                const SourceConstructor = Array.from(labelToTypeMap.entries()).find(([label, type]) => type === migratedData.nodes.find(n => n.id === conn.source).type);
+                const TargetConstructor = Array.from(labelToTypeMap.entries()).find(([label, type]) => type === migratedData.nodes.find(n => n.id === conn.target).type);
+
+                if (!SourceConstructor || !TargetConstructor) continue;
+
+                // This is a bit of a hack: we create temporary nodes just to inspect their sockets
+                const tempSourceNode = new (nodeConstructors.get(SourceConstructor[1]))();
+                const tempTargetNode = new (nodeConstructors.get(TargetConstructor[1]))();
+
+                const sourceOutputKey = Object.keys(tempSourceNode.outputs).find(key => tempSourceNode.outputs[key].label === conn.sourceOutput.label);
+                const targetInputKey = Object.keys(tempTargetNode.inputs).find(key => tempTargetNode.inputs[key].label === conn.targetInput.label);
+
+                if (sourceOutputKey && targetInputKey) {
+                    migratedData.connections.push({
+                        id: conn.id,
+                        source: conn.source,
+                        sourceOutput: sourceOutputKey,
+                        target: conn.target,
+                        targetInput: targetInputKey
+                    });
+                }
+            }
+
+            return migratedData;
+        }
+
         async function loadWorkspace() {
             const name = document.getElementById('workspaceSelector').value;
             if (!name) {
@@ -653,11 +731,20 @@ layout: none
                 return;
             }
             const workspaces = getWorkspaces();
-            const data = workspaces[name];
+            let data = workspaces[name];
             if (!data) {
                 showMessage(`Workspace "${name}" not found.`, 'error');
                 return;
             }
+
+            if (!data.workspaceFormatVersion) {
+                data = migrateV0ToV1(data);
+                // Optionally, save the migrated data back to localStorage
+                workspaces[name] = data;
+                localStorage.setItem('rete-workspaces', JSON.stringify(workspaces));
+                showMessage('Workspace format was outdated and has been automatically updated.', 'info');
+            }
+
 
             const wasAudioRunning = audioContext && audioContext.state === 'running';
             if (wasAudioRunning) {
@@ -1737,6 +1824,7 @@ workspace_data: ${base64Data}
 
         // Custom Node Component classes for Rete.js v2
         class ToneGeneratorNode extends WebAudioNode {
+            static type = 'tone-generator';
             constructor() {
                 super('Tone Generator');
 
@@ -1836,6 +1924,7 @@ workspace_data: ${base64Data}
         }
 
         class NoiseGeneratorNode extends WebAudioNode {
+            static type = 'noise-generator';
             constructor() {
                 super('Noise Generator');
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
@@ -1907,6 +1996,7 @@ workspace_data: ${base64Data}
         }
 
         class WavePlayerNode extends WebAudioNode {
+            static type = 'wave-player';
             constructor() {
                 super('Wave Player');
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
@@ -1934,6 +2024,7 @@ workspace_data: ${base64Data}
         }
 
         class ChordGeneratorNode extends WebAudioNode {
+            static type = 'chord-generator';
             constructor() {
                 super('Chord Generator');
 
@@ -1998,6 +2089,7 @@ workspace_data: ${base64Data}
 
 
         class VCANode extends WebAudioNode {
+            static type = 'vca';
             constructor() {
                 super('VCA');
 
@@ -2023,6 +2115,7 @@ workspace_data: ${base64Data}
         }
 
         class MixerNode extends WebAudioNode {
+            static type = 'mixer';
             constructor() {
                 super('Mixer');
 
@@ -2092,6 +2185,7 @@ workspace_data: ${base64Data}
         }
 
         class MasterGainOutputNode extends WebAudioNode {
+            static type = 'master';
             constructor() {
                 super('Master');
                 this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
@@ -2115,6 +2209,7 @@ workspace_data: ${base64Data}
         }
 
         class FilterNode extends WebAudioNode {
+            static type = 'filter';
             constructor() {
                 super('Filter');
 
@@ -2162,6 +2257,7 @@ workspace_data: ${base64Data}
         }
 
         class DelayNode extends WebAudioNode {
+            static type = 'delay';
             constructor() {
                 super('Delay');
 
@@ -2489,6 +2585,7 @@ workspace_data: ${base64Data}
 
 
         class ArpeggiatorNode extends WebAudioNode {
+            static type = 'arpeggiator';
             constructor() {
                 super('Arpeggiator');
                 this.addInput('clock', new Classic.Input(clockSocket, 'Clock In'));
@@ -2919,6 +3016,7 @@ workspace_data: ${base64Data}
         }
 
         class SequencerNode extends WebAudioNode {
+            static type = 'sequencer';
             constructor() {
                 super('Sequencer');
                 this.addInput('clock', new Classic.Input(clockSocket, 'Clock In'));
@@ -3042,6 +3140,7 @@ workspace_data: ${base64Data}
         }
 
         class MasterClockNode extends ModulatorNode {
+            static type = 'master-clock';
             constructor() {
                 super('Master Clock');
                 this.addOutput('clock', new Classic.Output(clockSocket, 'Clock Out'));
@@ -3081,6 +3180,7 @@ workspace_data: ${base64Data}
         // --- New Effects Nodes ---
 
         class DistortionNode extends WebAudioNode {
+            static type = 'distortion';
             constructor() {
                 super('Distortion');
                 this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
@@ -3102,6 +3202,7 @@ workspace_data: ${base64Data}
         }
 
         class CompressorNode extends WebAudioNode {
+            static type = 'compressor';
             constructor() {
                 super('Compressor');
                 this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
@@ -3147,6 +3248,7 @@ workspace_data: ${base64Data}
         }
 
         class ReverbNode extends WebAudioNode {
+            static type = 'reverb';
             constructor() {
                 super('Reverb');
                 this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
@@ -3255,6 +3357,7 @@ workspace_data: ${base64Data}
         }
 
         class LFONode extends ModulatorNode {
+            static type = 'lfo';
             constructor() {
                 super('LFO');
                 this.addOutput('cv', new Classic.Output(cvSocket, 'CV Out')); // Can be used for modulation
@@ -3372,6 +3475,7 @@ workspace_data: ${base64Data}
         }
 
         class ADSREnvelopeNode extends ModulatorNode {
+            static type = 'adsr-envelope';
             constructor() {
                 super('ADSR Envelope');
                 this.addOutput('cv', new Classic.Output(cvSocket, 'CV Out')); // This outputs a control signal
@@ -3422,6 +3526,7 @@ workspace_data: ${base64Data}
         }
 
         class BitcrusherNode extends WebAudioNode {
+            static type = 'bitcrusher';
             constructor() {
                 super('Bitcrusher');
                 this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
@@ -3466,6 +3571,7 @@ workspace_data: ${base64Data}
         }
 
         class AttenuverterNode extends WebAudioNode {
+            static type = 'attenuverter';
             constructor() {
                 super('Attenuverter');
                 this.addInput('in', new Classic.Input(cvSocket, 'In'));
@@ -3488,6 +3594,7 @@ workspace_data: ${base64Data}
             }
         }
         class ScaleArpeggiatorNode extends WebAudioNode {
+            static type = 'scale-arpeggiator';
             constructor() {
                 super('Scale Arpeggiator');
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
