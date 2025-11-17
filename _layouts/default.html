@@ -7,8 +7,8 @@ layout: none
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Audio</title>
-    <!--<link rel="manifest" href="/audio/manifest.json">-->
-    <script src="https://cdn.digitaleducationsafety.org/packages/tailwindcss@3.4.17/tailwindcss.js"></script>
+    <link rel="manifest" href="/audio/manifest.json">
+    <script src="https://cdn.tailwindcss.com"></script>
     <base target="_top">
     <style>
         /* Custom styles for better visual appeal */
@@ -501,6 +501,256 @@ layout: none
         let multiplayer;
         let _isLocalChange = true;
 
+        // --- Utility Functions ---
+
+        function editorToJSON() {
+            const nodes = [];
+            for (const node of editor.getNodes()) {
+                nodes.push({
+                    id: node.id,
+                    label: node.label,
+                    data: node.data,
+                    position: area.nodeViews.get(node.id).position
+                });
+            }
+
+            const connections = [];
+            for (const conn of editor.getConnections()) {
+                
+                const sourceNode = editor.getNode(conn.source);
+                const targetNode = editor.getNode(conn.target);
+
+                connections.push({
+                    id: conn.id,
+                    source: conn.source,
+                    sourceOutput: conn.sourceOutput,
+                    target: conn.target,
+                    targetInput: conn.targetInput
+                });
+            }
+
+            return { nodes, connections };
+        }
+
+        async function editorFromJSON(json) {
+            try
+            {                
+                console.log('Loading editor from JSON:', json);
+                await editor.clear();
+
+                // TODO: How do we avoid hardcoding any new node types here?
+                const nodeConstructors = {
+                    'Tone Generator': ToneGeneratorNode,
+                    'Noise Generator': NoiseGeneratorNode,
+                    'Wave Player': WavePlayerNode,
+                    'Chord Generator': ChordGeneratorNode,
+                    'VCA': VCANode,
+                    'Mixer': MixerNode,
+                    'Master': MasterGainOutputNode,
+                    'Filter': FilterNode,
+                    'Delay': DelayNode,
+                    'Distortion': DistortionNode,
+                    'Compressor': CompressorNode,
+                    'Reverb': ReverbNode,
+                    'Arpeggiator': ArpeggiatorNode,
+                    'LFO': LFONode,
+                    'ADSR Envelope': ADSREnvelopeNode,
+                    'Bitcrusher': BitcrusherNode,
+                    'Sequencer': SequencerNode,
+                    'Attenuverter': AttenuverterNode,
+                    'Master Clock': MasterClockNode
+                };
+
+                // Create nodes first
+                for (const nodeData of json.nodes) {
+                    const Constructor = nodeConstructors[nodeData.label];
+                    if (Constructor) {
+                        const node = new Constructor();
+                        node.id = nodeData.id;
+                        
+                        // Critical: Overwrite the default data with saved data
+                        node.data = { ...node.data, ...nodeData.data };
+
+                        // Re-apply control values from data to the control objects BEFORE adding the node
+                        for (const key in node.controls) {
+                            const control = node.controls[key];
+                            if (node.data.hasOwnProperty(key)) {
+                                control.value = node.data[key];
+                            }
+                        }
+
+                        await editor.addNode(node);
+                        await area.translate(node.id, nodeData.position);
+
+                        area.update('node', node.id);
+
+
+                    } else {
+                        console.warn(`Node type "${nodeData.label}" not found.`);
+                    }
+                }
+
+                // Then create connections
+                for (const connData of json.connections) {
+                    const sourceNode = editor.getNode(connData.source);
+                    const targetNode = editor.getNode(connData.target);
+
+                    if (sourceNode && targetNode) {
+                        const sourceOutput = connData.sourceOutput;
+                        const targetInput = connData.targetInput;
+                        
+                        if (sourceOutput && targetInput) {
+                            await editor.addConnection(new Classic.Connection(sourceNode, sourceOutput, targetNode, targetInput));
+                        } else {
+                            console.warn(`Could not find socket for connection:`, connData);
+                        }
+                    } else {
+                        console.warn(`Could not find nodes for connection:`, connData);
+                    }
+                }
+            }
+            catch (error) {
+                showMessage('Error syncing workspace: ' + error.message, 'error');
+            }
+
+        }        
+
+        function getWorkspaces() {
+            const workspaces = localStorage.getItem('rete-workspaces');
+            return workspaces ? JSON.parse(workspaces) : {};
+        }
+
+        function populateWorkspacesDropdown() {
+            const workspaces = getWorkspaces();
+            const selector = document.getElementById('workspaceSelector');
+            selector.innerHTML = '';
+            for (const name in workspaces) {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                selector.appendChild(option);
+            }
+        }
+
+        async function saveWorkspace() {
+            const name = document.getElementById('workspaceName').value;
+            if (!name) {
+                showMessage('Please enter a name for the workspace.', 'error');
+                return;
+            }
+            const workspaces = getWorkspaces();
+            const data = editorToJSON();
+            workspaces[name] = data;
+            localStorage.setItem('rete-workspaces', JSON.stringify(workspaces));
+            populateWorkspacesDropdown();
+            showMessage(`Workspace "${name}" saved.`, 'success');
+        }
+
+        async function loadWorkspace() {
+            const name = document.getElementById('workspaceSelector').value;
+            if (!name) {
+                showMessage('Please select a workspace to load.', 'error');
+                return;
+            }
+            const workspaces = getWorkspaces();
+            const data = workspaces[name];
+            if (!data) {
+                showMessage(`Workspace "${name}" not found.`, 'error');
+                return;
+            }
+
+            const wasAudioRunning = audioContext && audioContext.state === 'running';
+            if (wasAudioRunning) {
+                await stopAudio();
+            }
+
+            await editorFromJSON(data);
+
+            if (wasAudioRunning) {
+                await startAudio();
+            }
+
+            showMessage(`Workspace "${name}" loaded.`, 'success');
+        }
+
+        function deleteWorkspace() {
+            const name = document.getElementById('workspaceSelector').value;
+            if (!name) {
+                showMessage('Please select a workspace to delete.', 'error');
+                return;
+            }
+            const workspaces = getWorkspaces();
+            delete workspaces[name];
+            localStorage.setItem('rete-workspaces', JSON.stringify(workspaces));
+            populateWorkspacesDropdown();
+            showMessage(`Workspace "${name}" deleted.`, 'success');
+        }
+
+        function exportWorkspace() {
+            const data = editorToJSON();
+            const json = JSON.stringify(data, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'workspace.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importWorkspace(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    const wasAudioRunning = audioContext && audioContext.state === 'running';
+                    if (wasAudioRunning) {
+                        await stopAudio();
+                    }
+                    
+                    await editorFromJSON(data);
+                    if (wasAudioRunning) {
+                        await startAudio();
+                    }
+                    showMessage('Workspace imported successfully.', 'success');
+                } catch (error) {
+                    showMessage('Error importing workspace: ' + error.message, 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function publishWorkspace() {
+            const name = document.getElementById('workspaceName').value;
+            if (!name) {
+                showMessage('Please enter a name for the workspace to publish.', 'error');
+                return;
+            }
+
+            const data = editorToJSON();
+            const json = JSON.stringify(data);
+            const base64Data = btoa(json);
+
+            const frontMatter = `---
+layout: default
+title: ${name}
+workspace_data: ${base64Data}
+---
+`;
+
+            const blob = new Blob([frontMatter], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${name.toLowerCase().replace(/\s+/g, '-')}.md`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
         function showMessage(message, type = 'info') {
             messageBox.textContent = message;
             messageBox.className = `message-box ${type} block`;
@@ -508,7 +758,225 @@ layout: none
                 messageBox.classList.add('hidden');
             }, 5000);
         }
-        
+
+
+        /**
+         * Converts a MIDI note number to its corresponding frequency in Hz.
+         * @param {number} midiNote - The MIDI note number (e.g., 60 for C4).
+         * @returns {number} The frequency in Hz.
+         */
+        function midiToFrequency(midiNote) {
+            return 440 * Math.pow(2, (midiNote - 69) / 12);
+        }
+
+        // --- Web Audio API Management ---
+
+        /**
+         * Creates a distortion curve for a WaveShaperNode.
+         * @param {number} amount - The amount of distortion (0-100).
+         * @returns {Float32Array} The distortion curve.
+         */
+        function makeDistortionCurve(amount) {
+            const k = typeof amount === 'number' ? amount : 50;
+            const n_samples = 44100;
+            const curve = new Float32Array(n_samples);
+            const deg = Math.PI / 180;
+            for (let i = 0; i < n_samples; ++i) {
+                const x = i * 2 / n_samples - 1; // [-1, 1]
+                curve[i] = (3 + k) * x * 20 * deg / (Math.PI + k * Math.abs(x));
+            }
+            return curve;
+        }
+
+        /**
+         * Sets the distortion curve on a WaveShaperNode.
+         * @param {WaveShaperNode} waveShaperNode - The Web Audio API WaveShaperNode.
+         * @param {number} amount - The amount of distortion.
+         */
+        function setDistortionCurve(waveShaperNode, amount) {
+            if (waveShaperNode && waveShaperNode.curve) {
+                waveShaperNode.curve = makeDistortionCurve(amount);
+            }
+        }
+
+
+        // --- Web Audio API Management ---
+
+        async function startAudio() {
+            if (!audioContext || audioContext.state === 'closed') {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                masterGain = audioContext.createGain();
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 2048;
+                masterGain.connect(analyser);
+                masterGain.connect(audioContext.destination);
+
+                mediaStreamDestination = audioContext.createMediaStreamDestination();
+                masterGain.connect(mediaStreamDestination);
+
+
+                const processorCode = `
+                    // bitcrusher-processor.js
+                    // This file will be loaded by the AudioContext's audioWorklet.addModule()
+
+                    class BitcrusherProcessor extends AudioWorkletProcessor {
+                    // Define custom parameters that can be controlled from the main thread
+                    static get parameterDescriptors() {
+                        return [
+                        {
+                            name: 'bits',
+                            defaultValue: 8,
+                            minValue: 1,
+                            maxValue: 16,
+                            automationRate: 'a-rate' // 'a-rate' for audio-rate changes (smoother)
+                        },
+                        {
+                            name: 'sampleRateReduction', // Factor by which to reduce sample rate (e.g., 2 means half sample rate)
+                            defaultValue: 1,
+                            minValue: 1,
+                            maxValue: 100, // Or whatever max reduction you want
+                            automationRate: 'a-rate'
+                        }
+                        ];
+                    }
+
+                    constructor() {
+                        super();
+                        this.lastSample = 0; // For sample rate reduction: holds the last processed sample
+                        this.phase = 0;      // For sample rate reduction: accumulator for timing
+                    }
+
+                    process(inputs, outputs, parameters) {
+                        const input = inputs[0]; // Get the first input (assuming single input)
+                        const output = outputs[0]; // Get the first output (assuming single output)
+
+                        // Get the parameter values (they are arrays, even if constant, check first element)
+                        const bits = parameters.bits[0];
+                        const sampleRateReduction = parameters.sampleRateReduction[0];
+
+                        // Process each channel
+                        for (let channel = 0; channel < input.length; ++channel) {
+                        const inputChannel = input[channel];
+                        const outputChannel = output[channel];
+
+                        for (let i = 0; i < inputChannel.length; ++i) {
+                            let currentSample = inputChannel[i];
+
+                            // --- Bit Depth Reduction ---
+                            // Calculate the step size for quantization
+                            const step = Math.pow(0.5, bits); // e.g., 8 bits -> 2^8 = 256 levels -> step = 1/256
+                            // Quantize the sample
+                            currentSample = Math.floor(currentSample / step) * step;
+
+                            // --- Sample Rate Reduction (simple hold method) ---
+                            // Increment phase by the reduction factor. When it hits 1, process a new sample.
+                            this.phase += 1 / sampleRateReduction; // If reduction is 2, phase increases by 0.5 each sample
+                            if (this.phase >= 1) {
+                            this.phase--; // Reset phase
+                            this.lastSample = currentSample; // Store the new "processed" sample
+                            }
+                            // Output the last processed sample (either the newly processed one or the held one)
+                            outputChannel[i] = this.lastSample;
+                        }
+                        }
+                        return true; // Indicate that the processor is still active
+                    }
+                    }
+
+                    // Register the processor with a unique name
+                    registerProcessor('bitcrusher-processor', BitcrusherProcessor);
+                `;
+
+                const blob = new Blob([processorCode], { type: 'application/javascript' });
+                const processorUrl = URL.createObjectURL(blob);
+
+                await audioContext.audioWorklet.addModule(processorUrl);
+            }
+
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
+
+                clearEditorBtn.disabled = false;
+                //showMessage('Audio context started! Nodes in the editor are now active.', 'success');
+
+            // Initialize/start audio nodes that are already in the editor
+            for (const reteNode of editor.getNodes()) {
+                let audioNode = reteAudioNodes.get(reteNode.id);
+
+                if (!audioNode) {
+                    // Create audio node if it doesn't exist yet by calling its build method
+                    if (typeof reteNode.build === 'function') {
+                        audioNode = reteNode.build(audioContext);
+                    } else {
+                        console.warn(`Node type "${reteNode.label}" does not have a build method.`);
+                    }
+
+                    if (audioNode) {
+                        reteAudioNodes.set(reteNode.id, audioNode);
+                    }
+                }
+
+                // Start the audio node by calling its start method.
+                // The node itself will handle whether it needs to perform an action.
+                if (reteNode.label === 'Master Clock' && audioNode.start) {
+                    audioNode.start();
+                    reteNode.controls.startStop.label = 'Stop';
+                    area.update('node', reteNode.id);
+                } else {
+                    reteNode.start();
+                }
+            }
+            updateAudioGraphConnections();
+        }
+
+        function stopAll() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                recordBtn.textContent = '⏺️ Record';
+                recordBtn.disabled = false;
+                showMessage('Recording stopped.', 'info');
+            } else if (loopSource) {
+                stopPlaybackAndResetUI();
+            }
+
+            stopAudio();
+        }
+
+        async function playRecording() {
+            if (recordedAudioUrl) {
+                if (!audioContext || audioContext.state === 'closed' || audioContext.state === 'suspended') {
+                    await startAudio();
+                }
+
+                if (audioContext && audioContext.state === 'running') {
+                    if (loopSource) {
+                        loopSource.stop();
+                    }
+                    try {
+                        const response = await fetch(recordedAudioUrl);
+                        const arrayBuffer = await response.arrayBuffer();
+                        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+                        loopSource = audioContext.createBufferSource();
+                        loopSource.buffer = audioBuffer;
+                        loopSource.loop = true;
+                        loopSource.connect(audioContext.destination);
+                        loopSource.start(0);
+
+                        playStopBtn.textContent = '⏹️';
+                        audioState = 'playing';
+                        showMessage('Playing recording.', 'info');
+                    } catch (e) {
+                        console.error('Error playing recording:', e);
+                        showMessage('Error playing recording.', 'error');
+                    }
+                } else {
+                    showMessage('Could not start audio context. Cannot play recording.', 'error');
+                }
+            }
+        }
+
         class ScaleArpeggiator {
             constructor(audioContext, reteNodeId, data) {
                 this.audioContext = audioContext;
@@ -1098,7 +1566,6 @@ layout: none
         class SliderControl extends Classic.Control {
             constructor(id, label, min, max, step, initialValue, onValueChange) {
                 super(id);
-                this.id = id;
                 this.label = label;
                 this.min = min;
                 this.max = max;
@@ -1112,7 +1579,6 @@ layout: none
         class SelectControl extends Classic.Control {
             constructor(id, label, options, initialValue, onValueChange) {
                 super(id);
-                this.id = id;
                 this.label = label;
                 this.options = options;
                 this.value = initialValue;
@@ -1124,7 +1590,6 @@ layout: none
         class ButtonControl extends Classic.Control {
             constructor(id, label, onClick) {
                 super(id);
-                this.id = id;
                 this.label = label;
                 this.onClick = onClick;
             }
@@ -1133,7 +1598,6 @@ layout: none
         class TextControl extends Classic.Control {
             constructor(id, label, initialValue, onValueChange) {
                 super(id);
-                this.id = id;
                 this.label = label;
                 this.value = initialValue;
                 this.onValueChange = onValueChange;
@@ -1143,7 +1607,6 @@ layout: none
         class IndicatorControl extends Classic.Control {
             constructor(id, label) {
                 super(id);
-                this.id = id;
                 this.label = label;
             }
         }
@@ -1282,7 +1745,6 @@ layout: none
         class ToneGeneratorNode extends WebAudioNode {
             constructor() {
                 super('Tone Generator');
-                this.type = 'tone-generator';
 
                 this.addInput('freq', new Classic.Input(cvSocket, 'Freq CV'));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
@@ -1382,7 +1844,6 @@ layout: none
         class NoiseGeneratorNode extends WebAudioNode {
             constructor() {
                 super('Noise Generator');
-                this.type = 'noise-generator';
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
 
                 this.data.gainValue = 1;
@@ -1454,7 +1915,6 @@ layout: none
         class WavePlayerNode extends WebAudioNode {
             constructor() {
                 super('Wave Player');
-                this.type = 'wave-player';
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
 
                 this.data.audioUrl = 'https://webaudio.github.io/web-audio-api/samples/audio/impulse-responses/small-room.wav';
@@ -1482,7 +1942,6 @@ layout: none
         class ChordGeneratorNode extends WebAudioNode {
             constructor() {
                 super('Chord Generator');
-                this.type = 'chord-generator';
 
                 this.addInput('midi', new Classic.Input(midiSocket, 'MIDI In'));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
@@ -1547,7 +2006,6 @@ layout: none
         class VCANode extends WebAudioNode {
             constructor() {
                 super('VCA');
-                this.type = 'vca';
 
                 this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
                 this.addInput('gain_cv', new Classic.Input(cvSocket, 'Gain CV'));
@@ -1573,7 +2031,6 @@ layout: none
         class MixerNode extends WebAudioNode {
             constructor() {
                 super('Mixer');
-                this.type = 'mixer';
 
                 this.addInput('in1', new Classic.Input(audioSocket, 'In 1'));
                 this.addInput('in2', new Classic.Input(audioSocket, 'In 2'));
@@ -1643,7 +2100,6 @@ layout: none
         class MasterGainOutputNode extends WebAudioNode {
             constructor() {
                 super('Master');
-                this.type = 'master';
                 this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
 
                 this.data.gain = 0.5;
@@ -1667,7 +2123,6 @@ layout: none
         class FilterNode extends WebAudioNode {
             constructor() {
                 super('Filter');
-                this.type = 'filter';
 
                 this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
                 this.addInput('freq', new Classic.Input(cvSocket, 'Freq CV'));
@@ -1715,7 +2170,6 @@ layout: none
         class DelayNode extends WebAudioNode {
             constructor() {
                 super('Delay');
-                this.type = 'delay';
 
                 this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
                 this.addInput('delay_cv', new Classic.Input(cvSocket, 'Delay CV'));
@@ -2043,7 +2497,6 @@ layout: none
         class ArpeggiatorNode extends WebAudioNode {
             constructor() {
                 super('Arpeggiator');
-                this.type = 'arpeggiator';
                 this.addInput('clock', new Classic.Input(clockSocket, 'Clock In'));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
                 this.addOutput('midi', new Classic.Output(midiSocket, 'MIDI Out'));
@@ -2474,7 +2927,6 @@ layout: none
         class SequencerNode extends WebAudioNode {
             constructor() {
                 super('Sequencer');
-                this.type = 'sequencer';
                 this.addInput('clock', new Classic.Input(clockSocket, 'Clock In'));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
 
@@ -2590,7 +3042,6 @@ layout: none
         class MasterClockNode extends ModulatorNode {
             constructor() {
                 super('Master Clock');
-                this.type = 'master-clock';
                 this.addOutput('clock', new Classic.Output(clockSocket, 'Clock Out'));
 
                 this.addControl('indicator', new IndicatorControl('indicator', 'Clock Pulse'));
@@ -2655,8 +3106,6 @@ layout: none
         class DistortionNode extends WebAudioNode {
             constructor() {
                 super('Distortion');
-                this.type = 'distortion';
-                this.deprecated = true;
                 this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
 
@@ -2678,7 +3127,6 @@ layout: none
         class CompressorNode extends WebAudioNode {
             constructor() {
                 super('Compressor');
-                this.type = 'compressor';
                 this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
 
@@ -2724,7 +3172,6 @@ layout: none
         class ReverbNode extends WebAudioNode {
             constructor() {
                 super('Reverb');
-                this.type = 'reverb';
                 this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
 
@@ -2833,7 +3280,6 @@ layout: none
         class LFONode extends ModulatorNode {
             constructor() {
                 super('LFO');
-                this.type = 'lfo';
                 this.addOutput('cv', new Classic.Output(cvSocket, 'CV Out')); // Can be used for modulation
 
                 this.data.frequency = 5;
@@ -2960,7 +3406,6 @@ layout: none
         class ADSREnvelopeNode extends ModulatorNode {
             constructor() {
                 super('ADSR Envelope');
-                this.type = 'adsr-envelope';
                 this.addOutput('cv', new Classic.Output(cvSocket, 'CV Out')); // This outputs a control signal
 
                 this.data.attack = 0.1;
@@ -3023,7 +3468,6 @@ layout: none
         class BitcrusherNode extends WebAudioNode {
             constructor() {
                 super('Bitcrusher');
-                this.type = 'bitcrusher';
                 this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
 
@@ -3068,7 +3512,6 @@ layout: none
         class AttenuverterNode extends WebAudioNode {
             constructor() {
                 super('Attenuverter');
-                this.type = 'attenuverter';
                 this.addInput('in', new Classic.Input(cvSocket, 'In'));
                 this.addOutput('out', new Classic.Output(cvSocket, 'Out'));
 
@@ -3091,7 +3534,6 @@ layout: none
         class ScaleArpeggiatorNode extends WebAudioNode {
             constructor() {
                 super('Scale Arpeggiator');
-                this.type = 'scale-arpeggiator';
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
                 this.addOutput('midi', new Classic.Output(midiSocket, 'MIDI Out'));
 
@@ -3473,180 +3915,6 @@ layout: none
             }
         }
 
-        function editorToJSON() {
-            const nodes = [];
-            for (const node of editor.getNodes()) {
-                const nodeData = {
-                    id: node.id,
-                    type: node.type,
-                    data: {
-                        controls: {}
-                    },
-                    position: area.nodeViews.get(node.id).position
-                };
-
-                // Serialize control values using their stable IDs
-                for (const key in node.controls) {
-                    const control = node.controls[key];
-                    nodeData.data.controls[control.id] = control.value;
-                }
-
-                nodes.push(nodeData);
-            }
-
-            const connections = [];
-            for (const conn of editor.getConnections()) {
-                const sourceNode = editor.getNode(conn.source);
-                const targetNode = editor.getNode(conn.target);
-
-                // Find the key for the source output socket
-                const sourceOutputKey = Object.keys(sourceNode.outputs).find(key => sourceNode.outputs[key] === conn.sourceOutput);
-                // Find the key for the target input socket
-                const targetInputKey = Object.keys(targetNode.inputs).find(key => targetNode.inputs[key] === conn.targetInput);
-
-                if (sourceOutputKey && targetInputKey) {
-                    connections.push({
-                        id: conn.id,
-                        source: conn.source,
-                        sourceOutput: sourceOutputKey,
-                        target: conn.target,
-                        targetInput: targetInputKey
-                    });
-                }
-            }
-
-            return {
-                workspaceFormatVersion: '1.0',
-                nodes,
-                connections
-            };
-        }
-        
-        const nodeConstructors = {
-            'tone-generator': ToneGeneratorNode,
-            'noise-generator': NoiseGeneratorNode,
-            'wave-player': WavePlayerNode,
-            'chord-generator': ChordGeneratorNode,
-            'vca': VCANode,
-            'mixer': MixerNode,
-            'master': MasterGainOutputNode,
-            'filter': FilterNode,
-            'delay': DelayNode,
-            'distortion': DistortionNode,
-            'compressor': CompressorNode,
-            'reverb': ReverbNode,
-            'arpeggiator': ArpeggiatorNode,
-            'scale-arpeggiator': ScaleArpeggiatorNode,
-            'lfo': LFONode,
-            'adsr-envelope': ADSREnvelopeNode,
-            'bitcrusher': BitcrusherNode,
-            'sequencer': SequencerNode,
-            'attenuverter': AttenuverterNode,
-            'master-clock': MasterClockNode
-        };
-
-        function migrateV0ToV1(oldJson) {
-            const labelToTypeMap = {
-                'Tone Generator': 'tone-generator',
-                'Noise Generator': 'noise-generator',
-                'Wave Player': 'wave-player',
-                'Chord Generator': 'chord-generator',
-                'VCA': 'vca',
-                'Mixer': 'mixer',
-                'Master': 'master',
-                'Filter': 'filter',
-                'Delay': 'delay',
-                'Distortion': 'distortion',
-                'Compressor': 'compressor',
-                'Reverb': 'reverb',
-                'Arpeggiator': 'arpeggiator',
-                'Scale Arpeggiator': 'scale-arpeggiator',
-                'LFO': 'lfo',
-                'ADSR Envelope': 'adsr-envelope',
-                'Bitcrusher': 'bitcrusher',
-                'Sequencer': 'sequencer',
-                'Attenuverter': 'attenuverter',
-                'Master Clock': 'master-clock'
-            };
-
-
-        async function editorFromJSON(json) {
-            try {
-                console.log('Loading editor from JSON:', json);
-                await editor.clear();
-
-                // Version check and migration
-                if (!json.workspaceFormatVersion) {
-                    json = migrateV0ToV1(json);
-                    console.log('Migrated workspace from v0 to v1');
-                }
-
-                // Create nodes first
-                for (const nodeData of json.nodes) {
-                    const Constructor = nodeConstructors[nodeData.type];
-                    if (Constructor) {
-                        const node = new Constructor();
-                        node.id = nodeData.id;
-                        
-                        if (node.deprecated) {
-                            console.warn(`DeprecationWarning: Node type "${node.label}" (${node.type}) is deprecated and will be removed in a future version.`);
-                            // Here you could also add a visual indicator to the node in the UI
-                        }
-
-                        // Overwrite default control values with saved data
-                        if (nodeData.data.controls) {
-                            for (const controlId in nodeData.data.controls) {
-                                let controlFound = false;
-                                for (const key in node.controls) {
-                                    if (node.controls[key].id === controlId) {
-                                        node.controls[key].value = nodeData.data.controls[controlId];
-                                        controlFound = true;
-                                        break;
-                                    }
-                                }
-                                if (!controlFound) {
-                                    showMessage(`A control on node "${node.label}" was removed. Its saved value has been discarded.`, 'error');
-                                }
-                            }
-                        }
-
-                        await editor.addNode(node);
-                        await area.translate(node.id, nodeData.position);
-
-                        area.update('node', node.id);
-
-                    } else {
-                        showMessage(`Workspace loaded, but the node type "${nodeData.type}" is no longer supported. It has been removed.`, 'error');
-                        console.warn(`Node type "${nodeData.type}" not found.`);
-                    }
-                }
-
-                // Then create connections
-                for (const connData of json.connections) {
-                    const sourceNode = editor.getNode(connData.source);
-                    const targetNode = editor.getNode(connData.target);
-
-                    if (sourceNode && targetNode) {
-                        const sourceOutputSocket = sourceNode.outputs[connData.sourceOutput];
-                        const targetInputSocket = targetNode.inputs[connData.targetInput];
-                        
-                        if (sourceOutputSocket && targetInputSocket) {
-                            await editor.addConnection(new Classic.Connection(sourceNode, sourceOutputSocket, targetNode, targetInputSocket));
-                        } else {
-                            showMessage(`A connection between "${sourceNode.label}" and "${targetNode.label}" could not be restored because an input or output was removed.`, 'error');
-                            console.warn(`Could not restore connection because a socket was not found:`, connData);
-                        }
-                    } else {
-                        console.warn(`Could not find one of the nodes for a connection:`, connData);
-                    }
-                }
-            }
-            catch (error) {
-                showMessage('Error syncing workspace: ' + error.message, 'error');
-            }
-
-        }  
-
 
         async function createEditor() {
             // Rete.js v2: Define schemes
@@ -3749,19 +4017,6 @@ layout: none
                 if (context.type === 'render' && context.data.type === 'node') {
                     // Check if node data is valid and it's a known node type
                     if (context.data.payload instanceof WebAudioNode) {
-
-                        // Add deprecation warning icon
-                        if (context.data.payload.deprecated) {
-                            const titleEl = context.data.element.querySelector('.title');
-                            if (titleEl && !titleEl.querySelector('.deprecation-warning')) {
-                                const warningSpan = document.createElement('span');
-                                warningSpan.className = 'deprecation-warning';
-                                warningSpan.title = 'This node is deprecated and will be removed in a future version.';
-                                warningSpan.textContent = ' ⚠️';
-                                titleEl.appendChild(warningSpan);
-                            }
-                        }
-
                         // Guard clause: Rete's React renderer might not have created the child elements yet.
                         // If so, we skip this render pass. The pipe will be called again.
                         if (!context.data.element.children[0]) {
@@ -4089,7 +4344,20 @@ layout: none
         // Initialize editor on window load
         window.onload = async () => {
             document.getElementById('cta-button').addEventListener('click', async () => {
-                let workspaceData = {"workspaceFormatVersion":"1.0","nodes":[{"id":"309","type":"tone-generator","data":{"controls":{"freqSlider":220,"waveformSelect":"sawtooth"}},"position":{"x":-47.81787264883449,"y":-139.69931350501162}},{"id":"310","type":"lfo","data":{"controls":{"lfoFreq":10,"lfoWaveform":"square","lfoAmount":100}},"position":{"x":-42.333984375,"y":109.33333587646484}},{"id":"311","type":"noise-generator","data":{"controls":{"gainSlider":0.1}},"position":{"x":-38.333984375,"y":302.33333587646484}},{"id":"312","type":"mixer","data":{"controls":{"gainSlider1":0.5,"gainSlider2":0.2,"gainSlider3":0.5,"gainSlider4":0.5}},"position":{"x":242.666015625,"y":-3.6666641235351562}},{"id":"313","type":"master","data":{"controls":{"gainSlider":0.5}},"position":{"x":533.666015625,"y":-5.666664123535156}}],"connections":[{"id":"566","source":"310","sourceOutput":"cv","target":"309","targetInput":"freq"},{"id":"567","source":"309","sourceOutput":"audio","target":"312","targetInput":"in1"},{"id":"568","source":"311","sourceOutput":"audio","target":"312","targetInput":"in2"},{"id":"569","source":"312","sourceOutput":"audio","target":"313","targetInput":"audio"}]};
+                let workspaceData = {
+                    "nodes": [
+                        { "id": "1", "label": "Master Clock", "data": { "bpm": 120 }, "position": { "x": 50, "y": 200 } },
+                        { "id": "2", "label": "Sequencer", "data": { "bpm": 120, "noteDuration": "1/16", "sequence": "C4 G3 D4 A3", "waveform": "sawtooth" }, "position": { "x": 300, "y": 100 } },
+                        { "id": "3", "label": "Arpeggiator", "data": { "bpm": 120, "noteDuration": "1/8", "chordType": "Minor 7th", "rootNote": "A3", "arpeggioPattern": "Up-Down", "octaveRange": 2, "waveform": "sine" }, "position": { "x": 300, "y": 400 } },
+                        { "id": "4", "label": "Master", "data": { "gain": 0.4 }, "position": { "x": 600, "y": 250 } }
+                    ],
+                    "connections": [
+                        { "id": "conn1", "source": "1", "sourceOutput": "clock", "target": "2", "targetInput": "clock" },
+                        { "id": "conn2", "source": "1", "sourceOutput": "clock", "target": "3", "targetInput": "clock" },
+                        { "id": "conn3", "source": "2", "sourceOutput": "audio", "target": "4", "targetInput": "audio" },
+                        { "id": "conn4", "source": "3", "sourceOutput": "audio", "target": "4", "targetInput": "audio" }
+                    ]
+                };
                 
                 {% if page.workspace_data %}
                 try {
@@ -4388,440 +4656,6 @@ layout: none
             // --- Initial State ---
             clearEditorBtn.disabled = false; // Initially enabled to allow clearing default workspace
 
-
-        // --- Utility Functions ---
-
-
-
-
-            const controlKeyToIdMap = {
-                'tone-generator': { frequency: 'freqSlider', waveform: 'waveformSelect' },
-                'noise-generator': { gain: 'gainSlider' },
-                'wave-player': { audioUrl: 'audioUrl' },
-                'chord-generator': { chordType: 'chordTypeSelect', rootNote: 'rootNoteSelect', octaveRange: 'octaveRangeSlider', waveform: 'waveformSelect' },
-                'vca': { gain: 'gainSlider' },
-                'mixer': { gain1: 'gainSlider1', gain2: 'gainSlider2', gain3: 'gainSlider3', gain4: 'gainSlider4' },
-                'master': { gain: 'gainSlider' },
-                'filter': { frequency: 'filterFreqSlider', q: 'qSlider', filterType: 'filterTypeSelect' },
-                'delay': { delayTime: 'delayTimeSlider' },
-                'distortion': { amount: 'distortionAmount' },
-                'compressor': { threshold: 'compThreshold', ratio: 'compRatio', attack: 'compAttack', release: 'compRelease' },
-                'arpeggiator': { bpm: 'arpBpm', noteDuration: 'arpNoteDuration', chordType: 'arpChordType', rootNote: 'arpRootNote', arpeggioPattern: 'arpPattern', octaveRange: 'arpOctaveRange', waveform: 'waveformSelect' },
-                'scale-arpeggiator': { bpm: 'arpBpm', noteDuration: 'arpNoteDuration', scaleType: 'arpScaleType', rootNote: 'arpRootNote', arpeggioPattern: 'arpPattern', octaveRange: 'arpOctaveRange', waveform: 'waveformSelect' },
-                'lfo': { frequency: 'lfoFreq', waveform: 'lfoWaveform', amount: 'lfoAmount' },
-                'adsr-envelope': { attack: 'adsrAttack', decay: 'adsrDecay', sustain: 'adsrSustain', release: 'adsrRelease' },
-                'bitcrusher': { bits: 'bits', sampleRateReduction: 'sampleRateReduction' },
-                'sequencer': { bpm: 'seqBpm', noteDuration: 'seqNoteDuration', sequence: 'seqSequence', waveform: 'waveformSelect' },
-                'attenuverter': { level: 'levelSlider' },
-                'master-clock': { bpm: 'mcBpm' }
-            };
-
-            const newJson = {
-                workspaceFormatVersion: '1.0',
-                nodes: oldJson.nodes.map(node => {
-                    const nodeType = labelToTypeMap[node.label] || 'unknown';
-                    const newData = { controls: {} };
-                    const controlMap = controlKeyToIdMap[nodeType];
-
-                    if (controlMap && node.data) {
-                        for (const oldKey in node.data) {
-                            const newId = controlMap[oldKey];
-                            if (newId) {
-                                newData.controls[newId] = node.data[oldKey];
-                            }
-                        }
-                    }
-
-                    return {
-                        ...node,
-                        type: nodeType,
-                        data: newData
-                    };
-                }),
-                connections: oldJson.connections.map(conn => {
-                    const sourceNodeJSON = oldJson.nodes.find(n => n.id === conn.source);
-                    const targetNodeJSON = oldJson.nodes.find(n => n.id === conn.target);
-                    if (!sourceNodeJSON || !targetNodeJSON) return null;
-
-                    const SourceNodeClass = nodeConstructors[labelToTypeMap[sourceNodeJSON.label]];
-                    const TargetNodeClass = nodeConstructors[labelToTypeMap[targetNodeJSON.label]];
-                    if (!SourceNodeClass || !TargetNodeClass) return null;
-
-                    const tempSourceNode = new SourceNodeClass();
-                    const tempTargetNode = new TargetNodeClass();
-
-                    const sourceOutputKey = Object.keys(tempSourceNode.outputs).find(key => tempSourceNode.outputs[key].label === conn.sourceOutput.label);
-                    const targetInputKey = Object.keys(tempTargetNode.inputs).find(key => tempTargetNode.inputs[key].label === conn.targetInput.label);
-
-                    if (!sourceOutputKey || !targetInputKey) return null;
-
-                    return {
-                        ...conn,
-                        sourceOutput: sourceOutputKey,
-                        targetInput: targetInputKey
-                    };
-                }).filter(Boolean)
-            };
-
-            return newJson;
-        }      
-
-        function getWorkspaces() {
-            const workspaces = localStorage.getItem('rete-workspaces');
-            return workspaces ? JSON.parse(workspaces) : {};
-        }
-
-        function populateWorkspacesDropdown() {
-            const workspaces = getWorkspaces();
-            const selector = document.getElementById('workspaceSelector');
-            selector.innerHTML = '';
-            for (const name in workspaces) {
-                const option = document.createElement('option');
-                option.value = name;
-                option.textContent = name;
-                selector.appendChild(option);
-            }
-        }
-
-        async function saveWorkspace() {
-            const name = document.getElementById('workspaceName').value;
-            if (!name) {
-                showMessage('Please enter a name for the workspace.', 'error');
-                return;
-            }
-            const workspaces = getWorkspaces();
-            const data = editorToJSON();
-            workspaces[name] = data;
-            localStorage.setItem('rete-workspaces', JSON.stringify(workspaces));
-            populateWorkspacesDropdown();
-            showMessage(`Workspace "${name}" saved.`, 'success');
-        }
-
-        async function loadWorkspace() {
-            const name = document.getElementById('workspaceSelector').value;
-            if (!name) {
-                showMessage('Please select a workspace to load.', 'error');
-                return;
-            }
-            const workspaces = getWorkspaces();
-            const data = workspaces[name];
-            if (!data) {
-                showMessage(`Workspace "${name}" not found.`, 'error');
-                return;
-            }
-
-            const wasAudioRunning = audioContext && audioContext.state === 'running';
-            if (wasAudioRunning) {
-                await stopAudio();
-            }
-
-            await editorFromJSON(data);
-
-            if (wasAudioRunning) {
-                await startAudio();
-            }
-
-            showMessage(`Workspace "${name}" loaded.`, 'success');
-        }
-
-        function deleteWorkspace() {
-            const name = document.getElementById('workspaceSelector').value;
-            if (!name) {
-                showMessage('Please select a workspace to delete.', 'error');
-                return;
-            }
-            const workspaces = getWorkspaces();
-            delete workspaces[name];
-            localStorage.setItem('rete-workspaces', JSON.stringify(workspaces));
-            populateWorkspacesDropdown();
-            showMessage(`Workspace "${name}" deleted.`, 'success');
-        }
-
-        function exportWorkspace() {
-            const data = editorToJSON();
-            const json = JSON.stringify(data, null, 2);
-            const blob = new Blob([json], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'workspace.json';
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-
-        function importWorkspace(event) {
-            const file = event.target.files[0];
-            if (!file) {
-                return;
-            }
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    const wasAudioRunning = audioContext && audioContext.state === 'running';
-                    if (wasAudioRunning) {
-                        await stopAudio();
-                    }
-                    
-                    await editorFromJSON(data);
-                    if (wasAudioRunning) {
-                        await startAudio();
-                    }
-                    showMessage('Workspace imported successfully.', 'success');
-                } catch (error) {
-                    showMessage('Error importing workspace: ' + error.message, 'error');
-                }
-            };
-            reader.readAsText(file);
-        }
-
-        function publishWorkspace() {
-            const name = document.getElementById('workspaceName').value;
-            if (!name) {
-                showMessage('Please enter a name for the workspace to publish.', 'error');
-                return;
-            }
-
-            const data = editorToJSON();
-            const json = JSON.stringify(data);
-            const base64Data = btoa(json);
-
-            const frontMatter = `---
-layout: default
-title: ${name}
-workspace_data: ${base64Data}
----
-`;
-
-            const blob = new Blob([frontMatter], { type: 'text/markdown' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${name.toLowerCase().replace(/\s+/g, '-')}.md`;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-
-
-        /**
-         * Converts a MIDI note number to its corresponding frequency in Hz.
-         * @param {number} midiNote - The MIDI note number (e.g., 60 for C4).
-         * @returns {number} The frequency in Hz.
-         */
-        function midiToFrequency(midiNote) {
-            return 440 * Math.pow(2, (midiNote - 69) / 12);
-        }
-
-        // --- Web Audio API Management ---
-
-        /**
-         * Creates a distortion curve for a WaveShaperNode.
-         * @param {number} amount - The amount of distortion (0-100).
-         * @returns {Float32Array} The distortion curve.
-         */
-        function makeDistortionCurve(amount) {
-            const k = typeof amount === 'number' ? amount : 50;
-            const n_samples = 44100;
-            const curve = new Float32Array(n_samples);
-            const deg = Math.PI / 180;
-            for (let i = 0; i < n_samples; ++i) {
-                const x = i * 2 / n_samples - 1; // [-1, 1]
-                curve[i] = (3 + k) * x * 20 * deg / (Math.PI + k * Math.abs(x));
-            }
-            return curve;
-        }
-
-        /**
-         * Sets the distortion curve on a WaveShaperNode.
-         * @param {WaveShaperNode} waveShaperNode - The Web Audio API WaveShaperNode.
-         * @param {number} amount - The amount of distortion.
-         */
-        function setDistortionCurve(waveShaperNode, amount) {
-            if (waveShaperNode && waveShaperNode.curve) {
-                waveShaperNode.curve = makeDistortionCurve(amount);
-            }
-        }
-
-
-        // --- Web Audio API Management ---
-
-        async function startAudio() {
-            if (!audioContext || audioContext.state === 'closed') {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                masterGain = audioContext.createGain();
-                analyser = audioContext.createAnalyser();
-                analyser.fftSize = 2048;
-                masterGain.connect(analyser);
-                masterGain.connect(audioContext.destination);
-
-                mediaStreamDestination = audioContext.createMediaStreamDestination();
-                masterGain.connect(mediaStreamDestination);
-
-
-                const processorCode = `
-                    // bitcrusher-processor.js
-                    // This file will be loaded by the AudioContext's audioWorklet.addModule()
-
-                    class BitcrusherProcessor extends AudioWorkletProcessor {
-                    // Define custom parameters that can be controlled from the main thread
-                    static get parameterDescriptors() {
-                        return [
-                        {
-                            name: 'bits',
-                            defaultValue: 8,
-                            minValue: 1,
-                            maxValue: 16,
-                            automationRate: 'a-rate' // 'a-rate' for audio-rate changes (smoother)
-                        },
-                        {
-                            name: 'sampleRateReduction', // Factor by which to reduce sample rate (e.g., 2 means half sample rate)
-                            defaultValue: 1,
-                            minValue: 1,
-                            maxValue: 100, // Or whatever max reduction you want
-                            automationRate: 'a-rate'
-                        }
-                        ];
-                    }
-
-                    constructor() {
-                        super();
-                        this.lastSample = 0; // For sample rate reduction: holds the last processed sample
-                        this.phase = 0;      // For sample rate reduction: accumulator for timing
-                    }
-
-                    process(inputs, outputs, parameters) {
-                        const input = inputs[0]; // Get the first input (assuming single input)
-                        const output = outputs[0]; // Get the first output (assuming single output)
-
-                        // Get the parameter values (they are arrays, even if constant, check first element)
-                        const bits = parameters.bits[0];
-                        const sampleRateReduction = parameters.sampleRateReduction[0];
-
-                        // Process each channel
-                        for (let channel = 0; channel < input.length; ++channel) {
-                        const inputChannel = input[channel];
-                        const outputChannel = output[channel];
-
-                        for (let i = 0; i < inputChannel.length; ++i) {
-                            let currentSample = inputChannel[i];
-
-                            // --- Bit Depth Reduction ---
-                            // Calculate the step size for quantization
-                            const step = Math.pow(0.5, bits); // e.g., 8 bits -> 2^8 = 256 levels -> step = 1/256
-                            // Quantize the sample
-                            currentSample = Math.floor(currentSample / step) * step;
-
-                            // --- Sample Rate Reduction (simple hold method) ---
-                            // Increment phase by the reduction factor. When it hits 1, process a new sample.
-                            this.phase += 1 / sampleRateReduction; // If reduction is 2, phase increases by 0.5 each sample
-                            if (this.phase >= 1) {
-                            this.phase--; // Reset phase
-                            this.lastSample = currentSample; // Store the new "processed" sample
-                            }
-                            // Output the last processed sample (either the newly processed one or the held one)
-                            outputChannel[i] = this.lastSample;
-                        }
-                        }
-                        return true; // Indicate that the processor is still active
-                    }
-                    }
-
-                    // Register the processor with a unique name
-                    registerProcessor('bitcrusher-processor', BitcrusherProcessor);
-                `;
-
-                const blob = new Blob([processorCode], { type: 'application/javascript' });
-                const processorUrl = URL.createObjectURL(blob);
-
-                await audioContext.audioWorklet.addModule(processorUrl);
-            }
-
-            if (audioContext.state === 'suspended') {
-                await audioContext.resume();
-            }
-
-                clearEditorBtn.disabled = false;
-                //showMessage('Audio context started! Nodes in the editor are now active.', 'success');
-
-            // Initialize/start audio nodes that are already in the editor
-            for (const reteNode of editor.getNodes()) {
-                let audioNode = reteAudioNodes.get(reteNode.id);
-
-                if (!audioNode) {
-                    // Create audio node if it doesn't exist yet by calling its build method
-                    if (typeof reteNode.build === 'function') {
-                        audioNode = reteNode.build(audioContext);
-                    } else {
-                        console.warn(`Node type "${reteNode.label}" does not have a build method.`);
-                    }
-
-                    if (audioNode) {
-                        reteAudioNodes.set(reteNode.id, audioNode);
-                    }
-                }
-
-                // Start the audio node by calling its start method.
-                // The node itself will handle whether it needs to perform an action.
-                if (reteNode.label === 'Master Clock' && audioNode.start) {
-                    audioNode.start();
-                    reteNode.controls.startStop.label = 'Stop';
-                    area.update('node', reteNode.id);
-                } else {
-                    reteNode.start();
-                }
-            }
-            updateAudioGraphConnections();
-        }
-
-        function stopAll() {
-            if (mediaRecorder && mediaRecorder.state === 'recording') {
-                mediaRecorder.stop();
-                recordBtn.textContent = '⏺️ Record';
-                recordBtn.disabled = false;
-                showMessage('Recording stopped.', 'info');
-            } else if (loopSource) {
-                stopPlaybackAndResetUI();
-            }
-
-            stopAudio();
-        }
-
-        async function playRecording() {
-            if (recordedAudioUrl) {
-                if (!audioContext || audioContext.state === 'closed' || audioContext.state === 'suspended') {
-                    await startAudio();
-                }
-
-                if (audioContext && audioContext.state === 'running') {
-                    if (loopSource) {
-                        loopSource.stop();
-                    }
-                    try {
-                        const response = await fetch(recordedAudioUrl);
-                        const arrayBuffer = await response.arrayBuffer();
-                        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-
-                        loopSource = audioContext.createBufferSource();
-                        loopSource.buffer = audioBuffer;
-                        loopSource.loop = true;
-                        loopSource.connect(audioContext.destination);
-                        loopSource.start(0);
-
-                        playStopBtn.textContent = '⏹️';
-                        audioState = 'playing';
-                        showMessage('Playing recording.', 'info');
-                    } catch (e) {
-                        console.error('Error playing recording:', e);
-                        showMessage('Error playing recording.', 'error');
-                    }
-                } else {
-                    showMessage('Could not start audio context. Cannot play recording.', 'error');
-                }
-            }
-        }
-
-        
-            
             // --- Visualizer Toggle ---
             const visualizerCanvas = document.getElementById('visualizer');
             const workspaceTab = document.getElementById('workspace-tab');
@@ -5000,7 +4834,6 @@ workspace_data: ${base64Data}
         }
     </script>
     <script>
-        /*
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/audio/sw.js').then(registration => {
@@ -5010,7 +4843,6 @@ workspace_data: ${base64Data}
           });
         });
       }
-      */
     </script>
 </body>
 </html>
