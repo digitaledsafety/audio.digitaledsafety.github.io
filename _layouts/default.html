@@ -319,6 +319,7 @@ layout: none
                             <button id="addSequencerNodeBtn" class="button button-secondary w-full text-xs">🎶 Sequencer</button>
                             <button id="addAttenuverterNodeBtn" class="button button-secondary w-full text-xs">🔄 Attenuverter</button>
                             <button id="addMasterClockNodeBtn" class="button button-secondary w-full text-xs">⏱️ Master Clock</button>
+                            <button id="addVocoderNodeBtn" class="button button-secondary w-full text-xs">🗣️ Vocoder</button>
                         </div>
                     </div>
                 </div>
@@ -480,6 +481,7 @@ layout: none
         const addSequencerNodeBtn = document.getElementById('addSequencerNodeBtn');
         const addAttenuverterNodeBtn = document.getElementById('addAttenuverterNodeBtn');
         const addMasterClockNodeBtn = document.getElementById('addMasterClockNodeBtn');
+        const addVocoderNodeBtn = document.getElementById('addVocoderNodeBtn');
         const clearEditorBtn = document.getElementById('clearEditorBtn');
         const reteContainer = document.getElementById('rete-container');
         const messageBox = document.getElementById('messageBox');
@@ -558,7 +560,8 @@ layout: none
                     'Bitcrusher': BitcrusherNode,
                     'Sequencer': SequencerNode,
                     'Attenuverter': AttenuverterNode,
-                    'Master Clock': MasterClockNode
+                    'Master Clock': MasterClockNode,
+                    'Vocoder': VocoderNode
                 };
 
                 // Create nodes first
@@ -1225,7 +1228,7 @@ workspace_data: ${base64Data}
                     return connectionStrategies['midi'];
                 }
 
-                if (sourceSocket === cvSocket || targetInputKey === 'freq' || targetInputKey === 'q_cv' || targetInputKey === 'delay_cv' || targetInputKey === 'gain_cv') {
+                if (sourceSocket === cvSocket || targetInputKey === 'freq' || targetInputKey === 'q_cv' || targetInputKey === 'delay_cv' || targetInputKey === 'gain_cv'  || targetInputKey === 'bands_cv' || targetInputKey === 'formant_cv' || targetInputKey === 'unvoiced_cv') {
                     return connectionStrategies['cv'];
                 }
                 if (sourceSocket === clockSocket) {
@@ -1237,6 +1240,9 @@ workspace_data: ${base64Data}
 
                 if (targetReteNode.label === 'Mixer' && targetInputKey.startsWith('in')) {
                     return connectionStrategies['mixer'];
+                }
+                if (targetReteNode.label === 'Vocoder' && (targetInputKey === 'carrier' || targetInputKey === 'modulator')) {
+                    return connectionStrategies['audio'];
                 }
                 if (targetInputKey === 'audio') {
                     return connectionStrategies['audio'];
@@ -1482,6 +1488,12 @@ workspace_data: ${base64Data}
                         return targetNode.delayTime;
                     case 'gain_cv':
                          return targetNode.gain;
+                    case 'bands_cv':
+                        return targetNode.numBands;
+                    case 'formant_cv':
+                        return targetNode.formantShift;
+                    case 'unvoiced_cv':
+                        return targetNode.unvoicedLevel;
                     default:
                         return null;
                 }
@@ -3465,6 +3477,86 @@ workspace_data: ${base64Data}
             }
         }
 
+        class VocoderNode extends WebAudioNode {
+            constructor() {
+                super('Vocoder');
+                this.addInput('carrier', new Classic.Input(audioSocket, 'Carrier In'));
+                this.addInput('modulator', new Classic.Input(audioSocket, 'Modulator In'));
+                this.addInput('freq_cv', new Classic.Input(cvSocket, 'Freq CV'));
+                this.addInput('bands_cv', new Classic.Input(cvSocket, 'Bands CV'));
+                this.addInput('formant_cv', new Classic.Input(cvSocket, 'Formant CV'));
+                this.addInput('unvoiced_cv', new Classic.Input(cvSocket, 'Unvoiced CV'));
+                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
+
+                this.data.frequency = 110;
+                this.addControl('frequency', new SliderControl('freqSlider', 'Carrier Freq', 50, 1000, 1, this.data.frequency, (val) => {
+                    this.data.frequency = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('frequency', val);
+                }));
+
+                this.data.waveform = 'sawtooth';
+                this.addControl('waveform', new SelectControl('waveformSelect', 'Carrier Wave', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveform, (val) => {
+                    this.data.waveform = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('waveform', val);
+                }));
+
+                this.data.numBands = 16;
+                this.addControl('numBands', new SliderControl('bandsSlider', 'Bands', 8, 40, 1, this.data.numBands, (val) => {
+                    this.data.numBands = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('numBands', val);
+                }));
+
+                this.data.formantShift = 0;
+                this.addControl('formantShift', new SliderControl('formantSlider', 'Formant Shift (cents)', -1200, 1200, 1, this.data.formantShift, (val) => {
+                    this.data.formantShift = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('formantShift', val);
+                }));
+
+                this.data.unvoicedLevel = 0.5;
+                this.addControl('unvoicedLevel', new SliderControl('unvoicedSlider', 'Unvoiced Level', 0, 1, 0.01, this.data.unvoicedLevel, (val) => {
+                    this.data.unvoicedLevel = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('unvoicedLevel', val);
+                }));
+
+                this.addControl('mic', new ButtonControl('micButton', '🎤 Activate Mic', () => {
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) {
+                        if (audioNode.micStream) {
+                            audioNode.deactivateMic();
+                            this.controls.mic.label = '🎤 Activate Mic';
+                        } else {
+                            audioNode.activateMic();
+                            this.controls.mic.label = '🎤 Deactivate';
+                        }
+                        area.update('node', this.id);
+                    }
+                }));
+            }
+
+            build(audioContext) {
+                return new Vocoder(audioContext, this.id, this.data);
+            }
+
+            start() {
+                const audioNode = reteAudioNodes.get(this.id);
+                if (audioNode && audioNode.start && !audioNode.started) {
+                    audioNode.start();
+                }
+            }
+
+            stop() {
+                const audioNode = reteAudioNodes.get(this.id);
+                if (audioNode && audioNode.stop && audioNode.started) {
+                    audioNode.stop();
+                }
+            }
+        }
+
         class AttenuverterNode extends WebAudioNode {
             constructor() {
                 super('Attenuverter');
@@ -3557,6 +3649,183 @@ workspace_data: ${base64Data}
                     } catch (e) {
                         console.warn(`Could not start ${this.label} for node ${this.id}:`, e);
                     }
+                }
+            }
+        }
+
+        class Vocoder {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+                this.started = false;
+                this.micStream = null;
+
+                // Carrier path
+                this.carrierInput = this.audioContext.createGain();
+                this.internalCarrier = this.audioContext.createOscillator();
+                this.internalCarrier.type = this.data.waveform || 'sawtooth';
+                this.internalCarrier.frequency.value = this.data.frequency || 110;
+                this.internalCarrier.connect(this.carrierInput);
+
+                // Modulator path
+                this.modulatorInput = this.audioContext.createGain();
+
+                // Unvoiced (hiss) path
+                const bufferSize = this.audioContext.sampleRate * 2;
+                const noiseBuffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+                const output = noiseBuffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    output[i] = Math.random() * 2 - 1;
+                }
+                this.noiseSource = this.audioContext.createBufferSource();
+                this.noiseSource.buffer = noiseBuffer;
+                this.noiseSource.loop = true;
+
+                // Controllable parameters
+                this.formantShift = this.createParam(this.data.formantShift || 0);
+                this.unvoicedLevel = this.createParam(this.data.unvoicedLevel || 0.5);
+
+                this.unvoicedGain = this.audioContext.createGain();
+                this.unvoicedLevel.connect(this.unvoicedGain.gain);
+                this.noiseSource.connect(this.unvoicedGain);
+
+                // Output
+                this.mainOutput = this.audioContext.createGain();
+                this.unvoicedGain.connect(this.mainOutput);
+
+                this.buildFilterBank();
+            }
+
+            createParam(value) {
+                const source = this.audioContext.createConstantSource();
+                source.offset.value = value;
+                source.start();
+                const gain = this.audioContext.createGain();
+                source.connect(gain);
+                return gain;
+            }
+
+            buildFilterBank() {
+                if (this.modulatorFilters) {
+                    this.modulatorFilters.forEach(f => f.disconnect());
+                    this.carrierFilters.forEach(f => f.disconnect());
+                }
+
+                const numBands = this.data.numBands || 16;
+                this.baseFrequencies = [];
+                this.modulatorFilters = [];
+                this.carrierFilters = [];
+                this.envelopeFollowers = [];
+
+                // Frequency bands (logarithmic scale)
+                const minFreq = 80;
+                const maxFreq = 12000;
+                for (let i = 0; i < numBands; i++) {
+                    const ratio = i / (numBands - 1);
+                    const freq = minFreq * Math.pow(maxFreq / minFreq, ratio);
+                    this.baseFrequencies.push(freq);
+                }
+
+                for (let i = 0; i < numBands; i++) {
+                    const freq = this.baseFrequencies[i];
+
+                    // Modulator filter
+                    const modulatorFilter = this.audioContext.createBiquadFilter();
+                    modulatorFilter.type = 'bandpass';
+                    modulatorFilter.frequency.value = freq;
+                    this.formantShift.connect(modulatorFilter.detune);
+                    modulatorFilter.Q.value = 5;
+                    this.modulatorInput.connect(modulatorFilter);
+                    this.modulatorFilters.push(modulatorFilter);
+
+                    // Envelope follower
+                    const envelopeFollower = this.audioContext.createGain();
+                    envelopeFollower.gain.value = 100; // Amplify the signal to get a better envelope
+                    modulatorFilter.connect(envelopeFollower);
+                    this.envelopeFollowers.push(envelopeFollower);
+
+                    // Carrier filter
+                    const carrierFilter = this.audioContext.createBiquadFilter();
+                    carrierFilter.type = 'bandpass';
+                    carrierFilter.frequency.value = freq;
+                    this.formantShift.connect(carrierFilter.detune);
+                    carrierFilter.Q.value = 5;
+                    this.carrierInput.connect(carrierFilter);
+                    this.carrierFilters.push(carrierFilter);
+
+                    // Connect the envelope follower to the carrier filter's gain
+                    const carrierGain = this.audioContext.createGain();
+                    carrierGain.gain.value = 0; // Start with no gain
+                    carrierFilter.connect(carrierGain);
+                    carrierGain.connect(this.mainOutput);
+                    envelopeFollower.connect(carrierGain.gain);
+                }
+            }
+
+            async activateMic() {
+                if (!this.micStream) {
+                    try {
+                        this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        const micSource = this.audioContext.createMediaStreamSource(this.micStream);
+                        micSource.connect(this.modulatorInput);
+                        showMessage('Microphone activated!', 'success');
+                    } catch (e) {
+                        console.error('Error getting microphone input:', e);
+                        showMessage('Error activating microphone. Please grant permission.', 'error');
+                    }
+                }
+            }
+
+            deactivateMic() {
+                if (this.micStream) {
+                    this.micStream.getTracks().forEach(track => track.stop());
+                    this.micStream = null;
+                    showMessage('Microphone deactivated.', 'info');
+                }
+            }
+
+            start() {
+                if (this.started) return;
+                try {
+                    this.internalCarrier.start(0);
+                    this.noiseSource.start(0);
+                    this.started = true;
+                } catch (e) {
+                    console.warn(`Could not start Vocoder components for node ${this.reteNodeId}:`, e);
+                }
+            }
+
+            stop() {
+                if (!this.started) return;
+                try {
+                    this.internalCarrier.stop(0);
+                    this.noiseSource.stop(0);
+                    this.started = false;
+                } catch (e) {
+                    console.warn(`Could not stop Vocoder components for node ${this.reteNodeId}:`, e);
+                }
+                this.deactivateMic();
+            }
+
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+                switch (paramName) {
+                    case 'numBands':
+                        this.buildFilterBank();
+                        break;
+                    case 'formantShift':
+                        this.formantShift.gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
+                        break;
+                    case 'frequency':
+                        this.internalCarrier.frequency.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
+                        break;
+                    case 'waveform':
+                        this.internalCarrier.type = value;
+                        break;
+                    case 'unvoicedLevel':
+                        this.unvoicedLevel.gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
+                        break;
                 }
             }
         }        
@@ -3930,6 +4199,7 @@ workspace_data: ${base64Data}
                     ['Sequencer', () => new SequencerNode()],
                     ['Attenuverter', () => new AttenuverterNode()],
                     ['Master Clock', () => new MasterClockNode()],
+                    ['Vocoder', () => new VocoderNode()],
 
                 ])
             });
@@ -4294,6 +4564,11 @@ workspace_data: ${base64Data}
           
         addMasterClockNodeBtn.addEventListener('click', async () => {
             await editor.addNode(new MasterClockNode());
+            clearEditorBtn.disabled = false;
+        });
+
+        addVocoderNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new VocoderNode());
             clearEditorBtn.disabled = false;
         });
 
