@@ -1278,9 +1278,9 @@ workspace_data: ${base64Data}
             reteAudioNodes.clear(); // Clear the map
 
             if (audioContext && audioContext.state !== 'closed') {
-                //await audioContext.close();
-                //console.log('AudioContext closed.');
-                //audioContext = null;
+                await audioContext.close();
+                console.log('AudioContext closed.');
+                audioContext = null;
             }
             
             audioState = 'stopped';
@@ -4156,7 +4156,7 @@ workspace_data: ${base64Data}
                 this.connections.set(conn.peer, conn);
 
                 if (!this.isHost) {
-                    this.emit('request-initial-workspace', conn.peer);
+                    //this.emit('request-initial-workspace', conn.peer);
                 }
                 this.emit('connection-opened', conn.peer);
                 this.emit('connections-updated', Array.from(this.connections.values()));
