@@ -1278,9 +1278,9 @@ workspace_data: ${base64Data}
             reteAudioNodes.clear(); // Clear the map
 
             if (audioContext && audioContext.state !== 'closed') {
-                await audioContext.close();
+                //await audioContext.close();
                 console.log('AudioContext closed.');
-                audioContext = null;
+                //audioContext = null;
             }
             
             audioState = 'stopped';
