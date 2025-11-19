@@ -320,6 +320,7 @@ layout: none
                             <button id="addAttenuverterNodeBtn" class="button button-secondary w-full text-xs">🔄 Attenuverter</button>
                             <button id="addMasterClockNodeBtn" class="button button-secondary w-full text-xs">⏱️ Master Clock</button>
                             <button id="addVocoderNodeBtn" class="button button-secondary w-full text-xs">🗣️ Vocoder</button>
+                            <button id="addMicrophoneInputNodeBtn" class="button button-secondary w-full text-xs">🎤 Mic Input</button>
                         </div>
                     </div>
                 </div>
@@ -492,6 +493,7 @@ layout: none
         const addAttenuverterNodeBtn = document.getElementById('addAttenuverterNodeBtn');
         const addMasterClockNodeBtn = document.getElementById('addMasterClockNodeBtn');
         const addVocoderNodeBtn = document.getElementById('addVocoderNodeBtn');
+        const addMicrophoneInputNodeBtn = document.getElementById('addMicrophoneInputNodeBtn');
         const clearEditorBtn = document.getElementById('clearEditorBtn');
         const reteContainer = document.getElementById('rete-container');
         const messageBox = document.getElementById('messageBox');
@@ -594,7 +596,8 @@ layout: none
                     'Sequencer': SequencerNode,
                     'Attenuverter': AttenuverterNode,
                     'Master Clock': MasterClockNode,
-                    'Vocoder': VocoderNode
+                    'Vocoder': VocoderNode,
+                    '🎤 Mic Input': MicrophoneInputNode
                 };
 
                 // Create nodes first
@@ -1063,6 +1066,37 @@ workspace_data: ${base64Data}
                 } else {
                     showMessage('Could not start audio context. Cannot play recording.', 'error');
                 }
+            }
+        }
+
+        class MicrophoneInputNode extends WebAudioNode {
+            constructor() {
+                super('🎤 Mic Input');
+                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
+
+                this.addControl('mic', new ButtonControl('micButton', '🎤 Activate Mic', async () => {
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) {
+                        try {
+                            if (audioNode.micStream) {
+                                audioNode.deactivateMic();
+                                this.controls.mic.label = '🎤 Activate Mic';
+                            } else {
+                                await audioNode.activateMic();
+                                this.controls.mic.label = '🎤 Deactivate';
+                            }
+                        } catch (e) {
+                            // If user denies permission, reset the button
+                            this.controls.mic.label = '🎤 Activate Mic';
+                        } finally {
+                            area.update('node', this.id);
+                        }
+                    }
+                }));
+            }
+
+            build(audioContext) {
+                return new MicrophoneInput(audioContext, this.id, this.data);
             }
         }
 
@@ -1936,6 +1970,52 @@ workspace_data: ${base64Data}
                 if (paramName === 'gainValue') {
                     this.mainOutput.gain.value = value;
                 }
+            }
+        }
+
+        class MicrophoneInput {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+                this.micStream = null;
+                this.micSource = null;
+                this.mainOutput = this.audioContext.createGain();
+            }
+
+            async activateMic() {
+                if (!this.micStream) {
+                    try {
+                        this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        this.micSource = this.audioContext.createMediaStreamSource(this.micStream);
+                        this.micSource.connect(this.mainOutput);
+                        showMessage('Microphone activated!', 'success');
+                    } catch (e) {
+                        console.error('Error getting microphone input:', e);
+                        showMessage('Error activating microphone. Please grant permission.', 'error');
+                        // Rethrow to allow the UI to handle the failed state
+                        throw e;
+                    }
+                }
+            }
+
+            deactivateMic() {
+                if (this.micStream) {
+                    this.micStream.getTracks().forEach(track => track.stop());
+                    if (this.micSource) {
+                        this.micSource.disconnect();
+                        this.micSource = null;
+                    }
+                    this.micStream = null;
+                    showMessage('Microphone deactivated.', 'info');
+                }
+            }
+
+            // This node doesn't produce sound on its own, so start/stop are not needed
+            // for the transport controls. Activation is manual.
+            start() {}
+            stop() {
+                this.deactivateMic();
             }
         }
 
@@ -3614,20 +3694,6 @@ workspace_data: ${base64Data}
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode) audioNode.updateParameter('unvoicedLevel', val);
                 }));
-
-                this.addControl('mic', new ButtonControl('micButton', '🎤 Activate Mic', () => {
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode) {
-                        if (audioNode.micStream) {
-                            audioNode.deactivateMic();
-                            this.controls.mic.label = '🎤 Activate Mic';
-                        } else {
-                            audioNode.activateMic();
-                            this.controls.mic.label = '🎤 Deactivate';
-                        }
-                        area.update('node', this.id);
-                    }
-                }));
             }
 
             build(audioContext) {
@@ -3855,28 +3921,6 @@ workspace_data: ${base64Data}
                 }
             }
 
-            async activateMic() {
-                if (!this.micStream) {
-                    try {
-                        this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                        const micSource = this.audioContext.createMediaStreamSource(this.micStream);
-                        micSource.connect(this.modulatorInput);
-                        showMessage('Microphone activated!', 'success');
-                    } catch (e) {
-                        console.error('Error getting microphone input:', e);
-                        showMessage('Error activating microphone. Please grant permission.', 'error');
-                    }
-                }
-            }
-
-            deactivateMic() {
-                if (this.micStream) {
-                    this.micStream.getTracks().forEach(track => track.stop());
-                    this.micStream = null;
-                    showMessage('Microphone deactivated.', 'info');
-                }
-            }
-
             start() {
                 if (this.started) return;
                 try {
@@ -3897,7 +3941,6 @@ workspace_data: ${base64Data}
                 } catch (e) {
                     console.warn(`Could not stop Vocoder components for node ${this.reteNodeId}:`, e);
                 }
-                this.deactivateMic();
             }
 
             updateParameter(paramName, value) {
@@ -4661,6 +4704,11 @@ workspace_data: ${base64Data}
 
         addVocoderNodeBtn.addEventListener('click', async () => {
             await editor.addNode(new VocoderNode());
+            clearEditorBtn.disabled = false;
+        });
+
+        addMicrophoneInputNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new MicrophoneInputNode());
             clearEditorBtn.disabled = false;
         });
 
