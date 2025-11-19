@@ -3688,7 +3688,7 @@ workspace_data: ${base64Data}
 
                 this.unvoicedGain = this.audioContext.createGain();
                 this.unvoicedLevel.connect(this.unvoicedGain.gain);
-                this.noiseSource.connect(this.unvoicedGain);
+                //this.noiseSource.connect(this.unvoicedGain);
 
                 // Output
                 this.mainOutput = this.audioContext.createGain();
@@ -3800,7 +3800,7 @@ workspace_data: ${base64Data}
                 if (!this.started) return;
                 try {
                     this.internalCarrier.stop(0);
-                    this.noiseSource.stop(0);
+                    //this.noiseSource.stop(0);
                     this.started = false;
                 } catch (e) {
                     console.warn(`Could not stop Vocoder components for node ${this.reteNodeId}:`, e);
