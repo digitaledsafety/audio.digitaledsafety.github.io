@@ -493,7 +493,7 @@ layout: none
         const addAttenuverterNodeBtn = document.getElementById('addAttenuverterNodeBtn');
         const addMasterClockNodeBtn = document.getElementById('addMasterClockNodeBtn');
         const addVocoderNodeBtn = document.getElementById('addVocoderNodeBtn');
-        const addMicrophoneInputNodeBtn = document.getElementById('addMicrophoneInputNodeBtn');
+        const addMicrophoneInputNodeBtn = document.getElementById('addNodeBtn');
         const clearEditorBtn = document.getElementById('clearEditorBtn');
         const reteContainer = document.getElementById('rete-container');
         const messageBox = document.getElementById('messageBox');
@@ -1066,37 +1066,6 @@ workspace_data: ${base64Data}
                 } else {
                     showMessage('Could not start audio context. Cannot play recording.', 'error');
                 }
-            }
-        }
-
-        class MicrophoneInputNode extends WebAudioNode {
-            constructor() {
-                super('🎤 Mic Input');
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
-
-                this.addControl('mic', new ButtonControl('micButton', '🎤 Activate Mic', async () => {
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode) {
-                        try {
-                            if (audioNode.micStream) {
-                                audioNode.deactivateMic();
-                                this.controls.mic.label = '🎤 Activate Mic';
-                            } else {
-                                await audioNode.activateMic();
-                                this.controls.mic.label = '🎤 Deactivate';
-                            }
-                        } catch (e) {
-                            // If user denies permission, reset the button
-                            this.controls.mic.label = '🎤 Activate Mic';
-                        } finally {
-                            area.update('node', this.id);
-                        }
-                    }
-                }));
-            }
-
-            build(audioContext) {
-                return new MicrophoneInput(audioContext, this.id, this.data);
             }
         }
 
@@ -1872,8 +1841,39 @@ workspace_data: ${base64Data}
             }
         }
 
-
         // Custom Node Component classes for Rete.js v2
+
+        class MicrophoneInputNode extends WebAudioNode {
+            constructor() {
+                super('🎤 Mic Input');
+                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
+
+                this.addControl('mic', new ButtonControl('micButton', '🎤 Activate Mic', async () => {
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) {
+                        try {
+                            if (audioNode.micStream) {
+                                audioNode.deactivateMic();
+                                this.controls.mic.label = '🎤 Activate Mic';
+                            } else {
+                                await audioNode.activateMic();
+                                this.controls.mic.label = '🎤 Deactivate';
+                            }
+                        } catch (e) {
+                            // If user denies permission, reset the button
+                            this.controls.mic.label = '🎤 Activate Mic';
+                        } finally {
+                            area.update('node', this.id);
+                        }
+                    }
+                }));
+            }
+
+            build(audioContext) {
+                return new MicrophoneInput(audioContext, this.id, this.data);
+            }
+        }
+        
         class ToneGeneratorNode extends WebAudioNode {
             constructor() {
                 super('Tone Generator');
