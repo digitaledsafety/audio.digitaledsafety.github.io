@@ -351,6 +351,7 @@ layout: none
                                 <input type="file" id="importWorkspaceInput" class="hidden">
                                 <button id="importWorkspaceBtn" class="button button-secondary">📥 Import</button>
                             </div>
+                            <button id="updateWorkspaceBtn" class="button button-primary mt-2 hidden">✨ Update Workspace</button>
                             <button id="publishWorkspaceBtn" class="button button-secondary mt-2">🚀 Publish</button>
                         </div>
                         <!-- Multiplayer Controls -->
@@ -406,6 +407,15 @@ layout: none
         // Global variables for Web Audio API
         var audioContext;
         const reteAudioNodes = new Map(); // Maps Rete.js node IDs to Web Audio API nodes
+
+        const legacyNameMap = {
+            nodes: {
+                'LFO': 'VCA'
+            },
+            sockets: {
+                'fm': 'cv'
+            }
+        };
 
         const CHORD_TYPES = {
           'Major Triad': [0, 4, 7],
@@ -504,6 +514,29 @@ layout: none
         let _isLocalChange = true;
 
         // --- Utility Functions ---
+
+        function isWorkspaceOutdated(workspaceData) {
+            if (!workspaceData || !workspaceData.nodes || !workspaceData.connections) {
+                return false;
+            }
+
+            // Check for outdated node labels
+            for (const node of workspaceData.nodes) {
+                if (legacyNameMap.nodes.hasOwnProperty(node.label)) {
+                    return true;
+                }
+            }
+
+            // Check for outdated socket names
+            for (const connection of workspaceData.connections) {
+                if (legacyNameMap.sockets.hasOwnProperty(connection.sourceOutput) ||
+                    legacyNameMap.sockets.hasOwnProperty(connection.targetInput)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         function editorToJSON() {
             const nodes = [];
@@ -662,6 +695,11 @@ layout: none
                 return;
             }
 
+            if (isWorkspaceOutdated(data)) {
+                showMessage('This workspace may be outdated. An update is available in the settings menu.', 'info');
+                document.getElementById('updateWorkspaceBtn').classList.remove('hidden');
+            }
+
             const wasAudioRunning = audioContext && audioContext.state === 'running';
             if (wasAudioRunning) {
                 await stopAudio();
@@ -673,6 +711,7 @@ layout: none
                 await startAudio();
             }
 
+            document.getElementById('workspaceName').value = name;
             showMessage(`Workspace "${name}" loaded.`, 'success');
         }
 
@@ -710,6 +749,14 @@ layout: none
             reader.onload = async (e) => {
                 try {
                     const data = JSON.parse(e.target.result);
+
+                    if (isWorkspaceOutdated(data)) {
+                        showMessage('This workspace may be outdated. An update is available in the settings menu.', 'info');
+                        const updateBtn = document.getElementById('updateWorkspaceBtn');
+                        updateBtn.classList.remove('hidden');
+                        updateBtn.disabled = false;
+                    }
+
                     const wasAudioRunning = audioContext && audioContext.state === 'running';
                     if (wasAudioRunning) {
                         await stopAudio();
@@ -719,12 +766,57 @@ layout: none
                     if (wasAudioRunning) {
                         await startAudio();
                     }
+
+                    const fileName = file.name.split('.').slice(0, -1).join('.');
+                    document.getElementById('workspaceName').value = fileName;
                     showMessage('Workspace imported successfully.', 'success');
                 } catch (error) {
                     showMessage('Error importing workspace: ' + error.message, 'error');
                 }
             };
             reader.readAsText(file);
+        }
+
+        function applyLegacyUpdates(workspaceData) {
+            const updatedData = JSON.parse(JSON.stringify(workspaceData)); // Deep copy
+
+            // Update node labels
+            for (const node of updatedData.nodes) {
+                if (legacyNameMap.nodes.hasOwnProperty(node.label)) {
+                    node.label = legacyNameMap.nodes[node.label];
+                }
+            }
+
+            // Update socket names in connections
+            for (const connection of updatedData.connections) {
+                if (legacyNameMap.sockets.hasOwnProperty(connection.sourceOutput)) {
+                    connection.sourceOutput = legacyNameMap.sockets[connection.sourceOutput];
+                }
+                if (legacyNameMap.sockets.hasOwnProperty(connection.targetInput)) {
+                    connection.targetInput = legacyNameMap.sockets[connection.targetInput];
+                }
+            }
+
+            return updatedData;
+        }
+
+        async function updateAndPublishWorkspace() {
+            // Get the current state from the editor
+            const currentData = editorToJSON();
+            const newData = applyLegacyUpdates(currentData);
+
+            // Reload the editor with the new data
+            await editorFromJSON(newData);
+
+            // Update UI
+            const updateBtn = document.getElementById('updateWorkspaceBtn');
+            updateBtn.classList.add('hidden');
+            updateBtn.disabled = true;
+
+            showMessage('Workspace updated successfully! Publishing...', 'success');
+
+            // Automatically publish/download the updated file
+            publishWorkspace();
         }
 
         function publishWorkspace() {
@@ -4593,7 +4685,12 @@ workspace_data: ${base64Data}
                 {% if page.workspace_data %}
                 try {
                     workspaceData = JSON.parse(atob('{{ page.workspace_data }}'));
-                    //await editorFromJSON(workspaceData);
+                    if (isWorkspaceOutdated(workspaceData)) {
+                        showMessage('This workspace may be outdated. An update is available in the settings menu.', 'info');
+                        const updateBtn = document.getElementById('updateWorkspaceBtn');
+                        updateBtn.classList.remove('hidden');
+                        updateBtn.disabled = false;
+                    }
                 } catch (e) {
                     console.error('Error loading workspace data:', e);
                     showMessage('Error loading workspace data.', 'error');
@@ -4699,6 +4796,7 @@ workspace_data: ${base64Data}
                  document.getElementById('settingsDropdown').classList.add('hidden');
             });
             document.getElementById('importWorkspaceInput').addEventListener('change', importWorkspace);
+            document.getElementById('updateWorkspaceBtn').addEventListener('click', updateAndPublishWorkspace);
             document.getElementById('publishWorkspaceBtn').addEventListener('click', () => {
                 publishWorkspace();
                  document.getElementById('settingsDropdown').classList.add('hidden');
