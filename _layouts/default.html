@@ -3672,15 +3672,15 @@ workspace_data: ${base64Data}
                 this.modulatorInput = this.audioContext.createGain();
 
                 // Unvoiced (hiss) path
-                const bufferSize = this.audioContext.sampleRate * 2;
-                const noiseBuffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
-                const output = noiseBuffer.getChannelData(0);
-                for (let i = 0; i < bufferSize; i++) {
-                    output[i] = Math.random() * 2 - 1;
-                }
-                this.noiseSource = this.audioContext.createBufferSource();
-                this.noiseSource.buffer = noiseBuffer;
-                this.noiseSource.loop = true;
+                //const bufferSize = this.audioContext.sampleRate * 2;
+                //const noiseBuffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+                //const output = noiseBuffer.getChannelData(0);
+                //for (let i = 0; i < bufferSize; i++) {
+                //    output[i] = Math.random() * 2 - 1;
+                //}
+                //this.noiseSource = this.audioContext.createBufferSource();
+                //this.noiseSource.buffer = noiseBuffer;
+                //this.noiseSource.loop = true;
 
                 // Controllable parameters
                 this.formantShift = this.createParam(this.data.formantShift || 0);
@@ -3789,7 +3789,7 @@ workspace_data: ${base64Data}
                 if (this.started) return;
                 try {
                     this.internalCarrier.start(0);
-                    this.noiseSource.start(0);
+                    //this.noiseSource.start(0);
                     this.started = true;
                 } catch (e) {
                     console.warn(`Could not start Vocoder components for node ${this.reteNodeId}:`, e);
