@@ -2394,32 +2394,6 @@ workspace_data: ${base64Data}
                 this.setupNotesAndChords();
             }
 
-            receiveMidiNotes(notes) {
-                if (notes && notes.length > 0) {
-                    const firstNote = notes[0];
-                    // Find the note name from the MIDI value
-                    let closestNoteName = 'C4';
-                    let minDiff = Infinity;
-                    for (const noteName in this.rootNotes) {
-                        const diff = Math.abs(this.rootNotes[noteName] - firstNote);
-                        if (diff < minDiff) {
-                            minDiff = diff;
-                            closestNoteName = noteName;
-                        }
-                    }
-
-                    // Update the internal data and the audio output
-                    this.updateParameter('rootNote', closestNoteName);
-
-                    // Also update the UI control in the Rete node
-                    const reteNode = editor.getNode(this.reteNodeId);
-                    if (reteNode && reteNode.controls.rootNote) {
-                        reteNode.controls.rootNote.value = closestNoteName;
-                        area.update('node', this.reteNodeId); // This is important to re-render the node's control
-                    }
-                }
-            }
-
             addMidiListener(callback) {
                 if (typeof callback === 'function' && !this.midiListeners.includes(callback)) {
                     this.midiListeners.push(callback);
@@ -2702,7 +2676,6 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Arpeggiator');
                 this.addInput('clock', new Classic.Input(clockSocket, 'Clock In'));
-                this.addInput('midi', new Classic.Input(midiSocket, 'MIDI In'));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
                 this.addOutput('midi', new Classic.Output(midiSocket, 'MIDI Out'));
 
@@ -2791,26 +2764,12 @@ workspace_data: ${base64Data}
                 this.nextStepTime = 0;
                 this.tickCount = 0;
                 this.sequenceEvents = null;
-                this.midiListeners = [];
 
                 // Master gain for the Sequencer output
                 this.mainOutput = this.audioContext.createGain();
                 this.mainOutput.gain.value = 0.5; // Default volume for sequencer
 
                 this.setupNotes();
-            }
-
-            addMidiListener(callback) {
-                if (typeof callback === 'function' && !this.midiListeners.includes(callback)) {
-                    this.midiListeners.push(callback);
-                }
-            }
-
-            removeMidiListener(callback) {
-                const index = this.midiListeners.indexOf(callback);
-                if (index > -1) {
-                    this.midiListeners.splice(index, 1);
-                }
             }
 
             onTick(tickTime, tickDuration) {
@@ -2834,23 +2793,12 @@ workspace_data: ${base64Data}
                     // The note duration is one step long.
                     const stepDuration = tickDuration * ticksPerStep;
 
-                    const midiNotesToBroadcast = [];
                      if (Array.isArray(event)) {
                         for (const note of event) {
-                            if (note.midi !== null) {
-                                this.scheduleNote(note.midi, stepDuration * 0.9);
-                                midiNotesToBroadcast.push(note.midi);
-                            }
+                            if (note.midi !== null) this.scheduleNote(note.midi, stepDuration * 0.9);
                         }
                     } else {
-                        if (event.midi !== null) {
-                            this.scheduleNote(event.midi, stepDuration * 0.9);
-                            midiNotesToBroadcast.push(event.midi);
-                        }
-                    }
-
-                    if (this.midiListeners.length > 0 && midiNotesToBroadcast.length > 0) {
-                        this.midiListeners.forEach(callback => callback(midiNotesToBroadcast));
+                        if (event.midi !== null) this.scheduleNote(event.midi, stepDuration * 0.9);
                     }
 
                     this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
@@ -3120,24 +3068,13 @@ workspace_data: ${base64Data}
                     const baseNoteDuration = noteDurationMap[this.data.noteDuration] || 0.25;
                     const secondsPerBeat = 60.0 / bpm;
                     const stepDuration = secondsPerBeat * 4 * baseNoteDuration * (1 / representativeEvent.speed) * representativeEvent.duration;
-                    const midiNotesToBroadcast = [];
 
                     if (Array.isArray(event)) {
                         for (const note of event) {
-                            if (note.midi !== null) {
-                                this.scheduleNote(note.midi, stepDuration * note.elongation);
-                                midiNotesToBroadcast.push(note.midi);
-                            }
+                            if (note.midi !== null) this.scheduleNote(note.midi, stepDuration * note.elongation);
                         }
                     } else {
-                        if (event.midi !== null) {
-                             this.scheduleNote(event.midi, stepDuration * event.elongation);
-                             midiNotesToBroadcast.push(event.midi);
-                        }
-                    }
-
-                    if (this.midiListeners.length > 0 && midiNotesToBroadcast.length > 0) {
-                        this.midiListeners.forEach(callback => callback(midiNotesToBroadcast));
+                        if (event.midi !== null) this.scheduleNote(event.midi, stepDuration * event.elongation);
                     }
 
                     this.nextStepTime += stepDuration;
@@ -3170,7 +3107,6 @@ workspace_data: ${base64Data}
                 super('Sequencer');
                 this.addInput('clock', new Classic.Input(clockSocket, 'Clock In'));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
-                this.addOutput('midi', new Classic.Output(midiSocket, 'MIDI Out'));
 
                 this.data.bpm = 120;
                 this.addControl('bpm', new SliderControl('seqBpm', 'BPM', 60, 240, 1, this.data.bpm, (val) => {
