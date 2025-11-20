@@ -1006,7 +1006,7 @@ workspace_data: ${base64Data}
                 if (!audioNode) {
                     // Create audio node if it doesn't exist yet by calling its build method
                     if (typeof reteNode.build === 'function') {
-                        audioNode = reteNode.build(audioContext);
+                        audioNode = reteNode.build();
                     } else {
                         console.warn(`Node type "${reteNode.label}" does not have a build method.`);
                     }
@@ -1869,7 +1869,7 @@ workspace_data: ${base64Data}
                 }));
             }
 
-            build(audioContext) {
+            build() {
                 return new MicrophoneInput(audioContext, this.id, this.data);
             }
         }
@@ -1901,7 +1901,7 @@ workspace_data: ${base64Data}
                 }));
             }
 
-            build(audioContext) {
+            build() {
                 const audioNode = audioContext.createOscillator();
                 audioNode.frequency.value = this.data.frequency !== undefined ? this.data.frequency : 440;
                 audioNode.type = this.data.waveform || 'sine';
@@ -2034,7 +2034,7 @@ workspace_data: ${base64Data}
                 }));
             }
 
-            build(audioContext) {
+            build() {
                 return new NoiseGenerator(audioContext, this.id, this.data);
             }
 
@@ -2112,7 +2112,7 @@ workspace_data: ${base64Data}
                 }));
             }
 
-            build(audioContext) {
+            build() {
                 return new WavePlayer(audioContext, this.id, this.data);
             }
         }
@@ -2163,7 +2163,7 @@ workspace_data: ${base64Data}
                 }));
             }
 
-            build(audioContext) {
+            build() {
                 return new ChordGenerator(audioContext, this.id, this.data);
             }
 
@@ -2199,7 +2199,7 @@ workspace_data: ${base64Data}
                 }));
             }
 
-            build(audioContext) {
+            build() {
                 const audioNode = audioContext.createGain();
                 audioNode.gain.value = this.data.gain;
                 return audioNode;
@@ -2253,7 +2253,7 @@ workspace_data: ${base64Data}
                 }));
             }
 
-            build(audioContext) {
+            build() {
                 const mixer = {
                     mainOutput: audioContext.createGain(),
                     inputs: [
@@ -2289,7 +2289,7 @@ workspace_data: ${base64Data}
                 }));
             }
 
-            build(audioContext) {
+            build() {
                 // This node doesn't create a new audio node, it controls the global masterGain
                 if (masterGain) {
                     masterGain.gain.value = this.data.gain;
@@ -2336,7 +2336,7 @@ workspace_data: ${base64Data}
                 }));
             }
 
-            build(audioContext) {
+            build() {
                 const audioNode = audioContext.createBiquadFilter();
                 audioNode.type = this.data.filterType || 'lowpass';
                 audioNode.frequency.value = this.data.frequency !== undefined ? this.data.frequency : 2000;
@@ -2363,7 +2363,7 @@ workspace_data: ${base64Data}
                 }));
             }
 
-            build(audioContext) {
+            build() {
                 const audioNode = audioContext.createDelay(5.0);
                 audioNode.delayTime.value = this.data.delayTime !== undefined ? this.data.delayTime : 0.5;
                 return audioNode;
@@ -2759,7 +2759,7 @@ workspace_data: ${base64Data}
                 }));
             }
 
-            build(audioContext) {
+            build() {
                 return new Arpeggiator(audioContext, this.id, this.data);
             }
 
@@ -3201,7 +3201,7 @@ workspace_data: ${base64Data}
                 }));
             }
 
-            build(audioContext) {
+            build() {
                 return new Sequencer(audioContext, this.id, this.data);
             }
 
@@ -3318,7 +3318,7 @@ workspace_data: ${base64Data}
                 }));
             }
 
-            build(audioContext) {
+            build() {
                 return new MasterClock(audioContext, this.id, this.data);
             }
 
@@ -3342,7 +3342,7 @@ workspace_data: ${base64Data}
                 }));
             }
 
-            build(audioContext) {
+            build() {
                 const audioNode = audioContext.createWaveShaper();
                 setDistortionCurve(audioNode, this.data.amount !== undefined ? this.data.amount : 0);
                 return audioNode;
@@ -3384,7 +3384,7 @@ workspace_data: ${base64Data}
                 }));
             }
 
-            build(audioContext) {
+            build() {
                 const audioNode = audioContext.createDynamicsCompressor();
                 audioNode.threshold.value = this.data.threshold !== undefined ? this.data.threshold : -24;
                 audioNode.ratio.value = this.data.ratio !== undefined ? this.data.ratio : 12;
@@ -3427,7 +3427,7 @@ workspace_data: ${base64Data}
                 // Ensure the URL you use is CORS-enabled if serving from a different domain.
             }
 
-            build(audioContext) {
+            build() {
                 const audioNode = audioContext.createConvolver();
                 // Impulse response loading is handled elsewhere, so we just create the node here.
                 return audioNode;
@@ -3529,7 +3529,7 @@ workspace_data: ${base64Data}
                 }));
             }
 
-            build(audioContext) {
+            build() {
                 return new LFOGenerator(audioContext, this.id, this.data);
             }
 
@@ -3664,7 +3664,7 @@ workspace_data: ${base64Data}
                 }));
             }
 
-            build(audioContext) {
+            build() {
                 return new ADSREnvelope(audioContext, this.id, this.data);
             }
         }
@@ -3699,7 +3699,7 @@ workspace_data: ${base64Data}
                 }));
             }
 
-            build(audioContext) {
+            build() {
                 const audioNode = new AudioWorkletNode(audioContext, 'bitcrusher-processor');
                 audioNode.parameters.get('bits').setValueAtTime(
                     this.data.bits !== undefined ? this.data.bits : 8,
@@ -3760,7 +3760,7 @@ workspace_data: ${base64Data}
                 }));
             }
 
-            build(audioContext) {
+            build() {
                 return new Vocoder(audioContext, this.id, this.data);
             }
 
@@ -3795,7 +3795,7 @@ workspace_data: ${base64Data}
                 }));
             }
 
-            build(audioContext) {
+            build() {
                 const audioNode = audioContext.createGain();
                 audioNode.gain.value = this.data.level;
                 return audioNode;
@@ -3858,7 +3858,7 @@ workspace_data: ${base64Data}
                 }));
             }
 
-            build(audioContext) {
+            build() {
                 return new ScaleArpeggiator(audioContext, this.id, this.data);
             }
 
@@ -4508,7 +4508,7 @@ workspace_data: ${base64Data}
                     const reteNode = context.data;
                     let audioNode;
                     if (typeof reteNode.build === 'function') {
-                        audioNode = reteNode.build(audioContext);
+                        audioNode = reteNode.build();
                     } else {
                         console.warn(`Node type "${reteNode.label}" does not have a build method.`);
                     }
