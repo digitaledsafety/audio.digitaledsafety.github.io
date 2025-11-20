@@ -30,40 +30,30 @@ self.addEventListener('install', event => {
 
 self.addEventListener('fetch', event => {
   const requestUrl = new URL(event.request.url);
-  
+
   // Skip caching for chrome-extension requests
   if (requestUrl.protocol === 'chrome-extension:') {
     return; // Do not attempt to cache
   }
-  
+
   event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        if (response) {
-          return response;
-        }
+    fetch(event.request).then(response => {
+      // Check if we received a valid response to cache.
+      if (!response || response.status !== 200) {
+        return response;
+      }
 
-  
+      const responseToCache = response.clone();
 
-        return fetch(event.request).then(
-          response => {
-            // Check if we received a valid response to cache.
-            // We don't cache opaque responses (type 'opaque') for cross-origin requests
-            // without CORS headers, as their status is 0, which fails this check.
-            if(!response || response.status !== 200) {
-              return response;
-            }
+      caches.open(CACHE_NAME)
+        .then(cache => {
+          cache.put(event.request, responseToCache);
+        });
 
-            const responseToCache = response.clone();
-
-            caches.open(CACHE_NAME)
-              .then(cache => {
-                cache.put(event.request, responseToCache);
-              });
-
-            return response;
-          }
-        );
-      })
+      return response;
+    }).catch(() => {
+      // If the network request fails, try to get it from the cache.
+      return caches.match(event.request);
+    })
   );
 });
