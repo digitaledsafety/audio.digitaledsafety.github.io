@@ -4954,8 +4954,10 @@ workspace_data: ${base64Data}
 
             multiplayer.on('data-received', async (data) => {
                 _isLocalChange = false;
-                await stopAudio();
-                await editorFromJSON(data);
+                if (audioContext && audioContext.state === 'running') {
+                    await editorFromJSON(data);
+                    await startAudio();
+                }
                 _isLocalChange = true;
             });
 
