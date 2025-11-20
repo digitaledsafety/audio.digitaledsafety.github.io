@@ -4156,7 +4156,7 @@ workspace_data: ${base64Data}
                 this.connections.set(conn.peer, conn);
 
                 if (!this.isHost) {
-                    //this.emit('request-initial-workspace', conn.peer);
+                    this.emit('request-initial-workspace', conn.peer);
                 }
                 this.emit('connection-opened', conn.peer);
                 this.emit('connections-updated', Array.from(this.connections.values()));
