@@ -514,6 +514,8 @@ layout: none
         let loopSource;
         let multiplayer;
         let _isLocalChange = true;
+        // --- Main Controls Logic ---
+        let audioState = 'stopped'; // 'stopped', 'playing'        
 
         // --- Utility Functions ---
 
@@ -4340,8 +4342,162 @@ workspace_data: ${base64Data}
             }
         }
 
+        // --- Event Listeners for UI Buttons ---
+        clearEditorBtn.addEventListener('click', clearEditor); // Clear editor also stops audio
 
-        async function createEditor() {
+        addToneGeneratorNodeBtn.addEventListener('click', async () => {
+            const node = new ToneGeneratorNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+        });
+
+        addNoiseGeneratorNodeBtn.addEventListener('click', async () => {
+            const node = new NoiseGeneratorNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false; // Enable clear button after adding node
+        });
+
+        addWavePlayerNodeBtn.addEventListener('click', async () => {
+            const node = new WavePlayerNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false; // Enable clear button after adding node
+        });
+
+        addChordGeneratorNodeBtn.addEventListener('click', async () => {
+            const node = new ChordGeneratorNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false; // Enable clear button after adding node
+        });
+
+        addMixerNodeBtn.addEventListener('click', async () => {
+            const node = new MixerNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+        });
+
+        addMasterGainOutputNodeBtn.addEventListener('click', async () => {
+            const node = new MasterGainOutputNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+        });
+
+
+        addVCANodeBtn.addEventListener('click', async () => {
+            const node = new VCANode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+        });
+
+        addFilterNodeBtn.addEventListener('click', async () => {
+            const node = new FilterNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+        });
+
+        addDelayNodeBtn.addEventListener('click', async () => {
+            const node = new DelayNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+        });
+
+        // New Effects Node Buttons
+        addDistortionNodeBtn.addEventListener('click', async () => {
+            const node = new DistortionNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false;
+        });
+
+        addCompressorNodeBtn.addEventListener('click', async () => {
+            const node = new CompressorNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false;
+        });
+
+        addReverbNodeBtn.addEventListener('click', async () => {
+            const node = new ReverbNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false;
+        });
+
+
+        addArpeggiatorNodeBtn.addEventListener('click', async () => {
+            const node = new ArpeggiatorNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false;
+        });
+
+        addScaleArpeggiatorNodeBtn.addEventListener('click', async () => {
+            const node = new ScaleArpeggiatorNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false;
+        });
+
+        addLFONodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new LFONode());
+            clearEditorBtn.disabled = false;
+        });
+
+        addADSREnvelopeNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new ADSREnvelopeNode());
+            clearEditorBtn.disabled = false;
+        });
+
+        addBitcrusherNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new BitcrusherNode());
+            clearEditorBtn.disabled = false;
+        });
+
+        addSequencerNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new SequencerNode());
+            clearEditorBtn.disabled = false;
+        });
+
+        addAttenuverterNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new AttenuverterNode());
+            clearEditorBtn.disabled = false;
+        });
+          
+        addMasterClockNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new MasterClockNode());
+            clearEditorBtn.disabled = false;
+        });
+
+        addVocoderNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new VocoderNode());
+            clearEditorBtn.disabled = false;
+        });
+
+        addMicrophoneInputNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new MicrophoneInputNode());
+            clearEditorBtn.disabled = false;
+        });
+
+        // Initialize editor on window load
+        window.onload = async () => {
+
+
             // Rete.js v2: Define schemes
             const schemes = {
                 Node: WebAudioNode,
@@ -4657,162 +4813,7 @@ workspace_data: ${base64Data}
             //     }
             //     return context;
             // });
-        }
 
-        // --- Event Listeners for UI Buttons ---
-        clearEditorBtn.addEventListener('click', clearEditor); // Clear editor also stops audio
-
-        addToneGeneratorNodeBtn.addEventListener('click', async () => {
-            const node = new ToneGeneratorNode();
-            const existingNodesCount = editor.getNodes().length;
-            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
-            await editor.addNode(node);
-        });
-
-        addNoiseGeneratorNodeBtn.addEventListener('click', async () => {
-            const node = new NoiseGeneratorNode();
-            const existingNodesCount = editor.getNodes().length;
-            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
-            await editor.addNode(node);
-            clearEditorBtn.disabled = false; // Enable clear button after adding node
-        });
-
-        addWavePlayerNodeBtn.addEventListener('click', async () => {
-            const node = new WavePlayerNode();
-            const existingNodesCount = editor.getNodes().length;
-            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
-            await editor.addNode(node);
-            clearEditorBtn.disabled = false; // Enable clear button after adding node
-        });
-
-        addChordGeneratorNodeBtn.addEventListener('click', async () => {
-            const node = new ChordGeneratorNode();
-            const existingNodesCount = editor.getNodes().length;
-            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
-            await editor.addNode(node);
-            clearEditorBtn.disabled = false; // Enable clear button after adding node
-        });
-
-        addMixerNodeBtn.addEventListener('click', async () => {
-            const node = new MixerNode();
-            const existingNodesCount = editor.getNodes().length;
-            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
-            await editor.addNode(node);
-        });
-
-        addMasterGainOutputNodeBtn.addEventListener('click', async () => {
-            const node = new MasterGainOutputNode();
-            const existingNodesCount = editor.getNodes().length;
-            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
-            await editor.addNode(node);
-        });
-
-
-        addVCANodeBtn.addEventListener('click', async () => {
-            const node = new VCANode();
-            const existingNodesCount = editor.getNodes().length;
-            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
-            await editor.addNode(node);
-        });
-
-        addFilterNodeBtn.addEventListener('click', async () => {
-            const node = new FilterNode();
-            const existingNodesCount = editor.getNodes().length;
-            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
-            await editor.addNode(node);
-        });
-
-        addDelayNodeBtn.addEventListener('click', async () => {
-            const node = new DelayNode();
-            const existingNodesCount = editor.getNodes().length;
-            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
-            await editor.addNode(node);
-        });
-
-        // New Effects Node Buttons
-        addDistortionNodeBtn.addEventListener('click', async () => {
-            const node = new DistortionNode();
-            const existingNodesCount = editor.getNodes().length;
-            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
-            await editor.addNode(node);
-            clearEditorBtn.disabled = false;
-        });
-
-        addCompressorNodeBtn.addEventListener('click', async () => {
-            const node = new CompressorNode();
-            const existingNodesCount = editor.getNodes().length;
-            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
-            await editor.addNode(node);
-            clearEditorBtn.disabled = false;
-        });
-
-        addReverbNodeBtn.addEventListener('click', async () => {
-            const node = new ReverbNode();
-            const existingNodesCount = editor.getNodes().length;
-            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
-            await editor.addNode(node);
-            clearEditorBtn.disabled = false;
-        });
-
-
-        addArpeggiatorNodeBtn.addEventListener('click', async () => {
-            const node = new ArpeggiatorNode();
-            const existingNodesCount = editor.getNodes().length;
-            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
-            await editor.addNode(node);
-            clearEditorBtn.disabled = false;
-        });
-
-        addScaleArpeggiatorNodeBtn.addEventListener('click', async () => {
-            const node = new ScaleArpeggiatorNode();
-            const existingNodesCount = editor.getNodes().length;
-            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
-            await editor.addNode(node);
-            clearEditorBtn.disabled = false;
-        });
-
-        addLFONodeBtn.addEventListener('click', async () => {
-            await editor.addNode(new LFONode());
-            clearEditorBtn.disabled = false;
-        });
-
-        addADSREnvelopeNodeBtn.addEventListener('click', async () => {
-            await editor.addNode(new ADSREnvelopeNode());
-            clearEditorBtn.disabled = false;
-        });
-
-        addBitcrusherNodeBtn.addEventListener('click', async () => {
-            await editor.addNode(new BitcrusherNode());
-            clearEditorBtn.disabled = false;
-        });
-
-        addSequencerNodeBtn.addEventListener('click', async () => {
-            await editor.addNode(new SequencerNode());
-            clearEditorBtn.disabled = false;
-        });
-
-        addAttenuverterNodeBtn.addEventListener('click', async () => {
-            await editor.addNode(new AttenuverterNode());
-            clearEditorBtn.disabled = false;
-        });
-          
-        addMasterClockNodeBtn.addEventListener('click', async () => {
-            await editor.addNode(new MasterClockNode());
-            clearEditorBtn.disabled = false;
-        });
-
-        addVocoderNodeBtn.addEventListener('click', async () => {
-            await editor.addNode(new VocoderNode());
-            clearEditorBtn.disabled = false;
-        });
-
-        addMicrophoneInputNodeBtn.addEventListener('click', async () => {
-            await editor.addNode(new MicrophoneInputNode());
-            clearEditorBtn.disabled = false;
-        });
-
-        // Initialize editor on window load
-        window.onload = async () => {
             populateWorkspacesDropdown();
             showMessage('Editor ready. Add nodes and then click "Record" or "Play" to start audio.', 'info');
 
@@ -4941,9 +4942,6 @@ workspace_data: ${base64Data}
                     showMessage('Link copied to clipboard!', 'success');
                 }
             });
-
-            // --- Main Controls Logic ---
-            let audioState = 'playing'; // 'stopped', 'playing'
 
             playStopBtn.addEventListener('click', async () => {
                 if (audioState === 'stopped') {
@@ -5089,8 +5087,6 @@ workspace_data: ${base64Data}
                     await editorFromJSON(workspaceData);
                 }
 
-                await createEditor();                  
-                
                 document.getElementById('hero-overlay').remove();
             });
             
