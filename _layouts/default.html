@@ -4779,9 +4779,6 @@ workspace_data: ${base64Data}
 
         // Initialize editor on window load
         window.onload = async () => {
-
-            await createEditor();
-            
             populateWorkspacesDropdown();
             showMessage('Editor ready. Add nodes and then click "Record" or "Play" to start audio.', 'info');
 
@@ -5094,6 +5091,8 @@ workspace_data: ${base64Data}
             
                     await editorFromJSON(workspaceData);
                 }
+
+                await createEditor();
                 
                 document.getElementById('hero-overlay').remove();
             });
