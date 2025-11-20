@@ -4218,12 +4218,8 @@ workspace_data: ${base64Data}
         // Custom HTML rendering for Rete.js v2 Nodes (plain JS DOM manipulation)
         class CustomNodeComponent {
             constructor(node) {
-                this.node = node; // Store the Rete node instance
-
-                // Manually create and append elements for inputs, outputs, and controls
-                this.el = document.createElement('div');
-                this.el.className = 'custom-controls';
-                //this.el.innerHTML = `<div class="title">${node.label}</div>`;
+                this.node = node;
+                this.elements = [];
 
                 /*
                 // Add inputs
@@ -4298,42 +4294,8 @@ workspace_data: ${base64Data}
                         };
                     }
 
-                    this.el.appendChild(controlEl);
+                    this.elements.push(controlEl);
                 }
-
-                /*
-                // Add outputs
-                for (const key in node.outputs) {
-                    const output = node.outputs[key];
-                    const outputEl = document.createElement('div');
-                    outputEl.className = 'output';
-                    outputEl.innerHTML = `
-                        <div class="output-title">${output.label}</div>
-                        <div class="socket output" data-socket-key="${key}" data-type="output"></div>
-                    `;
-                    this.el.appendChild(outputEl);
-                }
-                */
-
-
-                
-                // Prevent dragging when clicking on sockets
-                const sockets = this.el.querySelectorAll('.socket');
-                sockets.forEach(socket => {
-                    socket.addEventListener('pointerdown', e => {
-                        e.stopPropagation();
-                    });
-                });
-
-                // Prevent dragging when clicking on controls
-                const controls = this.el.querySelectorAll('.control');
-                controls.forEach(controlEl => {
-                    controlEl.addEventListener('pointerdown', e => {
-                        e.stopPropagation();
-                    });
-                });
-                
-
             }
 
             // Required for AreaPlugin to handle node position and drag
@@ -4636,20 +4598,25 @@ workspace_data: ${base64Data}
                     multiplayer.broadcast(workspaceData);
                 }                
                 if (context.type === 'render' && context.data.type === 'node') {
-                    // Check if node data is valid and it's a known node type
                     if (context.data.payload instanceof WebAudioNode) {
-                        // Guard clause: Rete's React renderer might not have created the child elements yet.
-                        // If so, we skip this render pass. The pipe will be called again.
-                        if (!context.data.element.children[0]) {
-                            return context;
-                        }
                         const nodeView = new CustomNodeComponent(context.data.payload);
-                        let elements = context.data.element.children[0].getElementsByClassName("control");
-                        while(elements.length > 0){
-                          elements[0].parentNode.removeChild(elements[0]);
+
+                        // Clear existing controls
+                        const controls = context.data.element.querySelectorAll('.control');
+                        controls.forEach(control => control.remove());
+
+                        // Add new controls
+                        for (const el of nodeView.elements) {
+                            context.data.element.appendChild(el);
                         }
-                        context.data.element.children[0].style.height = "auto";
-                        context.data.element.children[0].appendChild(nodeView.el); // Append the custom node's DOM element
+
+                        // Re-attach event listeners to prevent dragging on control interaction
+                        const newControls = context.data.element.querySelectorAll('.control');
+                        newControls.forEach(controlEl => {
+                            controlEl.addEventListener('pointerdown', e => {
+                                e.stopPropagation();
+                            });
+                        });
                     }
                 }
                 // Handle socket rendering for custom nodes
