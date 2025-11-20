@@ -4155,8 +4155,9 @@ workspace_data: ${base64Data}
                 console.log(`Connection opened with ${conn.peer}`);
                 this.connections.set(conn.peer, conn);
 
-                if (!this.isHost) {
-                    this.emit('request-initial-workspace', conn.peer);
+                if (this.isHost) {
+                    const workspaceData = editorToJSON();
+                    this.sendInitialWorkspace(conn.peer, workspaceData);
                 }
                 this.emit('connection-opened', conn.peer);
                 this.emit('connections-updated', Array.from(this.connections.values()));
@@ -4963,11 +4964,6 @@ workspace_data: ${base64Data}
                 }
                 await editorFromJSON(data);
                 _isLocalChange = true;
-            });
-
-            multiplayer.on('request-initial-workspace', (peerId) => {
-                const workspaceData = editorToJSON();
-                multiplayer.sendInitialWorkspace(peerId, workspaceData);
             });
 
             multiplayer.on('connections-updated', (connections) => {
