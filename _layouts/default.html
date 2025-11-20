@@ -4863,7 +4863,7 @@ workspace_data: ${base64Data}
                 const blob = new Blob([processorCode], { type: 'application/javascript' });
                 const processorUrl = URL.createObjectURL(blob);
                 await tempAudioContext.audioWorklet.addModule(processorUrl);
-                await tempAudioContext.close();
+                //await tempAudioContext.close();
                 console.log('Bitcrusher processor loaded and ready.');
             } catch (e) {
                 console.error('Error pre-loading audio worklet:', e);
