@@ -621,7 +621,7 @@ layout: none
                         await editor.addNode(node);
                         await area.translate(node.id, nodeData.position);
 
-                        await area.update('node', node.id);
+                        area.update('node', node.id);
 
 
                     } else {
@@ -1006,7 +1006,7 @@ workspace_data: ${base64Data}
                 if (!audioNode) {
                     // Create audio node if it doesn't exist yet by calling its build method
                     if (typeof reteNode.build === 'function') {
-                        //audioNode = reteNode.build(audioContext);
+                        audioNode = reteNode.build(audioContext);
                     } else {
                         console.warn(`Node type "${reteNode.label}" does not have a build method.`);
                     }
@@ -4508,7 +4508,7 @@ workspace_data: ${base64Data}
                     const reteNode = context.data;
                     let audioNode;
                     if (typeof reteNode.build === 'function') {
-                        //audioNode = reteNode.build(audioContext);
+                        audioNode = reteNode.build(audioContext);
                     } else {
                         console.warn(`Node type "${reteNode.label}" does not have a build method.`);
                     }
@@ -4779,14 +4779,12 @@ workspace_data: ${base64Data}
 
         // Initialize editor on window load
         window.onload = async () => {
-
-            await createEditor();
             
             document.getElementById('cta-button').addEventListener('click', async () => {
                 const urlParams = new URLSearchParams(window.location.search);
                 const sessionId = urlParams.get('session');
 
-                //await startAudio();
+                await startAudio();
                 
                 if (sessionId) {
                     multiplayer.connectTo(sessionId);
@@ -4827,7 +4825,8 @@ workspace_data: ${base64Data}
                 
                 document.getElementById('hero-overlay').remove();
             });
-            
+
+            await createEditor();
             
             populateWorkspacesDropdown();
             showMessage('Editor ready. Add nodes and then click "Record" or "Play" to start audio.', 'info');
