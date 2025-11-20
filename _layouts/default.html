@@ -4811,12 +4811,16 @@ workspace_data: ${base64Data}
             
                 await editorFromJSON(workspaceData);
                 await startAudio();
+
+                const urlParams = new URLSearchParams(window.location.search);
+                const sessionId = urlParams.get('session');
+                if (sessionId) {
+                    multiplayer.connectTo(sessionId);
+                }
                 document.getElementById('hero-overlay').remove();
             });
             await createEditor();
-
-
-
+            
             populateWorkspacesDropdown();
             showMessage('Editor ready. Add nodes and then click "Record" or "Play" to start audio.', 'info');
 
@@ -4989,12 +4993,6 @@ workspace_data: ${base64Data}
                     document.getElementById('disconnectBtn').classList.remove('hidden');
                 }
             });            
-
-            const urlParams = new URLSearchParams(window.location.search);
-            const sessionId = urlParams.get('session');
-            if (sessionId) {
-                multiplayer.connectTo(sessionId);
-            }
 
 
             // --- Main Controls Logic ---
