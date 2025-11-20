@@ -602,36 +602,31 @@ layout: none
                     '🎤 Mic Input': MicrophoneInputNode
                 };
 
-                // Create nodes first
+                // Stage 1: Create and add all nodes to the editor's data model.
                 for (const nodeData of json.nodes) {
                     const Constructor = nodeConstructors[nodeData.label];
                     if (Constructor) {
                         const node = new Constructor();
                         node.id = nodeData.id;
-                        
-                        // Critical: Overwrite the default data with saved data
+
+                        // Overwrite default data with saved data.
                         node.data = { ...node.data, ...nodeData.data };
 
-                        // Re-apply control values from data to the control objects BEFORE adding the node
+                        // Re-apply control values from data to the control objects.
                         for (const key in node.controls) {
-                            const control = node.controls[key];
                             if (node.data.hasOwnProperty(key)) {
-                                control.value = node.data[key];
+                                if(node.controls[key]) {
+                                    node.controls[key].value = node.data[key];
+                                }
                             }
                         }
-
                         await editor.addNode(node);
-                        await area.translate(node.id, nodeData.position);
-
-                        area.update('node', node.id);
-
-
                     } else {
                         console.warn(`Node type "${nodeData.label}" not found.`);
                     }
                 }
 
-                // Then create connections
+                // Stage 2: Create all connections now that all nodes exist in the model.
                 for (const connData of json.connections) {
                     const sourceNode = editor.getNode(connData.source);
                     const targetNode = editor.getNode(connData.target);
@@ -640,21 +635,31 @@ layout: none
                         const sourceOutput = connData.sourceOutput;
                         const targetInput = connData.targetInput;
                         
-                        if (sourceOutput && targetInput) {
-                            await editor.addConnection(new Classic.Connection(sourceNode, sourceOutput, targetNode, targetInput));
+                        if (sourceNode.outputs[sourceOutput] && targetNode.inputs[targetInput]) {
+                             await editor.addConnection(new Classic.Connection(sourceNode, sourceOutput, targetNode, targetInput));
                         } else {
-                            console.warn(`Could not find socket for connection:`, connData);
+                            console.warn(`Could not find socket for connection:`, connData, `Source sockets:`, Object.keys(sourceNode.outputs), `Target sockets:`, Object.keys(targetNode.inputs));
                         }
                     } else {
                         console.warn(`Could not find nodes for connection:`, connData);
                     }
+                }
+
+                // Stage 3: Set positions and trigger UI updates now that the model is complete.
+                for (const nodeData of json.nodes) {
+                    const node = editor.getNode(nodeData.id);
+                    if (node && nodeData.position) {
+                        await area.translate(node.id, nodeData.position);
+                    }
+                    // Manually trigger a render update for each node.
+                    area.update('node', nodeData.id);
                 }
             }
             catch (error) {
                 showMessage('Error syncing workspace: ' + error.message, 'error');
             }
 
-        }        
+        }          
 
         function getWorkspaces() {
             const workspaces = localStorage.getItem('rete-workspaces');
