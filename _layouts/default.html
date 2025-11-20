@@ -4783,7 +4783,7 @@ workspace_data: ${base64Data}
                 const urlParams = new URLSearchParams(window.location.search);
                 const sessionId = urlParams.get('session');
 
-                await startAudio();
+                //await startAudio();
                 
                 if (sessionId) {
                     multiplayer.connectTo(sessionId);
@@ -4963,10 +4963,6 @@ workspace_data: ${base64Data}
 
             multiplayer.on('data-received', async (data) => {
                 _isLocalChange = false;
-                console.log(audioContext);
-                if (!audioContext || audioContext.state !== 'running') {
-                    await startAudio();
-                }
                 await editorFromJSON(data);
                 _isLocalChange = true;
             });
