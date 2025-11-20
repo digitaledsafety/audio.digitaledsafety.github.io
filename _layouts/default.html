@@ -4635,7 +4635,7 @@ workspace_data: ${base64Data}
                     const workspaceData = editorToJSON();
                     multiplayer.broadcast(workspaceData);
                 }                
-                if (context.type === 'render' && context.data.type === 'node') {
+                if (context.type === 'rendered' && context.data.type === 'node') {
                     // Check if node data is valid and it's a known node type
                     if (context.data.payload instanceof WebAudioNode) {
                         // Guard clause: Rete's React renderer might not have created the child elements yet.
