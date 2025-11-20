@@ -5044,6 +5044,14 @@ workspace_data: ${base64Data}
             clearEditorBtn.disabled = false; // Initially enabled to allow clearing default workspace
 
             document.getElementById('cta-button').addEventListener('click', async () => {
+
+                if(!audioContext || audioContext.state !== 'running') {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+
+                if(audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
                 
                 const urlParams = new URLSearchParams(window.location.search);
                 const sessionId = urlParams.get('session');
