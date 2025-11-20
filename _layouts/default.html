@@ -621,7 +621,7 @@ layout: none
                         await editor.addNode(node);
                         await area.translate(node.id, nodeData.position);
 
-                        area.update('node', node.id);
+                        await area.update('node', node.id);
 
 
                     } else {
