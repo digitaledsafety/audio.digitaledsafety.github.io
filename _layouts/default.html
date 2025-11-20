@@ -4371,6 +4371,40 @@ workspace_data: ${base64Data}
             multiplayer = new Multiplayer();
             multiplayer.initialize();            
 
+            multiplayer.on('peer-id-ready', (id) => {
+                document.getElementById('peerIdDisplay').textContent = id;
+            });
+            
+            multiplayer.on('data-received', async (data) => {
+                _isLocalChange = false;
+                await editorFromJSON(data);
+                _isLocalChange = true;
+            });
+    
+            multiplayer.on('connections-updated', (connections) => {
+                const usersList = document.getElementById('connectedUsersList');
+                usersList.innerHTML = ''; // Clear the list
+    
+                // Add the current user (self)
+                const selfLi = document.createElement('li');
+                selfLi.textContent = `${multiplayer.getPeerId()} (You)`;
+                selfLi.classList.add('font-semibold');
+                usersList.appendChild(selfLi);
+    
+                // Add other connected peers
+                connections.forEach(conn => {
+                    const userLi = document.createElement('li');
+                    userLi.textContent = conn.peer;
+                    usersList.appendChild(userLi);
+                });
+    
+                // Show disconnect button when connected to a session
+                if (multiplayer.isConnected()) {
+                    document.getElementById('createSessionBtn').classList.add('hidden');
+                    document.getElementById('disconnectBtn').classList.remove('hidden');
+                }
+            });               
+
             const connection = new ConnectionPlugin();
             // Corrected: ContextMenuPlugin is instantiated with the editor instance, and then its preset is added
             //const contextMenu = new ContextMenuPlugin(editor); 
@@ -5055,42 +5089,7 @@ workspace_data: ${base64Data}
                     await editorFromJSON(workspaceData);
                 }
 
-                await createEditor();
-
-                multiplayer.on('peer-id-ready', (id) => {
-                    document.getElementById('peerIdDisplay').textContent = id;
-                });
-                
-                multiplayer.on('data-received', async (data) => {
-                    _isLocalChange = false;
-                    await editorFromJSON(data);
-                    _isLocalChange = true;
-                });
-    
-                multiplayer.on('connections-updated', (connections) => {
-                    const usersList = document.getElementById('connectedUsersList');
-                    usersList.innerHTML = ''; // Clear the list
-    
-                    // Add the current user (self)
-                    const selfLi = document.createElement('li');
-                    selfLi.textContent = `${multiplayer.getPeerId()} (You)`;
-                    selfLi.classList.add('font-semibold');
-                    usersList.appendChild(selfLi);
-    
-                    // Add other connected peers
-                    connections.forEach(conn => {
-                        const userLi = document.createElement('li');
-                        userLi.textContent = conn.peer;
-                        usersList.appendChild(userLi);
-                    });
-    
-                    // Show disconnect button when connected to a session
-                    if (multiplayer.isConnected()) {
-                        document.getElementById('createSessionBtn').classList.add('hidden');
-                        document.getElementById('disconnectBtn').classList.remove('hidden');
-                    }
-                });            
-                    
+                await createEditor();                  
                 
                 document.getElementById('hero-overlay').remove();
             });
