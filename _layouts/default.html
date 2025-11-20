@@ -4876,12 +4876,6 @@ workspace_data: ${base64Data}
                  document.getElementById('settingsDropdown').classList.add('hidden');
             });
 
-
-
-            multiplayer.on('peer-id-ready', (id) => {
-                document.getElementById('peerIdDisplay').textContent = id;
-            });
-
             document.getElementById('createSessionBtn').addEventListener('click', () => {
                 multiplayer.startHosting();
                 const peerId = multiplayer.getPeerId();
@@ -4913,37 +4907,6 @@ workspace_data: ${base64Data}
                     showMessage('Link copied to clipboard!', 'success');
                 }
             });
-
-            multiplayer.on('data-received', async (data) => {
-                _isLocalChange = false;
-                await editorFromJSON(data);
-                _isLocalChange = true;
-            });
-
-            multiplayer.on('connections-updated', (connections) => {
-                const usersList = document.getElementById('connectedUsersList');
-                usersList.innerHTML = ''; // Clear the list
-
-                // Add the current user (self)
-                const selfLi = document.createElement('li');
-                selfLi.textContent = `${multiplayer.getPeerId()} (You)`;
-                selfLi.classList.add('font-semibold');
-                usersList.appendChild(selfLi);
-
-                // Add other connected peers
-                connections.forEach(conn => {
-                    const userLi = document.createElement('li');
-                    userLi.textContent = conn.peer;
-                    usersList.appendChild(userLi);
-                });
-
-                // Show disconnect button when connected to a session
-                if (multiplayer.isConnected()) {
-                    document.getElementById('createSessionBtn').classList.add('hidden');
-                    document.getElementById('disconnectBtn').classList.remove('hidden');
-                }
-            });            
-
 
             // --- Main Controls Logic ---
             let audioState = 'playing'; // 'stopped', 'playing'
@@ -5093,6 +5056,41 @@ workspace_data: ${base64Data}
                 }
 
                 await createEditor();
+
+                multiplayer.on('peer-id-ready', (id) => {
+                    document.getElementById('peerIdDisplay').textContent = id;
+                });
+                
+                multiplayer.on('data-received', async (data) => {
+                    _isLocalChange = false;
+                    await editorFromJSON(data);
+                    _isLocalChange = true;
+                });
+    
+                multiplayer.on('connections-updated', (connections) => {
+                    const usersList = document.getElementById('connectedUsersList');
+                    usersList.innerHTML = ''; // Clear the list
+    
+                    // Add the current user (self)
+                    const selfLi = document.createElement('li');
+                    selfLi.textContent = `${multiplayer.getPeerId()} (You)`;
+                    selfLi.classList.add('font-semibold');
+                    usersList.appendChild(selfLi);
+    
+                    // Add other connected peers
+                    connections.forEach(conn => {
+                        const userLi = document.createElement('li');
+                        userLi.textContent = conn.peer;
+                        usersList.appendChild(userLi);
+                    });
+    
+                    // Show disconnect button when connected to a session
+                    if (multiplayer.isConnected()) {
+                        document.getElementById('createSessionBtn').classList.add('hidden');
+                        document.getElementById('disconnectBtn').classList.remove('hidden');
+                    }
+                });            
+                    
                 
                 document.getElementById('hero-overlay').remove();
             });
