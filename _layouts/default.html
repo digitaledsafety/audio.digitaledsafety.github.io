@@ -4155,8 +4155,9 @@ workspace_data: ${base64Data}
                 console.log(`Connection opened with ${conn.peer}`);
                 this.connections.set(conn.peer, conn);
 
-                if (!this.isHost) {
-                    //this.emit('request-initial-workspace', conn.peer);
+                if (this.isHost) {
+                    const workspaceData = editorToJSON();
+                    this.sendInitialWorkspace(conn.peer, workspaceData);
                 }
                 this.emit('connection-opened', conn.peer);
                 this.emit('connections-updated', Array.from(this.connections.values()));
@@ -4811,6 +4812,14 @@ workspace_data: ${base64Data}
             
                 await editorFromJSON(workspaceData);
                 await startAudio();
+
+                // Check for and connect to a multiplayer session AFTER starting audio
+                const urlParams = new URLSearchParams(window.location.search);
+                const sessionId = urlParams.get('session');
+                if (sessionId) {
+                    multiplayer.connectTo(sessionId);
+                }
+
                 document.getElementById('hero-overlay').remove();
             });
             await createEditor();
@@ -4961,11 +4970,6 @@ workspace_data: ${base64Data}
                 _isLocalChange = true;
             });
 
-            multiplayer.on('request-initial-workspace', (peerId) => {
-                const workspaceData = editorToJSON();
-                multiplayer.sendInitialWorkspace(peerId, workspaceData);
-            });
-
             multiplayer.on('connections-updated', (connections) => {
                 const usersList = document.getElementById('connectedUsersList');
                 usersList.innerHTML = ''; // Clear the list
@@ -4989,13 +4993,6 @@ workspace_data: ${base64Data}
                     document.getElementById('disconnectBtn').classList.remove('hidden');
                 }
             });            
-
-            const urlParams = new URLSearchParams(window.location.search);
-            const sessionId = urlParams.get('session');
-            if (sessionId) {
-                multiplayer.connectTo(sessionId);
-            }
-
 
             // --- Main Controls Logic ---
             let audioState = 'playing'; // 'stopped', 'playing'
