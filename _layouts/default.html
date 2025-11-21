@@ -2120,7 +2120,7 @@ workspace_data: ${base64Data}
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
 
                 this.data.gain = 1;
-                this.addControl('gain', new SliderControl('gainSlider', 'Gain', -1, 2, 0.01, this.data.gain, (val) => {
+                this.addControl('gain', new SliderControl('gainSlider', 'Gain', -1, 100, 0.01, this.data.gain, (val) => {
                     this.data.gain = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.gain) {
@@ -2147,7 +2147,7 @@ workspace_data: ${base64Data}
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
 
                 this.data.gain1 = 0.5;
-                this.addControl('gain1', new SliderControl('gainSlider1', 'Gain 1', 0, 100, 0.01, this.data.gain1, (val) => {
+                this.addControl('gain1', new SliderControl('gainSlider1', 'Gain 1', -1, 100, 0.01, this.data.gain1, (val) => {
                     this.data.gain1 = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.inputs && audioNode.inputs[0]) {
@@ -2156,7 +2156,7 @@ workspace_data: ${base64Data}
                 }));
 
                 this.data.gain2 = 0.5;
-                this.addControl('gain2', new SliderControl('gainSlider2', 'Gain 2', 0, 100, 0.01, this.data.gain2, (val) => {
+                this.addControl('gain2', new SliderControl('gainSlider2', 'Gain 2', -1, 100, 0.01, this.data.gain2, (val) => {
                     this.data.gain2 = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.inputs && audioNode.inputs[1]) {
@@ -2165,7 +2165,7 @@ workspace_data: ${base64Data}
                 }));
 
                 this.data.gain3 = 0.5;
-                this.addControl('gain3', new SliderControl('gainSlider3', 'Gain 3', 0, 100, 0.01, this.data.gain3, (val) => {
+                this.addControl('gain3', new SliderControl('gainSlider3', 'Gain 3', -1, 100, 0.01, this.data.gain3, (val) => {
                     this.data.gain3 = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.inputs && audioNode.inputs[2]) {
@@ -2174,7 +2174,7 @@ workspace_data: ${base64Data}
                 }));
 
                 this.data.gain4 = 0.5;
-                this.addControl('gain4', new SliderControl('gainSlider4', 'Gain 4', 0, 100, 0.01, this.data.gain4, (val) => {
+                this.addControl('gain4', new SliderControl('gainSlider4', 'Gain 4', -1, 100, 0.01, this.data.gain4, (val) => {
                     this.data.gain4 = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.inputs && audioNode.inputs[3]) {
