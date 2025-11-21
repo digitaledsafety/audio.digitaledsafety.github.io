@@ -393,6 +393,7 @@ layout: none
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/rete-context-menu-plugin@2.0.0-beta.6/rete-context-menu-plugin.min.js"></script>
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/rete-engine@2.0.0-beta.7/rete-engine.min.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+    <script src="/audio/magnetic-connection.js"></script>
 
     <script>
         // Capture global Rete.js objects into local constants after all CDN scripts have loaded
@@ -4540,6 +4541,45 @@ workspace_data: ${base64Data}
             area.use(connection);
             area.use(reactRender);
             area.use(contextMenu); // Use the instantiated contextMenu plugin
+
+            // Magnetic connections
+            const { useMagneticConnection } = MagneticConnection;
+
+            useMagneticConnection(connection, {
+                // eslint-disable-next-line max-statements
+                async createConnection(from, to) {
+                    await editor.addConnection(new Classic.Connection(
+                        editor.getNode(from.nodeId),
+                        from.key,
+                        editor.getNode(to.nodeId),
+                        to.key
+                    ));
+                },
+                display(from, to) {
+                    const fromNode = editor.getNode(from.nodeId)
+                    const toNode = editor.getNode(to.nodeId)
+
+                    if (from.side === to.side) return false;
+                    if (fromNode === toNode) return false;
+
+                    const fromSocket = fromNode.sockets[from.key]
+                    const toSocket = toNode.sockets[to.key]
+
+                    if (!fromSocket || !toSocket) return false
+
+                    return fromSocket.isCompatibleWith(toSocket)
+                },
+                offset(socket, position) {
+                    const node = area.nodeViews.get(socket.nodeId);
+
+                    if (!node) throw new Error('node');
+
+                    return {
+                        x: position.x - node.position.x,
+                        y: position.y - node.position.y
+                    }
+                }
+            });            
 
             reactRender.addPreset(ReactPresets.classic.setup({ area }));
             reactRender.addPreset(ReactPresets.contextMenu.setup())
