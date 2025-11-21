@@ -514,7 +514,6 @@ layout: none
         let loopSource;
         let multiplayer;
         let _isLocalChange = true;
-        const connectionAnalysers = new Map();
         // --- Main Controls Logic ---
         let audioState = 'stopped'; // 'stopped', 'playing'        
 
@@ -1300,7 +1299,7 @@ workspace_data: ${base64Data}
                         if (connection.sourceOutput.socket === midiSocket) {
                             strategy.disconnect(sourceReteNode, targetAudioNode);
                         } else {
-                            strategy.disconnect(source, targetAudioNode, connection);
+                            strategy.disconnect(source, targetAudioNode, connection.targetInput);
                         }
                     } catch (e) {
                         // Ignore errors, connection might already be broken
@@ -1323,9 +1322,9 @@ workspace_data: ${base64Data}
                     if (strategy) {
                         try {
                             if (connection.sourceOutput.socket === midiSocket) {
-                                strategy.connect(sourceReteNode, targetAudioNode, connection);
+                                strategy.connect(sourceReteNode, targetAudioNode);
                             } else {
-                                strategy.connect(source, targetAudioNode, connection);
+                                strategy.connect(source, targetAudioNode, connection.targetInput);
                             }
                             console.log(`Connected: ${sourceReteNode.label} to ${targetReteNode.label} via ${connection.targetInput}`);
                         } catch (e) {
@@ -1447,25 +1446,21 @@ workspace_data: ${base64Data}
         }
 
         class MidiConnectionStrategy extends ConnectionStrategy {
-            connect(sourceReteNode, targetAudioNode, connection) {
+            connect(sourceReteNode, targetAudioNode) {
                 if (targetAudioNode && typeof targetAudioNode.receiveMidiNotes === 'function') {
                     const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
                     if (sourceAudioNode && typeof sourceAudioNode.addMidiListener === 'function') {
-                        const originalListener = targetAudioNode.receiveMidiNotes.bind(targetAudioNode);
-                        const flashingListener = (notes) => {
-                            const connectionView = area.connectionViews.get(connection.id);
-                            if (connectionView && connectionView.element) {
-                                connectionView.element.setAttribute('flash', Date.now());
-                            }
-                            originalListener(notes);
-                        };
+                        // Create the bound listener function
+                        const listener = targetAudioNode.receiveMidiNotes.bind(targetAudioNode);
 
+                        // Store the listener on the target node, keyed by the source node's ID
+                        // to handle multiple MIDI inputs to the same target.
                         if (!targetAudioNode._midiListeners) {
                             targetAudioNode._midiListeners = new Map();
                         }
-                        targetAudioNode._midiListeners.set(sourceReteNode.id, flashingListener);
+                        targetAudioNode._midiListeners.set(sourceReteNode.id, listener);
 
-                        sourceAudioNode.addMidiListener(flashingListener);
+                        sourceAudioNode.addMidiListener(listener);
                     }
                 }
             }
@@ -1473,60 +1468,38 @@ workspace_data: ${base64Data}
             disconnect(sourceReteNode, targetAudioNode) {
                  const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
                  if (sourceAudioNode && typeof sourceAudioNode.removeMidiListener === 'function') {
+                    // Retrieve the stored listener
                     if (targetAudioNode._midiListeners && targetAudioNode._midiListeners.has(sourceReteNode.id)) {
                         const listener = targetAudioNode._midiListeners.get(sourceReteNode.id);
                         sourceAudioNode.removeMidiListener(listener);
-                        targetAudioNode._midiListeners.delete(sourceReteNode.id);
+                        targetAudioNode._midiListeners.delete(sourceReteNode.id); // Clean up
                     }
                 }
             }
         }
 
         class AudioConnectionStrategy extends ConnectionStrategy {
-            connect(sourceNode, targetNode, connection) {
-                const analyser = audioContext.createAnalyser();
-                sourceNode.connect(analyser);
-                analyser.connect(targetNode);
-                connectionAnalysers.set(connection.id, analyser);
+            connect(sourceNode, targetNode, targetInputKey) {
+                sourceNode.connect(targetNode);
             }
 
-            disconnect(sourceNode, targetNode, connection) {
-                const analyser = connectionAnalysers.get(connection.id);
-                if (analyser) {
-                    sourceNode.disconnect(analyser);
-                    analyser.disconnect(targetNode);
-                    connectionAnalysers.delete(connection.id);
-                } else {
-                    sourceNode.disconnect(targetNode);
-                }
+            disconnect(sourceNode, targetNode, targetInputKey) {
+                sourceNode.disconnect(targetNode);
             }
         }
 
         class CvConnectionStrategy extends ConnectionStrategy {
-            connect(sourceNode, targetNode, connection) {
-                const audioParam = this.getAudioParam(targetNode, connection.targetInput);
+            connect(sourceNode, targetNode, targetInputKey) {
+                const audioParam = this.getAudioParam(targetNode, targetInputKey);
                 if (audioParam) {
-                    const analyser = audioContext.createAnalyser();
-                    sourceNode.connect(analyser);
-                    analyser.connect(audioParam);
-                    connectionAnalysers.set(connection.id, analyser);
+                    sourceNode.connect(audioParam);
                 }
             }
 
-            disconnect(sourceNode, targetNode, connection) {
-                const analyser = connectionAnalysers.get(connection.id);
-                if (analyser) {
-                    sourceNode.disconnect(analyser);
-                    const audioParam = this.getAudioParam(targetNode, connection.targetInput);
-                    if (audioParam) {
-                        analyser.disconnect(audioParam);
-                    }
-                    connectionAnalysers.delete(connection.id);
-                } else {
-                    const audioParam = this.getAudioParam(targetNode, connection.targetInput);
-                    if (audioParam) {
-                        sourceNode.disconnect(audioParam);
-                    }
+            disconnect(sourceNode, targetNode, targetInputKey) {
+                const audioParam = this.getAudioParam(targetNode, targetInputKey);
+                if (audioParam) {
+                    sourceNode.disconnect(audioParam);
                 }
             }
 
@@ -4449,100 +4422,6 @@ workspace_data: ${base64Data}
             clearEditorBtn.disabled = false;
         });
 
-        // Custom React component for rendering connections with animated gradients
-        function CustomConnectionComponent(props) {
-            const { path, data } = props; // data contains the connection object
-            const connectionId = data.id;
-            const gradientId = React.useRef(`grad-${connectionId}`).current;
-            const animatedStopRef = React.useRef(null);
-            const animationFrameId = React.useRef(null);
-            const [flash, setFlash] = React.useState(0);
-
-            const ANIMATION_BASE_SPEED = 0.005;
-            const ANIMATION_RMS_MULTIPLIER = 0.05;
-            const FLASH_DURATION_MS = 100;
-
-            React.useEffect(() => {
-                const analyser = connectionAnalysers.get(connectionId);
-                let dataArray;
-                if (analyser) {
-                    analyser.fftSize = 256;
-                    dataArray = new Uint8Array(analyser.frequencyBinCount);
-                }
-
-                let offset = 0;
-                const animate = () => {
-                    let speed = ANIMATION_BASE_SPEED;
-                    if (analyser && dataArray) {
-                        analyser.getByteTimeDomainData(dataArray);
-                        let sumSquares = 0.0;
-                        for (const amplitude of dataArray) {
-                            const normalized = (amplitude / 128.0) - 1.0;
-                            sumSquares += normalized * normalized;
-                        }
-                        const rms = Math.sqrt(sumSquares / dataArray.length);
-                        speed = ANIMATION_BASE_SPEED + (rms * ANIMATION_RMS_MULTIPLIER);
-                    }
-
-                    offset = (offset + speed) % 1;
-                    if (animatedStopRef.current) {
-                        const pulseWidth = 0.2;
-                        animatedStopRef.current.setAttribute('offset', `${offset - pulseWidth}`);
-                        animatedStopRef.current.nextSibling.setAttribute('offset', `${offset}`);
-                    }
-                    animationFrameId.current = requestAnimationFrame(animate);
-                };
-                animationFrameId.current = requestAnimationFrame(animate);
-
-                const observer = new MutationObserver(mutations => {
-                    mutations.forEach(mutation => {
-                        if (mutation.type === 'attributes' && mutation.attributeName === 'flash') {
-                            setFlash(f => f + 1);
-                            setTimeout(() => setFlash(f => f - 1), FLASH_DURATION_MS);
-                        }
-                    });
-                });
-
-                const connectionView = area.connectionViews.get(connectionId);
-                if (connectionView) {
-                    observer.observe(connectionView.element, { attributes: true });
-                }
-
-                return () => {
-                    cancelAnimationFrame(animationFrameId.current);
-                    observer.disconnect();
-                };
-            }, [connectionId]);
-
-            const strokeColor = flash > 0 ? '#ffffff' : '#4f46e5';
-
-            return React.createElement(
-                'svg',
-                { className: 'connection', style: { overflow: 'visible' } },
-                React.createElement(
-                    'defs',
-                    null,
-                    React.createElement(
-                        'linearGradient',
-                        { id: gradientId, x1: '0%', y1: '0%', x2: '100%', y2: '0%' },
-                        // Base gradient
-                        React.createElement('stop', { offset: '0%', style: { stopColor: '#a5b4fc', stopOpacity: 0.5 } }),
-                        React.createElement('stop', { offset: '100%', style: { stopColor: '#a5b4fc', stopOpacity: 0.5 } }),
-                        // Animated pulse
-                        React.createElement('stop', { ref: animatedStopRef, offset: '0%', style: { stopColor: strokeColor, stopOpacity: 1 } }),
-                        React.createElement('stop', { offset: '0%', style: { stopColor: '#a5b4fc', stopOpacity: 0.5 } })
-                    )
-                ),
-                React.createElement('path', {
-                    d: path,
-                    stroke: `url(#${gradientId})`,
-                    strokeWidth: flash > 0 ? '5' : '3',
-                    fill: 'none',
-                    style: { transition: 'stroke-width 0.1s ease-out' }
-                })
-            );
-        }
-
         // Initialize editor on window load
         window.onload = async () => {
 
@@ -4662,10 +4541,7 @@ workspace_data: ${base64Data}
             area.use(reactRender);
             area.use(contextMenu); // Use the instantiated contextMenu plugin
 
-            reactRender.addPreset(ReactPresets.classic.setup({
-                area,
-                connection: CustomConnectionComponent
-            }));
+            reactRender.addPreset(ReactPresets.classic.setup({ area }));
             reactRender.addPreset(ReactPresets.contextMenu.setup())
 
             //AreaExtensions.simpleNodesOrder(area);
