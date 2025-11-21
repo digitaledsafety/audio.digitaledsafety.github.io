@@ -321,6 +321,7 @@ layout: none
                             <button id="addMasterClockNodeBtn" class="button button-secondary w-full text-xs">⏱️ Master Clock</button>
                             <button id="addVocoderNodeBtn" class="button button-secondary w-full text-xs">🗣️ Vocoder</button>
                             <button id="addMicrophoneInputNodeBtn" class="button button-secondary w-full text-xs">🎤 Mic Input</button>
+                            <button id="addGranularSynthesizerNodeBtn" class="button button-secondary w-full text-xs">✨ Granular</button>
                         </div>
                     </div>
                 </div>
@@ -494,6 +495,7 @@ layout: none
         const addMasterClockNodeBtn = document.getElementById('addMasterClockNodeBtn');
         const addVocoderNodeBtn = document.getElementById('addVocoderNodeBtn');
         const addMicrophoneInputNodeBtn = document.getElementById('addMicrophoneInputNodeBtn');
+        const addGranularSynthesizerNodeBtn = document.getElementById('addGranularSynthesizerNodeBtn');
         const clearEditorBtn = document.getElementById('clearEditorBtn');
         const reteContainer = document.getElementById('rete-container');
         const messageBox = document.getElementById('messageBox');
@@ -599,7 +601,8 @@ layout: none
                     'Attenuverter': AttenuverterNode,
                     'Master Clock': MasterClockNode,
                     'Vocoder': VocoderNode,
-                    '🎤 Mic Input': MicrophoneInputNode
+                    '🎤 Mic Input': MicrophoneInputNode,
+                    'Granular Synthesizer': GranularSynthesizerNode
                 };
 
                 // Stage 1: Create and add all nodes to the editor's data model.
@@ -1519,6 +1522,14 @@ workspace_data: ${base64Data}
                         return targetNode.formantShift;
                     case 'unvoiced_cv':
                         return targetNode.unvoicedLevel;
+                    case 'grainSizeCV':
+                        return targetNode.grainSize;
+                    case 'grainDensityCV':
+                        return targetNode.grainDensity;
+                    case 'pitchShiftCV':
+                        return targetNode.pitchShift;
+                    case 'positionJitterCV':
+                        return targetNode.positionJitter;
                     default:
                         return null;
                 }
@@ -3731,6 +3742,51 @@ workspace_data: ${base64Data}
                 return audioNode;
             }
         }
+
+        class GranularSynthesizerNode extends WebAudioNode {
+            constructor() {
+                super('Granular Synthesizer');
+                this.addInput('audio', new Classic.Input(audioSocket, 'Audio In'));
+                this.addInput('grainSizeCV', new Classic.Input(cvSocket, 'Grain Size CV'));
+                this.addInput('grainDensityCV', new Classic.Input(cvSocket, 'Grain Density CV'));
+                this.addInput('pitchShiftCV', new Classic.Input(cvSocket, 'Pitch Shift CV'));
+                this.addInput('positionJitterCV', new Classic.Input(cvSocket, 'Jitter CV'));
+                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
+
+                this.data.grainSize = 0.1;
+                this.addControl('grainSize', new SliderControl('grainSize', 'Grain Size (s)', 0.01, 0.5, 0.001, this.data.grainSize, (val) => {
+                    this.data.grainSize = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('grainSize', val);
+                }));
+
+                this.data.grainDensity = 20;
+                this.addControl('grainDensity', new SliderControl('grainDensity', 'Grain Density (Hz)', 1, 100, 1, this.data.grainDensity, (val) => {
+                    this.data.grainDensity = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('grainDensity', val);
+                }));
+
+                this.data.pitchShift = 0;
+                this.addControl('pitchShift', new SliderControl('pitchShift', 'Pitch Shift (cents)', -2400, 2400, 1, this.data.pitchShift, (val) => {
+                    this.data.pitchShift = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('pitchShift', val);
+                }));
+
+                this.data.positionJitter = 0;
+                this.addControl('positionJitter', new SliderControl('positionJitter', 'Position Jitter', 0, 1, 0.01, this.data.positionJitter, (val) => {
+                    this.data.positionJitter = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('positionJitter', val);
+                }));
+            }
+
+            build() {
+                return new GranularSynthesizer(audioContext, this.id, this.data);
+            }
+        }
+
         class ScaleArpeggiatorNode extends WebAudioNode {
             constructor() {
                 super('Scale Arpeggiator');
@@ -3957,7 +4013,44 @@ workspace_data: ${base64Data}
                         break;
                 }
             }
-        }        
+        }
+
+        class GranularSynthesizer {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+
+                this.workletNode = new AudioWorkletNode(this.audioContext, 'granular-processor');
+
+                this.audioInput = this.audioContext.createGain();
+                this.audioInput.connect(this.workletNode);
+
+                this.mainOutput = this.workletNode;
+
+                this.grainSize = this.workletNode.parameters.get('grainSize');
+                this.grainDensity = this.workletNode.parameters.get('grainDensity');
+                this.pitchShift = this.workletNode.parameters.get('pitchShift');
+                this.positionJitter = this.workletNode.parameters.get('positionJitter');
+
+                // Set initial values from Rete node data
+                this.updateParameter('grainSize', this.data.grainSize || 0.1);
+                this.updateParameter('grainDensity', this.data.grainDensity || 20);
+                this.updateParameter('pitchShift', this.data.pitchShift || 0);
+                this.updateParameter('positionJitter', this.data.positionJitter || 0);
+            }
+
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+                const param = this.workletNode.parameters.get(paramName);
+                if (param) {
+                    param.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
+                }
+            }
+
+            start() {}
+            stop() {}
+        }
 
         class Multiplayer {
             constructor() {
@@ -4422,6 +4515,11 @@ workspace_data: ${base64Data}
             clearEditorBtn.disabled = false;
         });
 
+        addGranularSynthesizerNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new GranularSynthesizerNode());
+            clearEditorBtn.disabled = false;
+        });
+
         // Initialize editor on window load
         window.onload = async () => {
 
@@ -4518,6 +4616,7 @@ workspace_data: ${base64Data}
                     ['Attenuverter', () => new AttenuverterNode()],
                     ['Master Clock', () => new MasterClockNode()],
                     ['Vocoder', () => new VocoderNode()],
+                    ['Granular Synthesizer', () => new GranularSynthesizerNode()],
 
                 ])
             });
@@ -5056,7 +5155,8 @@ workspace_data: ${base64Data}
                 const blob = new Blob([processorCode], { type: 'application/javascript' });
                 const processorUrl = URL.createObjectURL(blob);
     
-                await audioContext.audioWorklet.addModule(processorUrl);                   
+                await audioContext.audioWorklet.addModule(processorUrl);
+                await audioContext.audioWorklet.addModule('{{ "assets/js/audio-worklets/granular-processor.js" | relative_url }}');
                 
                 const urlParams = new URLSearchParams(window.location.search);
                 const sessionId = urlParams.get('session');
