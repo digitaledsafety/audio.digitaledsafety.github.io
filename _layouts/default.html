@@ -1007,24 +1007,6 @@ workspace_data: ${base64Data}
             }
         }
 
-        class VocoderConnectionStrategy extends ConnectionStrategy {
-            connect(sourceNode, targetNode, targetInputKey) {
-                if (targetInputKey === 'carrier') {
-                    sourceNode.connect(targetNode.carrierInput);
-                } else if (targetInputKey === 'modulator') {
-                    sourceNode.connect(targetNode.modulatorInput);
-                }
-            }
-
-            disconnect(sourceNode, targetNode, targetInputKey) {
-                if (targetInputKey === 'carrier') {
-                    sourceNode.disconnect(targetNode.carrierInput);
-                } else if (targetInputKey === 'modulator') {
-                    sourceNode.disconnect(targetNode.modulatorInput);
-                }
-            }
-        }
-
         class ScaleArpeggiator {
             constructor(audioContext, reteNodeId, data) {
                 this.audioContext = audioContext;
@@ -1474,6 +1456,24 @@ workspace_data: ${base64Data}
             }
         }
 
+        class VocoderConnectionStrategy extends ConnectionStrategy {
+            connect(sourceNode, targetNode, targetInputKey) {
+                if (targetInputKey === 'carrier') {
+                    sourceNode.connect(targetNode.carrierInput);
+                } else if (targetInputKey === 'modulator') {
+                    sourceNode.connect(targetNode.modulatorInput);
+                }
+            }
+
+            disconnect(sourceNode, targetNode, targetInputKey) {
+                if (targetInputKey === 'carrier') {
+                    sourceNode.disconnect(targetNode.carrierInput);
+                } else if (targetInputKey === 'modulator') {
+                    sourceNode.disconnect(targetNode.modulatorInput);
+                }
+            }
+        }
+        
         class MidiConnectionStrategy extends ConnectionStrategy {
             connect(sourceReteNode, targetAudioNode) {
                 if (targetAudioNode && typeof targetAudioNode.receiveMidiNotes === 'function') {
