@@ -1007,6 +1007,24 @@ workspace_data: ${base64Data}
             }
         }
 
+        class VocoderConnectionStrategy extends ConnectionStrategy {
+            connect(sourceNode, targetNode, targetInputKey) {
+                if (targetInputKey === 'carrier') {
+                    sourceNode.connect(targetNode.carrierInput);
+                } else if (targetInputKey === 'modulator') {
+                    sourceNode.connect(targetNode.modulatorInput);
+                }
+            }
+
+            disconnect(sourceNode, targetNode, targetInputKey) {
+                if (targetInputKey === 'carrier') {
+                    sourceNode.disconnect(targetNode.carrierInput);
+                } else if (targetInputKey === 'modulator') {
+                    sourceNode.disconnect(targetNode.modulatorInput);
+                }
+            }
+        }
+
         class ScaleArpeggiator {
             constructor(audioContext, reteNodeId, data) {
                 this.audioContext = audioContext;
@@ -1235,6 +1253,7 @@ workspace_data: ${base64Data}
                 'audio': new AudioConnectionStrategy(),
                 'cv': new CvConnectionStrategy(),
                 'mixer': new MixerConnectionStrategy(),
+                'vocoder': new VocoderConnectionStrategy(),
                 'midi': new MidiConnectionStrategy(),
                 'clock': new ClockConnectionStrategy(),
                 'default': new AudioConnectionStrategy()
@@ -1251,6 +1270,9 @@ workspace_data: ${base64Data}
                 }
                 if (targetReteNode.label === 'Mixer' && targetInputKey.startsWith('in')) {
                     return connectionStrategies['mixer'];
+                }
+                if (targetReteNode.label === 'Vocoder' && (targetInputKey === 'carrier' || targetInputKey === 'modulator')) {
+                    return connectionStrategies['vocoder'];
                 }
                 return connectionStrategies[targetInputKey] || connectionStrategies['default'];
             }
@@ -1274,7 +1296,7 @@ workspace_data: ${base64Data}
                     return connectionStrategies['mixer'];
                 }
                 if (targetReteNode.label === 'Vocoder' && (targetInputKey === 'carrier' || targetInputKey === 'modulator')) {
-                    return connectionStrategies['audio'];
+                    return connectionStrategies['vocoder'];
                 }
                 if (targetInputKey === 'audio') {
                     return connectionStrategies['audio'];
