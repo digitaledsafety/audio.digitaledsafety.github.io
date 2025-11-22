@@ -35,6 +35,7 @@ To get started with AudioGrid, simply visit the [AudioGrid website](https://audi
 *   [Filter](./docs/FilterNode.md)
 *   [Granular Synthesizer](./docs/GranularSynthesizerNode.md)
 *   [LFO](./docs/LFONode.md)
+*   [Manual Gate](./docs/ManualGateNode.md)
 *   [Master](./docs/MasterGainOutputNode.md)
 *   [Master Clock](./docs/MasterClockNode.md)
 *   [Microphone Input](./docs/MicrophoneInputNode.md)
