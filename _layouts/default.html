@@ -322,6 +322,7 @@ layout: none
                             <button id="addVocoderNodeBtn" class="button button-secondary w-full text-xs">🗣️ Vocoder</button>
                             <button id="addMicrophoneInputNodeBtn" class="button button-secondary w-full text-xs">🎤 Mic Input</button>
                             <button id="addGranularSynthesizerNodeBtn" class="button button-secondary w-full text-xs">✨ Granular</button>
+                            <button id="addManualGateNodeBtn" class="button button-secondary w-full text-xs">🔳 Manual Gate</button>
                         </div>
                     </div>
                 </div>
@@ -496,6 +497,7 @@ layout: none
         const addVocoderNodeBtn = document.getElementById('addVocoderNodeBtn');
         const addMicrophoneInputNodeBtn = document.getElementById('addMicrophoneInputNodeBtn');
         const addGranularSynthesizerNodeBtn = document.getElementById('addGranularSynthesizerNodeBtn');
+        const addManualGateNodeBtn = document.getElementById('addManualGateNodeBtn');
         const clearEditorBtn = document.getElementById('clearEditorBtn');
         const reteContainer = document.getElementById('rete-container');
         const messageBox = document.getElementById('messageBox');
@@ -602,7 +604,8 @@ layout: none
                     'Master Clock': MasterClockNode,
                     'Vocoder': VocoderNode,
                     '🎤 Mic Input': MicrophoneInputNode,
-                    'Granular Synthesizer': GranularSynthesizerNode
+                    'Granular Synthesizer': GranularSynthesizerNode,
+                    'Manual Gate': ManualGateNode
                 };
 
                 // Stage 1: Create and add all nodes to the editor's data model.
@@ -1007,6 +1010,48 @@ workspace_data: ${base64Data}
             }
         }
 
+        class GateConnectionStrategy extends ConnectionStrategy {
+            constructor() {
+                super();
+                this.analysers = new Map();
+                this.gateThreshold = 0.1;
+            }
+
+            connect(sourceNode, targetNode, targetInputKey) {
+                const analyser = audioContext.createAnalyser();
+                analyser.fftSize = 32;
+                const buffer = new Float32Array(1);
+                let lastValue = 0;
+
+                sourceNode.connect(analyser);
+
+                const checkGate = () => {
+                    analyser.getFloatTimeDomainData(buffer);
+                    const currentValue = buffer[0];
+                    if (currentValue >= this.gateThreshold && lastValue < this.gateThreshold) {
+                        targetNode.handleGate(true); // Gate high
+                    } else if (currentValue < this.gateThreshold && lastValue >= this.gateThreshold) {
+                        targetNode.handleGate(false); // Gate low
+                    }
+                    lastValue = currentValue;
+                    if (this.analysers.has(targetNode)) { // Continue polling if still connected
+                        requestAnimationFrame(checkGate);
+                    }
+                };
+
+                this.analysers.set(targetNode, { analyser, sourceNode });
+                requestAnimationFrame(checkGate);
+            }
+
+            disconnect(sourceNode, targetNode, targetInputKey) {
+                if (this.analysers.has(targetNode)) {
+                    const { analyser, sourceNode: storedSource } = this.analysers.get(targetNode);
+                    storedSource.disconnect(analyser);
+                    this.analysers.delete(targetNode);
+                }
+            }
+        }
+
         class ScaleArpeggiator {
             constructor(audioContext, reteNodeId, data) {
                 this.audioContext = audioContext;
@@ -1234,6 +1279,7 @@ workspace_data: ${base64Data}
             const connectionStrategies = {
                 'audio': new AudioConnectionStrategy(),
                 'cv': new CvConnectionStrategy(),
+                'gate': new GateConnectionStrategy(),
                 'mixer': new MixerConnectionStrategy(),
                 'vocoder': new VocoderConnectionStrategy(),
                 'midi': new MidiConnectionStrategy(),
@@ -1245,6 +1291,9 @@ workspace_data: ${base64Data}
                  if (sourceSocket === midiSocket) {
                     return connectionStrategies['midi'];
                 } else if (sourceSocket === cvSocket) {
+                    if (targetInputKey === 'gate') {
+                        return connectionStrategies['gate'];
+                    }
                     return connectionStrategies['cv'];
                 }
                  if (sourceSocket === clockSocket) {
@@ -1265,6 +1314,9 @@ workspace_data: ${base64Data}
                 }
 
                 if (sourceSocket === cvSocket || targetInputKey === 'freq' || targetInputKey === 'q_cv' || targetInputKey === 'delay_cv' || targetInputKey === 'gain_cv'  || targetInputKey === 'bands_cv' || targetInputKey === 'formant_cv' || targetInputKey === 'unvoiced_cv') {
+                    if (targetInputKey === 'gate') {
+                        return connectionStrategies['gate'];
+                    }
                     return connectionStrategies['cv'];
                 }
                 if (sourceSocket === clockSocket) {
@@ -1681,6 +1733,15 @@ workspace_data: ${base64Data}
             }
         }
 
+        class ToggleControl extends Classic.Control {
+            constructor(id, label, initialValue, onValueChange) {
+                super(id);
+                this.label = label;
+                this.value = initialValue;
+                this.onValueChange = onValueChange;
+            }
+        }
+
         // Define the common Audio Socket
         const audioSocket = new Classic.Socket('audio');
         const midiSocket = new Classic.Socket('midi');
@@ -1811,6 +1872,70 @@ workspace_data: ${base64Data}
         }
 
         // Custom Node Component classes for Rete.js v2
+        class ManualGate {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+                this.started = false;
+
+                this.source = this.audioContext.createConstantSource();
+                this.source.offset.value = this.data.value ? 1 : 0;
+                this.mainOutput = this.source;
+            }
+
+            start() {
+                if (this.started) return;
+                try {
+                    this.source.start(0);
+                    this.started = true;
+                } catch (e) {
+                    console.warn(`Could not start ManualGate for node ${this.reteNodeId}:`, e);
+                }
+            }
+
+            stop() {
+                // ConstantSourceNode doesn't need to be stopped/restarted
+            }
+
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+                if (paramName === 'value') {
+                    this.source.offset.value = value ? 1 : 0;
+                }
+            }
+        }
+
+        class ManualGateNode extends ModulatorNode {
+            constructor() {
+                super('Manual Gate');
+                this.addOutput('out', new Classic.Output(cvSocket, 'Gate Out'));
+
+                this.data.value = false;
+                this.addControl('value', new ToggleControl('toggle', 'Active', this.data.value, (val) => {
+                    this.data.value = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) {
+                        audioNode.updateParameter('value', val);
+                    }
+                }));
+            }
+
+            build() {
+                return new ManualGate(audioContext, this.id, this.data);
+            }
+             start() {
+                const audioNode = reteAudioNodes.get(this.id);
+                if (audioNode && audioNode.start && !audioNode.started) {
+                    try {
+                        audioNode.start();
+                        audioNode.started = true;
+                    } catch (e) {
+                        console.warn(`Could not start ${this.label} for node ${this.id}:`, e);
+                    }
+                }
+            }
+        }
 
         class MicrophoneInputNode extends WebAudioNode {
             constructor() {
@@ -3560,7 +3685,7 @@ workspace_data: ${base64Data}
                 this.audioContext = audioContext;
                 this.reteNodeId = reteNodeId;
                 this.data = data;
-                this.started = false;
+                this.gateOpen = false;
 
                 this.internalSource = this.audioContext.createConstantSource();
                 this.internalSource.offset.value = 1.0;
@@ -3575,6 +3700,16 @@ workspace_data: ${base64Data}
                 this.updateParameter('decay', this.data.decay || 0.1, false);
                 this.updateParameter('sustain', this.data.sustain || 0.5, false);
                 this.updateParameter('release', this.data.release || 0.2, false);
+            }
+
+            handleGate(isGateHigh) {
+                if (isGateHigh && !this.gateOpen) {
+                    this.gateOpen = true;
+                    this.trigger();
+                } else if (!isGateHigh && this.gateOpen) {
+                    this.gateOpen = false;
+                    this.release();
+                }
             }
 
             trigger() {
@@ -3593,12 +3728,11 @@ workspace_data: ${base64Data}
                 gainParam.linearRampToValueAtTime(1.0, now + attackDuration);
                 gainParam.linearRampToValueAtTime(sustainLevel, now + attackDuration + decayDuration);
 
-                this.started = true;
                 console.log(`ADSR ${this.reteNodeId} triggered.`);
             }
 
             release() {
-                if (!this.audioContext || this.audioContext.state !== 'running' || !this.started) return;
+                if (!this.audioContext || this.audioContext.state !== 'running') return;
 
                 const now = this.audioContext.currentTime;
                 const gainParam = this.mainOutput.gain;
@@ -3608,16 +3742,10 @@ workspace_data: ${base64Data}
 
                 const releaseDuration = this.data.release || 0.1;
                 gainParam.linearRampToValueAtTime(0, now + releaseDuration);
-
-                this.started = false;
                 
                 console.log(`ADSR ${this.reteNodeId} released.`);
             }
 
-            // ADSR nodes generally don't have a 'stop' method in the same way as oscillators
-            // because they just shape a signal. However, if we're generating a test tone
-            // within the ADSR itself, we might need a 'stop'. For now, `release()` acts as
-            // the signal to end the envelope.
             stop() {
                 this.release(); // Ensure envelope goes to 0
             }
@@ -3630,6 +3758,7 @@ workspace_data: ${base64Data}
         class ADSREnvelopeNode extends ModulatorNode {
             constructor() {
                 super('ADSR Envelope');
+                this.addInput('gate', new Classic.Input(cvSocket, 'Gate In'));
                 this.addOutput('cv', new Classic.Output(cvSocket, 'CV Out')); // This outputs a control signal
 
                 this.data.attack = 0.1;
@@ -3658,17 +3787,6 @@ workspace_data: ${base64Data}
                     this.data.release = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode instanceof ADSREnvelope) audioNode.updateParameter('release', val);
-                }));
-
-                this.addControl('triggerBtn', new ButtonControl('triggerButton', 'Trigger', () => {
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode instanceof ADSREnvelope) {
-                        audioNode.trigger();
-                        // Automatically release after a short time for a full envelope
-                        setTimeout(() => {
-                            audioNode.release();
-                        }, (this.data.attack + this.data.decay + 0.1) * 1000); // Trigger release after A+D phase plus a bit
-                    }
                 }));
             }
 
@@ -4290,6 +4408,22 @@ workspace_data: ${base64Data}
                         button.onclick = control.onClick;
                     } else if (control instanceof IndicatorControl) {
                         controlEl.innerHTML = `<div class="clock-indicator" title="${control.label}"></div>`;
+                    } else if (control instanceof ToggleControl) {
+                        controlEl.innerHTML = `
+                            <label class="flex items-center justify-center cursor-pointer">
+                                <span class="mr-3 text-white">${control.label}</span>
+                                <div class="relative">
+                                    <input type="checkbox" class="sr-only peer" ${control.value ? 'checked' : ''}>
+                                    <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                                </div>
+                            </label>
+                        `;
+                        const checkbox = controlEl.querySelector('input[type="checkbox"]');
+                        checkbox.onchange = (e) => {
+                            const newValue = e.target.checked;
+                            control.value = newValue;
+                            control.onValueChange(newValue);
+                        };
                     } else if (control instanceof TextControl) {
                         controlEl.innerHTML = `
                             <label>${control.label}</label>
@@ -4506,6 +4640,11 @@ workspace_data: ${base64Data}
 
         addGranularSynthesizerNodeBtn.addEventListener('click', async () => {
             await editor.addNode(new GranularSynthesizerNode());
+            clearEditorBtn.disabled = false;
+        });
+
+        addManualGateNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new ManualGateNode());
             clearEditorBtn.disabled = false;
         });
 
