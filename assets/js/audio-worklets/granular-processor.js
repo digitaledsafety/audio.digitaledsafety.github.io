@@ -38,7 +38,7 @@ class GranularProcessor extends AudioWorkletProcessor {
     const positionJitter = parameters.positionJitter[0];
 
     // Simple scheduling
-    this.grainScheduler.nextGrainTime -= inputChannel.length / sampleRate;
+    this.grainScheduler.nextGrainTime -= output[0].length / sampleRate;
     if (this.grainScheduler.nextGrainTime <= 0) {
         this.grainScheduler.nextGrainTime = 1.0 / grainDensity;
 
