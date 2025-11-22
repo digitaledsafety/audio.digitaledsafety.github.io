@@ -1487,11 +1487,13 @@ workspace_data: ${base64Data}
 
         class AudioConnectionStrategy extends ConnectionStrategy {
             connect(sourceNode, targetNode, targetInputKey) {
-                sourceNode.connect(targetNode);
+                const target = targetNode.mainInput || targetNode;
+                sourceNode.connect(target);
             }
 
             disconnect(sourceNode, targetNode, targetInputKey) {
-                sourceNode.disconnect(targetNode);
+                const target = targetNode.mainInput || targetNode;
+                sourceNode.disconnect(target);
             }
         }
 
@@ -4066,8 +4068,8 @@ workspace_data: ${base64Data}
 
                 this.workletNode = new AudioWorkletNode(this.audioContext, 'granular-processor');
 
-                this.audioInput = this.audioContext.createGain();
-                this.audioInput.connect(this.workletNode);
+                this.mainInput = this.audioContext.createGain();
+                this.mainInput.connect(this.workletNode);
 
                 this.mainOutput = this.workletNode;
 
