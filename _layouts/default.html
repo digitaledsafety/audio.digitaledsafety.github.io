@@ -3704,7 +3704,6 @@ workspace_data: ${base64Data}
                 super('Vocoder');
                 this.addInput('carrier', new Classic.Input(audioSocket, 'Carrier In'));
                 this.addInput('modulator', new Classic.Input(audioSocket, 'Modulator In'));
-                this.addInput('freq_cv', new Classic.Input(cvSocket, 'Freq CV'));
                 this.addInput('bands_cv', new Classic.Input(cvSocket, 'Bands CV'));
                 this.addInput('formant_cv', new Classic.Input(cvSocket, 'Formant CV'));
                 this.addInput('unvoiced_cv', new Classic.Input(cvSocket, 'Unvoiced CV'));
@@ -3735,14 +3734,14 @@ workspace_data: ${base64Data}
                 this.addControl('formantShift', new SliderControl('formantSlider', 'Formant Shift (cents)', -1200, 1200, 1, this.data.formantShift, (val) => {
                     this.data.formantShift = val;
                     const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode) audioNode.updateParameter('formantShift', val);
+                    if (audioNode && audioNode.formantShift) audioNode.formantShift.setTargetAtTime(val, audioContext.currentTime, 0.01);
                 }));
 
                 this.data.unvoicedLevel = 0.5;
                 this.addControl('unvoicedLevel', new SliderControl('unvoicedSlider', 'Unvoiced Level', 0, 1, 0.01, this.data.unvoicedLevel, (val) => {
                     this.data.unvoicedLevel = val;
                     const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode) audioNode.updateParameter('unvoicedLevel', val);
+                    if (audioNode && audioNode.unvoicedLevel) audioNode.unvoicedLevel.setTargetAtTime(val, audioContext.currentTime, 0.01);
                 }));
             }
 
@@ -3912,115 +3911,44 @@ workspace_data: ${base64Data}
                 this.reteNodeId = reteNodeId;
                 this.data = data;
                 this.started = false;
-                this.micStream = null;
 
-                // Carrier path
+                this.workletNode = new AudioWorkletNode(this.audioContext, 'vocoder-processor', {
+                    numberOfInputs: 2,
+                    numberOfOutputs: 1,
+                    outputChannelCount: [1]
+                });
+
+                // --- Inputs ---
                 this.carrierInput = this.audioContext.createGain();
+                this.modulatorInput = this.audioContext.createGain();
+
+                this.carrierInput.connect(this.workletNode, 0, 0);
+                this.modulatorInput.connect(this.workletNode, 0, 1);
+
+                // --- Internal Carrier ---
                 this.internalCarrier = this.audioContext.createOscillator();
                 this.internalCarrier.type = this.data.waveform || 'sawtooth';
                 this.internalCarrier.frequency.value = this.data.frequency || 110;
                 this.internalCarrier.connect(this.carrierInput);
 
-                // Modulator path
-                this.modulatorInput = this.audioContext.createGain();
+                // --- Parameters ---
+                this.numBands = this.workletNode.parameters.get('numBands');
+                this.formantShift = this.workletNode.parameters.get('formantShift');
+                this.unvoicedLevel = this.workletNode.parameters.get('unvoicedLevel');
 
-                // Unvoiced (hiss) path
-                //const bufferSize = this.audioContext.sampleRate * 2;
-                //const noiseBuffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
-                //const output = noiseBuffer.getChannelData(0);
-                //for (let i = 0; i < bufferSize; i++) {
-                //    output[i] = Math.random() * 2 - 1;
-                //}
-                //this.noiseSource = this.audioContext.createBufferSource();
-                //this.noiseSource.buffer = noiseBuffer;
-                //this.noiseSource.loop = true;
+                this.numBands.value = this.data.numBands || 16;
+                this.formantShift.value = this.data.formantShift || 0;
+                this.unvoicedLevel.value = this.data.unvoicedLevel || 0.5;
 
-                // Controllable parameters
-                this.formantShift = this.createParam(this.data.formantShift || 0);
-                this.unvoicedLevel = this.createParam(this.data.unvoicedLevel || 0.5);
-
-                this.unvoicedGain = this.audioContext.createGain();
-                this.unvoicedLevel.connect(this.unvoicedGain.gain);
-                //this.noiseSource.connect(this.unvoicedGain);
-
-                // Output
+                // --- Output ---
                 this.mainOutput = this.audioContext.createGain();
-                this.unvoicedGain.connect(this.mainOutput);
-
-                this.buildFilterBank();
-            }
-
-            createParam(value) {
-                const source = this.audioContext.createConstantSource();
-                source.offset.value = value;
-                source.start();
-                const gain = this.audioContext.createGain();
-                source.connect(gain);
-                return gain;
-            }
-
-            buildFilterBank() {
-                if (this.modulatorFilters) {
-                    this.modulatorFilters.forEach(f => f.disconnect());
-                    this.carrierFilters.forEach(f => f.disconnect());
-                }
-
-                const numBands = this.data.numBands || 16;
-                this.baseFrequencies = [];
-                this.modulatorFilters = [];
-                this.carrierFilters = [];
-                this.envelopeFollowers = [];
-
-                // Frequency bands (logarithmic scale)
-                const minFreq = 80;
-                const maxFreq = 12000;
-                for (let i = 0; i < numBands; i++) {
-                    const ratio = i / (numBands - 1);
-                    const freq = minFreq * Math.pow(maxFreq / minFreq, ratio);
-                    this.baseFrequencies.push(freq);
-                }
-
-                for (let i = 0; i < numBands; i++) {
-                    const freq = this.baseFrequencies[i];
-
-                    // Modulator filter
-                    const modulatorFilter = this.audioContext.createBiquadFilter();
-                    modulatorFilter.type = 'bandpass';
-                    modulatorFilter.frequency.value = freq;
-                    this.formantShift.connect(modulatorFilter.detune);
-                    modulatorFilter.Q.value = 5;
-                    this.modulatorInput.connect(modulatorFilter);
-                    this.modulatorFilters.push(modulatorFilter);
-
-                    // Envelope follower
-                    const envelopeFollower = this.audioContext.createGain();
-                    envelopeFollower.gain.value = 100; // Amplify the signal to get a better envelope
-                    modulatorFilter.connect(envelopeFollower);
-                    this.envelopeFollowers.push(envelopeFollower);
-
-                    // Carrier filter
-                    const carrierFilter = this.audioContext.createBiquadFilter();
-                    carrierFilter.type = 'bandpass';
-                    carrierFilter.frequency.value = freq;
-                    this.formantShift.connect(carrierFilter.detune);
-                    carrierFilter.Q.value = 5;
-                    this.carrierInput.connect(carrierFilter);
-                    this.carrierFilters.push(carrierFilter);
-
-                    // Connect the envelope follower to the carrier filter's gain
-                    const carrierGain = this.audioContext.createGain();
-                    carrierGain.gain.value = 0; // Start with no gain
-                    carrierFilter.connect(carrierGain);
-                    carrierGain.connect(this.mainOutput);
-                    envelopeFollower.connect(carrierGain.gain);
-                }
+                this.workletNode.connect(this.mainOutput);
             }
 
             start() {
                 if (this.started) return;
                 try {
                     this.internalCarrier.start(0);
-                    //this.noiseSource.start(0);
                     this.started = true;
                 } catch (e) {
                     console.warn(`Could not start Vocoder components for node ${this.reteNodeId}:`, e);
@@ -4031,7 +3959,10 @@ workspace_data: ${base64Data}
                 if (!this.started) return;
                 try {
                     this.internalCarrier.stop(0);
-                    //this.noiseSource.stop(0);
+                    this.internalCarrier = this.audioContext.createOscillator();
+                    this.internalCarrier.type = this.data.waveform;
+                    this.internalCarrier.frequency.value = this.data.frequency;
+                    this.internalCarrier.connect(this.carrierInput);
                     this.started = false;
                 } catch (e) {
                     console.warn(`Could not stop Vocoder components for node ${this.reteNodeId}:`, e);
@@ -4041,20 +3972,11 @@ workspace_data: ${base64Data}
             updateParameter(paramName, value) {
                 this.data[paramName] = value;
                 switch (paramName) {
-                    case 'numBands':
-                        this.buildFilterBank();
-                        break;
-                    case 'formantShift':
-                        this.formantShift.gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
-                        break;
                     case 'frequency':
                         this.internalCarrier.frequency.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
                         break;
                     case 'waveform':
                         this.internalCarrier.type = value;
-                        break;
-                    case 'unvoicedLevel':
-                        this.unvoicedLevel.gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
                         break;
                 }
             }
