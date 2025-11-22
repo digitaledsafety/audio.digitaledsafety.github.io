@@ -1010,48 +1010,6 @@ workspace_data: ${base64Data}
             }
         }
 
-        class GateConnectionStrategy extends ConnectionStrategy {
-            constructor() {
-                super();
-                this.analysers = new Map();
-                this.gateThreshold = 0.1;
-            }
-
-            connect(sourceNode, targetNode, targetInputKey) {
-                const analyser = audioContext.createAnalyser();
-                analyser.fftSize = 32;
-                const buffer = new Float32Array(1);
-                let lastValue = 0;
-
-                sourceNode.connect(analyser);
-
-                const checkGate = () => {
-                    analyser.getFloatTimeDomainData(buffer);
-                    const currentValue = buffer[0];
-                    if (currentValue >= this.gateThreshold && lastValue < this.gateThreshold) {
-                        targetNode.handleGate(true); // Gate high
-                    } else if (currentValue < this.gateThreshold && lastValue >= this.gateThreshold) {
-                        targetNode.handleGate(false); // Gate low
-                    }
-                    lastValue = currentValue;
-                    if (this.analysers.has(targetNode)) { // Continue polling if still connected
-                        requestAnimationFrame(checkGate);
-                    }
-                };
-
-                this.analysers.set(targetNode, { analyser, sourceNode });
-                requestAnimationFrame(checkGate);
-            }
-
-            disconnect(sourceNode, targetNode, targetInputKey) {
-                if (this.analysers.has(targetNode)) {
-                    const { analyser, sourceNode: storedSource } = this.analysers.get(targetNode);
-                    storedSource.disconnect(analyser);
-                    this.analysers.delete(targetNode);
-                }
-            }
-        }
-
         class ScaleArpeggiator {
             constructor(audioContext, reteNodeId, data) {
                 this.audioContext = audioContext;
@@ -1508,6 +1466,48 @@ workspace_data: ${base64Data}
             }
         }
 
+        class GateConnectionStrategy extends ConnectionStrategy {
+            constructor() {
+                super();
+                this.analysers = new Map();
+                this.gateThreshold = 0.1;
+            }
+
+            connect(sourceNode, targetNode, targetInputKey) {
+                const analyser = audioContext.createAnalyser();
+                analyser.fftSize = 32;
+                const buffer = new Float32Array(1);
+                let lastValue = 0;
+
+                sourceNode.connect(analyser);
+
+                const checkGate = () => {
+                    analyser.getFloatTimeDomainData(buffer);
+                    const currentValue = buffer[0];
+                    if (currentValue >= this.gateThreshold && lastValue < this.gateThreshold) {
+                        targetNode.handleGate(true); // Gate high
+                    } else if (currentValue < this.gateThreshold && lastValue >= this.gateThreshold) {
+                        targetNode.handleGate(false); // Gate low
+                    }
+                    lastValue = currentValue;
+                    if (this.analysers.has(targetNode)) { // Continue polling if still connected
+                        requestAnimationFrame(checkGate);
+                    }
+                };
+
+                this.analysers.set(targetNode, { analyser, sourceNode });
+                requestAnimationFrame(checkGate);
+            }
+
+            disconnect(sourceNode, targetNode, targetInputKey) {
+                if (this.analysers.has(targetNode)) {
+                    const { analyser, sourceNode: storedSource } = this.analysers.get(targetNode);
+                    storedSource.disconnect(analyser);
+                    this.analysers.delete(targetNode);
+                }
+            }
+        }
+        
         class VocoderConnectionStrategy extends ConnectionStrategy {
             connect(sourceNode, targetNode, targetInputKey) {
                 if (targetInputKey === 'carrier') {
