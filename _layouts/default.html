@@ -1016,9 +1016,12 @@ workspace_data: ${base64Data}
                 this.reteNodeId = reteNodeId;
                 this.data = data;
                 this.started = false;
-                this.intervalId = null;
+                this.timeoutId = null;
                 this.currentNoteIndex = 0;
+                this.nextStepTime = 0;
                 this.midiListeners = [];
+                this.tickCount = 0;
+
                 this.mainOutput = this.audioContext.createGain();
                 this.mainOutput.gain.value = 0.5;
                 this.setupNotesAndScales();
@@ -1035,6 +1038,27 @@ workspace_data: ${base64Data}
                 if (index > -1) {
                     this.midiListeners.splice(index, 1);
                 }
+            }
+
+            onTick(tickTime, tickDuration) {
+                const noteDurationMap = { '1': 96, '1/2': 48, '1/4': 24, '1/8': 12, '1/16': 6, '1/32': 3, '1/64': 1.5, '1/128': 0.75 };
+                const ticksPerStep = noteDurationMap[this.data.noteDuration] || 6;
+
+                if (this.tickCount % ticksPerStep === 0) {
+                    const notes = this.getArpeggioNotes();
+                    if (notes.length > 0) {
+                        const currentStep = notes[this.currentNoteIndex];
+                        const stepDuration = tickDuration * ticksPerStep;
+                        this.scheduleNote(currentStep, stepDuration * 0.9);
+
+                        const midiNotesToBroadcast = Array.isArray(currentStep) ? currentStep : [currentStep];
+                        if (this.midiListeners.length > 0) {
+                            this.midiListeners.forEach(callback => callback(midiNotesToBroadcast));
+                        }
+                        this.currentNoteIndex = (this.currentNoteIndex + 1) % notes.length;
+                    }
+                }
+                this.tickCount++;
             }
 
             setupNotesAndScales() {
@@ -1113,31 +1137,56 @@ workspace_data: ${base64Data}
                 if (this.started || !this.audioContext) return;
                 this.started = true;
                 this.currentNoteIndex = 0;
+
+                const hasClockConnection = editor.getConnections().some(conn => conn.target === this.reteNodeId && conn.targetInput === 'clock');
+                if (hasClockConnection) {
+                    return;
+                }
+
+                this.nextStepTime = this.audioContext.currentTime;
+                this.schedule();
+            }
+
+            schedule() {
+                if (!this.started) return;
+
+                const hasClockConnection = editor.getConnections().some(conn => conn.target === this.reteNodeId && conn.targetInput === 'clock');
+                if (hasClockConnection) {
+                    this.stop();
+                    return;
+                }
+
                 const notes = this.getArpeggioNotes();
+                if (notes.length === 0) {
+                    this.stop();
+                    return;
+                }
+
                 const bpm = this.data.bpm || 120;
                 const noteDurationMap = { '1': 4, '1/2': 2, '1/4': 1, '1/8': 0.5, '1/16': 0.25, '1/32': 0.125, '1/64': 0.0625, '1/128': 0.03125 };
                 const noteValue = noteDurationMap[this.data.noteDuration] || 0.25;
-                const secondsPerBeat = 60 / bpm;
-                const intervalMs = (secondsPerBeat * noteValue) * 1000;
-                const playNextNote = () => {
-                    if (!this.started) { clearInterval(this.intervalId); return; }
-                    if (notes.length === 0) return;
-                    const currentStep = notes[this.currentNoteIndex];
-                    this.scheduleNote(currentStep, secondsPerBeat * noteValue);
-                    const midiNotesToBroadcast = Array.isArray(currentStep) ? currentStep : [currentStep];
+                const secondsPerBeat = 60.0 / bpm;
+                const stepDuration = secondsPerBeat * noteValue;
+
+                while (this.nextStepTime < this.audioContext.currentTime + 0.1) {
+                    const midiNote = notes[this.currentNoteIndex];
+                    this.scheduleNote(midiNote, stepDuration);
+
                     if (this.midiListeners.length > 0) {
+                        const midiNotesToBroadcast = Array.isArray(midiNote) ? midiNote : [midiNote];
                         this.midiListeners.forEach(callback => callback(midiNotesToBroadcast));
                     }
+
+                    this.nextStepTime += stepDuration;
                     this.currentNoteIndex = (this.currentNoteIndex + 1) % notes.length;
-                };
-                playNextNote();
-                this.intervalId = setInterval(playNextNote, intervalMs);
+                }
+                this.timeoutId = setTimeout(() => this.schedule(), 25);
             }
 
             stop() {
                 if (!this.started) return;
-                clearInterval(this.intervalId);
-                this.intervalId = null;
+                clearTimeout(this.timeoutId);
+                this.timeoutId = null;
                 this.started = false;
             }
 
@@ -2764,7 +2813,8 @@ workspace_data: ${base64Data}
                     this.scheduleNote(midiNote, stepDuration);
 
                     if (this.midiListeners.length > 0) {
-                        this.midiListeners.forEach(callback => callback([midiNote]));
+                        const midiNotesToBroadcast = Array.isArray(midiNote) ? midiNote : [midiNote];
+                        this.midiListeners.forEach(callback => callback(midiNotesToBroadcast));
                     }
 
                     this.nextStepTime += stepDuration;
@@ -3206,7 +3256,7 @@ workspace_data: ${base64Data}
 
                     if (!representativeEvent) {
                         this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
-                        continue;
+                        continue; // Skip to the next iteration of the while loop
                     }
 
                     const bpm = this.data.bpm || 120;
@@ -3237,6 +3287,7 @@ workspace_data: ${base64Data}
                     this.nextStepTime += stepDuration;
                     this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
                 }
+
                 this.timeoutId = setTimeout(() => this.schedule(), 25);
             }
 
@@ -3416,7 +3467,18 @@ workspace_data: ${base64Data}
                 return new MasterClock(audioContext, this.id, this.data);
             }
 
-            // MasterClock doesn't produce audio, so start/stop are handled by the button control
+            start() {
+                const audioNode = reteAudioNodes.get(this.id);
+                if (audioNode && audioNode.start && !audioNode.started) {
+                    try {
+                        audioNode.start();
+                        this.controls.startStop.label = 'Stop';
+                        area.update('node', this.id);
+                    } catch (e) {
+                        console.warn(`Could not start ${this.label} for node ${this.id}:`, e);
+                    }
+                }
+            }
         }
 
 
@@ -3974,6 +4036,7 @@ workspace_data: ${base64Data}
         class ScaleArpeggiatorNode extends WebAudioNode {
             constructor() {
                 super('Scale Arpeggiator');
+                this.addInput('clock', new Classic.Input(clockSocket, 'Clock In'));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
                 this.addOutput('midi', new Classic.Output(midiSocket, 'MIDI Out'));
 
@@ -5180,16 +5243,19 @@ workspace_data: ${base64Data}
                 
                     workspaceData = {
                         "nodes": [
-                            { "id": "1", "label": "Master Clock", "data": { "bpm": 120 }, "position": { "x": 50, "y": 200 } },
+                            { "id": "1", "label": "Master Clock", "data": { "bpm": 120 }, "position": { "x": 50, "y": 300 } },
                             { "id": "2", "label": "Sequencer", "data": { "bpm": 120, "noteDuration": "1/16", "sequence": "C4 G3 D4 A3", "waveform": "sawtooth" }, "position": { "x": 300, "y": 100 } },
-                            { "id": "3", "label": "Arpeggiator", "data": { "bpm": 120, "noteDuration": "1/8", "chordType": "Minor 7th", "rootNote": "A3", "arpeggioPattern": "Up-Down", "octaveRange": 2, "waveform": "sine" }, "position": { "x": 300, "y": 400 } },
-                            { "id": "4", "label": "Master", "data": { "gain": 0.4 }, "position": { "x": 600, "y": 250 } }
+                            { "id": "3", "label": "Arpeggiator", "data": { "bpm": 120, "noteDuration": "1/8", "chordType": "Minor 7th", "rootNote": "A3", "arpeggioPattern": "Up-Down", "octaveRange": 2, "waveform": "sine" }, "position": { "x": 300, "y": 300 } },
+                            { "id": "4", "label": "Master", "data": { "gain": 0.3 }, "position": { "x": 600, "y": 300 } },
+                            { "id": "5", "label": "Scale Arpeggiator", "data": { "bpm": 120, "noteDuration": "1/16", "scaleType": "Pentatonic Minor", "rootNote": "C4", "arpeggioPattern": "Up", "octaveRange": 2, "waveform": "triangle" }, "position": { "x": 300, "y": 500 } }
                         ],
                         "connections": [
                             { "id": "conn1", "source": "1", "sourceOutput": "clock", "target": "2", "targetInput": "clock" },
                             { "id": "conn2", "source": "1", "sourceOutput": "clock", "target": "3", "targetInput": "clock" },
-                            { "id": "conn3", "source": "2", "sourceOutput": "audio", "target": "4", "targetInput": "audio" },
-                            { "id": "conn4", "source": "3", "sourceOutput": "audio", "target": "4", "targetInput": "audio" }
+                            { "id": "conn3", "source": "1", "sourceOutput": "clock", "target": "5", "targetInput": "clock" },
+                            { "id": "conn4", "source": "2", "sourceOutput": "audio", "target": "4", "targetInput": "audio" },
+                            { "id": "conn5", "source": "3", "sourceOutput": "audio", "target": "4", "targetInput": "audio" },
+                            { "id": "conn6", "source": "5", "sourceOutput": "audio", "target": "4", "targetInput": "audio" }
                         ]
                     };
                 
