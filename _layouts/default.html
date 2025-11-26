@@ -1137,12 +1137,6 @@ workspace_data: ${base64Data}
                 if (this.started || !this.audioContext) return;
                 this.started = true;
                 this.currentNoteIndex = 0;
-
-                const hasClockConnection = editor.getConnections().some(conn => conn.target === this.reteNodeId && conn.targetInput === 'clock');
-                if (hasClockConnection) {
-                    return;
-                }
-
                 this.nextStepTime = this.audioContext.currentTime;
                 this.schedule();
             }
@@ -1152,7 +1146,9 @@ workspace_data: ${base64Data}
 
                 const hasClockConnection = editor.getConnections().some(conn => conn.target === this.reteNodeId && conn.targetInput === 'clock');
                 if (hasClockConnection) {
-                    this.stop();
+                    // In external clock mode, the onTick method will handle scheduling.
+                    // This loop just needs to keep running to take over if the clock is disconnected.
+                    this.timeoutId = setTimeout(() => this.schedule(), 100); // Check for clock disconnection periodically
                     return;
                 }
 
@@ -2775,15 +2771,7 @@ workspace_data: ${base64Data}
                 if (this.started || !this.audioContext) return;
                 this.started = true;
                 this.currentNoteIndex = 0;
-
-                const hasClockConnection = editor.getConnections().some(conn => conn.target === this.reteNodeId && conn.targetInput === 'clock');
-                if (hasClockConnection) {
-                    console.log(`Arpeggiator ${this.reteNodeId} started in external clock mode.`);
-                    return;
-                }
-
                 this.nextStepTime = this.audioContext.currentTime;
-                console.log(`Arpeggiator started with BPM: ${this.data.bpm}, Note Duration: ${this.data.noteDuration}`);
                 this.schedule();
             }
 
@@ -2792,7 +2780,9 @@ workspace_data: ${base64Data}
 
                 const hasClockConnection = editor.getConnections().some(conn => conn.target === this.reteNodeId && conn.targetInput === 'clock');
                 if (hasClockConnection) {
-                    this.stop(); // Stop internal timer if a clock is connected
+                    // In external clock mode, the onTick method will handle scheduling.
+                    // This loop just needs to keep running to take over if the clock is disconnected.
+                    this.timeoutId = setTimeout(() => this.schedule(), 100); // Check for clock disconnection periodically
                     return;
                 }
 
@@ -3224,15 +3214,7 @@ workspace_data: ${base64Data}
                 this.started = true;
                 this.currentStep = 0;
                 this.sequenceEvents = this.parseSequence();
-
-                const hasClockConnection = editor.getConnections().some(conn => conn.target === this.reteNodeId && conn.targetInput === 'clock');
-                if (hasClockConnection) {
-                    console.log(`Sequencer ${this.reteNodeId} started in external clock mode.`);
-                    return;
-                }
-
                 this.nextStepTime = this.audioContext.currentTime;
-                console.log(`Sequencer started with BPM: ${this.data.bpm}, Note Duration: ${this.data.noteDuration}`);
                 this.schedule();
             }
 
@@ -3241,7 +3223,9 @@ workspace_data: ${base64Data}
 
                 const hasClockConnection = editor.getConnections().some(conn => conn.target === this.reteNodeId && conn.targetInput === 'clock');
                 if (hasClockConnection) {
-                    this.stop();
+                    // In external clock mode, the onTick method will handle scheduling.
+                    // This loop just needs to keep running to take over if the clock is disconnected.
+                    this.timeoutId = setTimeout(() => this.schedule(), 100); // Check for clock disconnection periodically
                     return;
                 }
 
@@ -3412,13 +3396,6 @@ workspace_data: ${base64Data}
                 const tickDuration = secondsPerBeat / ppqn;
 
                 while (this.nextStepTime < this.audioContext.currentTime + 0.1) {
-                    if (this.beatCount % ppqn === 0) { // Trigger on the beat
-                        const indicator = document.querySelector(`[data-node-id='${this.reteNodeId}'] .clock-indicator`);
-                        if (indicator) {
-                            indicator.classList.add('blinking');
-                            setTimeout(() => indicator.classList.remove('blinking'), 50);
-                        }
-                    }
 
                     this.tickListeners.forEach(listener => listener(this.nextStepTime, tickDuration));
                     this.nextStepTime += tickDuration;
@@ -3437,6 +3414,7 @@ workspace_data: ${base64Data}
         class MasterClockNode extends ModulatorNode {
             constructor() {
                 super('Master Clock');
+                this.visualizerInterval = null;
                 this.addOutput('clock', new Classic.Output(clockSocket, 'Clock Out'));
 
                 this.addControl('indicator', new IndicatorControl('indicator', 'Clock Pulse'));
@@ -3445,7 +3423,12 @@ workspace_data: ${base64Data}
                 this.addControl('bpm', new SliderControl('mcBpm', 'BPM', 30, 240, 1, this.data.bpm, (val) => {
                     this.data.bpm = val;
                     const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode) audioNode.updateParameter('bpm', val);
+                    if (audioNode) {
+                        audioNode.updateParameter('bpm', val);
+                        if (audioNode.started) {
+                            this.startVisualizer();
+                        }
+                    }
                 }));
 
                 this.addControl('startStop', new ButtonControl('startStopBtn', 'Start', () => {
@@ -3454,13 +3437,39 @@ workspace_data: ${base64Data}
                         if (audioNode.started) {
                             audioNode.stop();
                             this.controls.startStop.label = 'Start';
+                            this.stopVisualizer();
                         } else {
                             audioNode.start();
                             this.controls.startStop.label = 'Stop';
+                            this.startVisualizer();
                         }
                         area.update('node', this.id);
                     }
                 }));
+            }
+
+            startVisualizer() {
+                this.stopVisualizer();
+                const bpm = this.data.bpm || 120;
+                const beatDuration = (60 / bpm) * 1000;
+                this.visualizerInterval = setInterval(() => {
+                    const indicator = document.querySelector(`[data-node-id='${this.id}'] .clock-indicator`);
+                    if (indicator) {
+                        indicator.classList.add('blinking');
+                        setTimeout(() => indicator.classList.remove('blinking'), 50);
+                    }
+                }, beatDuration);
+            }
+
+            stopVisualizer() {
+                if (this.visualizerInterval) {
+                    clearInterval(this.visualizerInterval);
+                    this.visualizerInterval = null;
+                }
+                const indicator = document.querySelector(`[data-node-id='${this.id}'] .clock-indicator`);
+                if (indicator) {
+                    indicator.classList.remove('blinking');
+                }
             }
 
             build() {
@@ -4849,6 +4858,7 @@ workspace_data: ${base64Data}
                     multiplayer.broadcast(workspaceData);
                 }                
                 if (context.type === 'rendered' && context.data.type === 'node') {
+                    context.data.element.dataset.nodeId = context.data.payload.id;
                     // Check if node data is valid and it's a known node type
                     if (context.data.payload instanceof WebAudioNode) {
                         // Guard clause: Rete's React renderer might not have created the child elements yet.
