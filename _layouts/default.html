@@ -511,7 +511,7 @@ layout: none
         let engine;
         let mediaRecorder;
         let recordedChunks = [];
-        let recordedAudioUrl = null;
+        let recordedMediaUrl = null;
         let masterGain;
         let analyser;
         let mediaStreamDestination;
@@ -977,7 +977,7 @@ workspace_data: ${base64Data}
         }
 
         async function playRecording() {
-            if (recordedAudioUrl) {
+            if (recordedMediaUrl) {
                 if (!audioContext || audioContext.state === 'closed' || audioContext.state === 'suspended') {
                     await startAudio();
                 }
@@ -987,7 +987,7 @@ workspace_data: ${base64Data}
                         loopSource.stop();
                     }
                     try {
-                        const response = await fetch(recordedAudioUrl);
+                        const response = await fetch(recordedMediaUrl);
                         const arrayBuffer = await response.arrayBuffer();
                         const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
@@ -1207,12 +1207,12 @@ workspace_data: ${base64Data}
         }
 
         function downloadRecording() {
-            if (recordedAudioUrl) {
+            if (recordedMediaUrl) {
                 const a = document.createElement('a');
-                a.href = recordedAudioUrl;
+                a.href = recordedMediaUrl;
                 const workspaceName = document.getElementById('workspaceName').value;
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                const filename = workspaceName ? `${workspaceName}-${timestamp}.webm` : `recording-${timestamp}.webm`;
+                const filename = workspaceName ? `${workspaceName}-${timestamp}.webm` : `visualizer-recording-${timestamp}.webm`;
                 a.download = filename;
                 a.click();
             }
@@ -5132,16 +5132,23 @@ workspace_data: ${base64Data}
                 } else {
                     // --- Start Recording ---
                     if (mediaStreamDestination) {
+                        const videoStream = visualizerCanvas.captureStream(30); // 30 FPS
+                        const audioStream = mediaStreamDestination.stream;
+                        const combinedStream = new MediaStream([
+                            ...videoStream.getVideoTracks(),
+                            ...audioStream.getAudioTracks()
+                        ]);
+
                         recordedChunks = [];
-                        mediaRecorder = new MediaRecorder(mediaStreamDestination.stream);
+                        mediaRecorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm' });
 
                         mediaRecorder.ondataavailable = event => {
                             if (event.data.size > 0) recordedChunks.push(event.data);
                         };
 
                         mediaRecorder.onstop = () => {
-                            const blob = new Blob(recordedChunks, { type: 'audio/webm' });
-                            recordedAudioUrl = URL.createObjectURL(blob);
+                            const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                            recordedMediaUrl = URL.createObjectURL(blob);
                             recordBtn.textContent = '⏺️ Record';
                             recordBtn.classList.replace('button-secondary', 'button-danger');
                             showMessage('Recording finished. Downloading...', 'success');
