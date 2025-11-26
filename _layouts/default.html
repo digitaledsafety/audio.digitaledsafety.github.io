@@ -956,11 +956,9 @@ workspace_data: ${base64Data}
                     }
                 }
 
-                // Start the audio node by calling its start method, unless it's a Master Clock.
-                // The Master Clock should only be controlled by its own button.
-                if (reteNode.label !== 'Master Clock') {
-                    reteNode.start();
-                }
+                // Start the audio node by calling its start method.
+                // The node itself will handle whether it needs to perform an action.
+                reteNode.start();
             }
             updateAudioGraphConnections();
         }
@@ -1530,14 +1528,7 @@ workspace_data: ${base64Data}
                 const buffer = new Float32Array(1);
                 let lastValue = 0;
 
-                // Create a muted GainNode to keep the analyser active, preventing browsers
-                // from disabling it due to inactivity.
-                const sink = audioContext.createGain();
-                sink.gain.value = 0;
-                sink.connect(audioContext.destination);
-
                 sourceNode.connect(analyser);
-                analyser.connect(sink); // Connect analyser to the sink
 
                 const checkGate = () => {
                     analyser.getFloatTimeDomainData(buffer);
@@ -1553,16 +1544,14 @@ workspace_data: ${base64Data}
                     }
                 };
 
-                this.analysers.set(targetNode, { analyser, sourceNode, sink });
+                this.analysers.set(targetNode, { analyser, sourceNode });
                 requestAnimationFrame(checkGate);
             }
 
             disconnect(sourceNode, targetNode, targetInputKey) {
                 if (this.analysers.has(targetNode)) {
-                    const { analyser, sourceNode: storedSource, sink } = this.analysers.get(targetNode);
+                    const { analyser, sourceNode: storedSource } = this.analysers.get(targetNode);
                     storedSource.disconnect(analyser);
-                    analyser.disconnect(sink);
-                    sink.disconnect();
                     this.analysers.delete(targetNode);
                 }
             }
