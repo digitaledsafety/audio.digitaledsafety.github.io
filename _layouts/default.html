@@ -5132,6 +5132,12 @@ workspace_data: ${base64Data}
                 } else {
                     // --- Start Recording ---
                     if (mediaStreamDestination) {
+
+                        // Ensure the visualizer is visible before recording
+                        if (visualizerView.classList.contains('hidden')) {
+                            visualizerTab.click();
+                        }
+                        
                         const videoStream = visualizerCanvas.captureStream(30); // 30 FPS
                         const audioStream = mediaStreamDestination.stream;
                         const combinedStream = new MediaStream([
