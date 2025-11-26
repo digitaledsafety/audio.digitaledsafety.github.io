@@ -5132,15 +5132,22 @@ workspace_data: ${base64Data}
                 } else {
                     // --- Start Recording ---
                     if (mediaStreamDestination) {
-                        const videoStream = visualizerCanvas.captureStream(30); // 30 FPS
-                        const audioStream = mediaStreamDestination.stream;
-                        const combinedStream = new MediaStream([
-                            ...videoStream.getVideoTracks(),
-                            ...audioStream.getAudioTracks()
-                        ]);
+                        // Ensure the visualizer is visible before recording
+                        if (visualizerView.classList.contains('hidden')) {
+                            visualizerTab.click();
+                        }
 
-                        recordedChunks = [];
-                        mediaRecorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm' });
+                        // Short delay to allow canvas to render
+                        setTimeout(() => {
+                            const videoStream = visualizerCanvas.captureStream(30); // 30 FPS
+                            const audioStream = mediaStreamDestination.stream;
+                            const combinedStream = new MediaStream([
+                                ...videoStream.getVideoTracks(),
+                                ...audioStream.getAudioTracks()
+                            ]);
+
+                            recordedChunks = [];
+                            mediaRecorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm' });
 
                         mediaRecorder.ondataavailable = event => {
                             if (event.data.size > 0) recordedChunks.push(event.data);
@@ -5159,6 +5166,7 @@ workspace_data: ${base64Data}
                         recordBtn.textContent = '⏹️ Stop';
                         recordBtn.classList.replace('button-danger', 'button-secondary');
                         showMessage('Recording started.', 'info');
+                        }, 100);
                     }
                 }
             });
