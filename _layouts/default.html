@@ -1137,12 +1137,6 @@ workspace_data: ${base64Data}
                 if (this.started || !this.audioContext) return;
                 this.started = true;
                 this.currentNoteIndex = 0;
-
-                const hasClockConnection = editor.getConnections().some(conn => conn.target === this.reteNodeId && conn.targetInput === 'clock');
-                if (hasClockConnection) {
-                    return;
-                }
-
                 this.nextStepTime = this.audioContext.currentTime;
                 this.schedule();
             }
@@ -1152,7 +1146,9 @@ workspace_data: ${base64Data}
 
                 const hasClockConnection = editor.getConnections().some(conn => conn.target === this.reteNodeId && conn.targetInput === 'clock');
                 if (hasClockConnection) {
-                    this.stop();
+                    // In external clock mode, the onTick method will handle scheduling.
+                    // This loop just needs to keep running to take over if the clock is disconnected.
+                    this.timeoutId = setTimeout(() => this.schedule(), 100); // Check for clock disconnection periodically
                     return;
                 }
 
@@ -2775,15 +2771,7 @@ workspace_data: ${base64Data}
                 if (this.started || !this.audioContext) return;
                 this.started = true;
                 this.currentNoteIndex = 0;
-
-                const hasClockConnection = editor.getConnections().some(conn => conn.target === this.reteNodeId && conn.targetInput === 'clock');
-                if (hasClockConnection) {
-                    console.log(`Arpeggiator ${this.reteNodeId} started in external clock mode.`);
-                    return;
-                }
-
                 this.nextStepTime = this.audioContext.currentTime;
-                console.log(`Arpeggiator started with BPM: ${this.data.bpm}, Note Duration: ${this.data.noteDuration}`);
                 this.schedule();
             }
 
@@ -2792,7 +2780,9 @@ workspace_data: ${base64Data}
 
                 const hasClockConnection = editor.getConnections().some(conn => conn.target === this.reteNodeId && conn.targetInput === 'clock');
                 if (hasClockConnection) {
-                    this.stop(); // Stop internal timer if a clock is connected
+                    // In external clock mode, the onTick method will handle scheduling.
+                    // This loop just needs to keep running to take over if the clock is disconnected.
+                    this.timeoutId = setTimeout(() => this.schedule(), 100); // Check for clock disconnection periodically
                     return;
                 }
 
@@ -3224,15 +3214,7 @@ workspace_data: ${base64Data}
                 this.started = true;
                 this.currentStep = 0;
                 this.sequenceEvents = this.parseSequence();
-
-                const hasClockConnection = editor.getConnections().some(conn => conn.target === this.reteNodeId && conn.targetInput === 'clock');
-                if (hasClockConnection) {
-                    console.log(`Sequencer ${this.reteNodeId} started in external clock mode.`);
-                    return;
-                }
-
                 this.nextStepTime = this.audioContext.currentTime;
-                console.log(`Sequencer started with BPM: ${this.data.bpm}, Note Duration: ${this.data.noteDuration}`);
                 this.schedule();
             }
 
@@ -3241,7 +3223,9 @@ workspace_data: ${base64Data}
 
                 const hasClockConnection = editor.getConnections().some(conn => conn.target === this.reteNodeId && conn.targetInput === 'clock');
                 if (hasClockConnection) {
-                    this.stop();
+                    // In external clock mode, the onTick method will handle scheduling.
+                    // This loop just needs to keep running to take over if the clock is disconnected.
+                    this.timeoutId = setTimeout(() => this.schedule(), 100); // Check for clock disconnection periodically
                     return;
                 }
 
