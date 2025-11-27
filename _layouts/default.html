@@ -1291,12 +1291,12 @@ workspace_data: ${base64Data}
             };
 
             function getDisconnectionStrategy(targetReteNode, targetInputKey, sourceSocket) {
+                 if (targetInputKey === 'gate') {
+                    return connectionStrategies['gate'];
+                 }
                  if (sourceSocket === midiSocket) {
                     return connectionStrategies['midi'];
                 } else if (sourceSocket === cvSocket) {
-                    if (targetInputKey === 'gate') {
-                        return connectionStrategies['gate'];
-                    }
                     return connectionStrategies['cv'];
                 }
                  if (sourceSocket === clockSocket) {
@@ -1312,14 +1312,14 @@ workspace_data: ${base64Data}
             }
 
             function getConnectionStrategy(targetReteNode, targetInputKey, sourceSocket) {
+                if (targetInputKey === 'gate') {
+                    return connectionStrategies['gate'];
+                }
                 if (sourceSocket === midiSocket) {
                     return connectionStrategies['midi'];
                 }
 
                 if (sourceSocket === cvSocket || targetInputKey === 'freq' || targetInputKey === 'q_cv' || targetInputKey === 'delay_cv' || targetInputKey === 'gain_cv'  || targetInputKey === 'bands_cv' || targetInputKey === 'formant_cv' || targetInputKey === 'unvoiced_cv') {
-                    if (targetInputKey === 'gate') {
-                        return connectionStrategies['gate'];
-                    }
                     return connectionStrategies['cv'];
                 }
                 if (sourceSocket === clockSocket) {
@@ -1365,7 +1365,7 @@ workspace_data: ${base64Data}
                         if (connection.sourceOutput.socket === midiSocket) {
                             strategy.disconnect(sourceReteNode, targetAudioNode);
                         } else {
-                            strategy.disconnect(source, targetAudioNode, connection.targetInput);
+                            strategy.disconnect(source, targetAudioNode, connection.targetInput, sourceReteNode);
                         }
                     } catch (e) {
                         // Ignore errors, connection might already be broken
@@ -1390,7 +1390,7 @@ workspace_data: ${base64Data}
                             if (connection.sourceOutput.socket === midiSocket) {
                                 strategy.connect(sourceReteNode, targetAudioNode);
                             } else {
-                                strategy.connect(source, targetAudioNode, connection.targetInput);
+                                strategy.connect(source, targetAudioNode, connection.targetInput, sourceReteNode);
                             }
                             console.log(`Connected: ${sourceReteNode.label} to ${targetReteNode.label} via ${connection.targetInput}`);
                         } catch (e) {
@@ -1514,41 +1514,86 @@ workspace_data: ${base64Data}
         class GateConnectionStrategy extends ConnectionStrategy {
             constructor() {
                 super();
-                this.analysers = new Map();
+                this.analysers = new Map(); // For polling: Map<targetNode, Map<sourceNodeId, {analyser, ...}>>
+                this.listeners = new Map(); // For push: Map<targetNode, Map<sourceNodeId, listener>>
                 this.gateThreshold = 0.1;
             }
 
-            connect(sourceNode, targetNode, targetInputKey) {
-                const analyser = audioContext.createAnalyser();
-                analyser.fftSize = 32;
-                const buffer = new Float32Array(1);
-                let lastValue = 0;
+            connect(sourceAudioNode, targetAudioNode, targetInputKey, sourceReteNode) {
+                if (sourceReteNode.label === 'Manual Gate') {
+                    // --- Push-based approach for ManualGateNode ---
+                    const listener = (isGateHigh) => {
+                        targetAudioNode.handleGate(isGateHigh);
+                    };
 
-                sourceNode.connect(analyser);
-
-                const checkGate = () => {
-                    analyser.getFloatTimeDomainData(buffer);
-                    const currentValue = buffer[0];
-                    if (currentValue >= this.gateThreshold && lastValue < this.gateThreshold) {
-                        targetNode.handleGate(true); // Gate high
-                    } else if (currentValue < this.gateThreshold && lastValue >= this.gateThreshold) {
-                        targetNode.handleGate(false); // Gate low
+                    if (!this.listeners.has(targetAudioNode)) {
+                        this.listeners.set(targetAudioNode, new Map());
                     }
-                    lastValue = currentValue;
-                    if (this.analysers.has(targetNode)) { // Continue polling if still connected
-                        requestAnimationFrame(checkGate);
-                    }
-                };
+                    this.listeners.get(targetAudioNode).set(sourceReteNode.id, listener);
 
-                this.analysers.set(targetNode, { analyser, sourceNode });
-                requestAnimationFrame(checkGate);
+                    sourceAudioNode.addGateListener(listener);
+
+                    // Immediately set the initial state
+                    targetAudioNode.handleGate(sourceReteNode.data.value);
+
+                } else {
+                    // --- Polling-based approach for other CV sources ---
+                    const analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 32;
+                    const buffer = new Float32Array(1);
+                    let lastValue = 0;
+
+                    sourceAudioNode.connect(analyser);
+                    // Mute and connect to destination to keep the analyser active
+                    const mute = audioContext.createGain();
+                    mute.gain.value = 0;
+                    analyser.connect(mute);
+                    mute.connect(audioContext.destination);
+
+                    const checkGate = () => {
+                        // Only continue polling if this specific connection is still active
+                        if (this.analysers.has(targetAudioNode) && this.analysers.get(targetAudioNode).has(sourceReteNode.id)) {
+                            analyser.getFloatTimeDomainData(buffer);
+                            const currentValue = buffer[0];
+                            if (currentValue >= this.gateThreshold && lastValue < this.gateThreshold) {
+                                targetAudioNode.handleGate(true);
+                            } else if (currentValue < this.gateThreshold && lastValue >= this.gateThreshold) {
+                                targetAudioNode.handleGate(false);
+                            }
+                            lastValue = currentValue;
+                            requestAnimationFrame(checkGate);
+                        } else {
+                            // Clean up the audio graph if the connection was removed
+                            try {
+                                sourceAudioNode.disconnect(analyser);
+                                analyser.disconnect(mute);
+                                mute.disconnect(audioContext.destination);
+                            } catch (e) { /* Ignore errors if already disconnected */ }
+                        }
+                    };
+
+                    if (!this.analysers.has(targetAudioNode)) {
+                        this.analysers.set(targetAudioNode, new Map());
+                    }
+                    this.analysers.get(targetAudioNode).set(sourceReteNode.id, { analyser, sourceAudioNode, mute });
+                    requestAnimationFrame(checkGate);
+                }
             }
 
-            disconnect(sourceNode, targetNode, targetInputKey) {
-                if (this.analysers.has(targetNode)) {
-                    const { analyser, sourceNode: storedSource } = this.analysers.get(targetNode);
-                    storedSource.disconnect(analyser);
-                    this.analysers.delete(targetNode);
+            disconnect(sourceAudioNode, targetAudioNode, targetInputKey, sourceReteNode) {
+                if (sourceReteNode.label === 'Manual Gate') {
+                    if (this.listeners.has(targetAudioNode) && this.listeners.get(targetAudioNode).has(sourceReteNode.id)) {
+                        const listener = this.listeners.get(targetAudioNode).get(sourceReteNode.id);
+                        sourceAudioNode.removeGateListener(listener);
+                        this.listeners.get(targetAudioNode).delete(sourceReteNode.id);
+                    }
+                } else {
+                    // For polling nodes, we just remove the entry from the map.
+                    // The running requestAnimationFrame loop will detect this and stop itself
+                    // while cleaning up the audio connections.
+                    if (this.analysers.has(targetAudioNode)) {
+                        this.analysers.get(targetAudioNode).delete(sourceReteNode.id);
+                    }
                 }
             }
         }
@@ -1923,10 +1968,19 @@ workspace_data: ${base64Data}
                 this.reteNodeId = reteNodeId;
                 this.data = data;
                 this.started = false;
+                this.gateListeners = new Set();
 
                 this.source = this.audioContext.createConstantSource();
                 this.source.offset.value = this.data.value ? 1 : 0;
                 this.mainOutput = this.source;
+            }
+
+            addGateListener(callback) {
+                this.gateListeners.add(callback);
+            }
+
+            removeGateListener(callback) {
+                this.gateListeners.delete(callback);
             }
 
             start() {
@@ -1946,7 +2000,10 @@ workspace_data: ${base64Data}
             updateParameter(paramName, value) {
                 this.data[paramName] = value;
                 if (paramName === 'value') {
-                    this.source.offset.value = value ? 1 : 0;
+                    const gateValue = value ? 1 : 0;
+                    this.source.offset.value = gateValue;
+                    // Notify listeners
+                    this.gateListeners.forEach(listener => listener(value));
                 }
             }
         }
