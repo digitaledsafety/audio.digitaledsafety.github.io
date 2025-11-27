@@ -1315,11 +1315,10 @@ workspace_data: ${base64Data}
                 if (sourceSocket === midiSocket) {
                     return connectionStrategies['midi'];
                 }
-
+                if (targetInputKey === 'gate') {
+                    return connectionStrategies['gate'];
+                }
                 if (sourceSocket === cvSocket || targetInputKey === 'freq' || targetInputKey === 'q_cv' || targetInputKey === 'delay_cv' || targetInputKey === 'gain_cv'  || targetInputKey === 'bands_cv' || targetInputKey === 'formant_cv' || targetInputKey === 'unvoiced_cv') {
-                    if (targetInputKey === 'gate') {
-                        return connectionStrategies['gate'];
-                    }
                     return connectionStrategies['cv'];
                 }
                 if (sourceSocket === clockSocket) {
@@ -1328,7 +1327,6 @@ workspace_data: ${base64Data}
                 if (targetInputKey === 'fm') {
                     return connectionStrategies['fm'];
                 }
-
                 if (targetReteNode.label === 'Mixer' && targetInputKey.startsWith('in')) {
                     return connectionStrategies['mixer'];
                 }
