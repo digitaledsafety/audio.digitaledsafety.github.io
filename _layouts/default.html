@@ -1399,37 +1399,6 @@ workspace_data: ${base64Data}
                 }
             }
 
-            // 3. Connect any audio-producing nodes with no outgoing connections to the Master Output, if it exists.
-            const masterOutputNode = editor.getNodes().find(n => n.label === 'Master');
-            const masterOutputAudioNode = masterOutputNode ? reteAudioNodes.get(masterOutputNode.id) : null;
-
-            for (const reteNode of editor.getNodes()) {
-                const audioNode = reteAudioNodes.get(reteNode.id);
-                if (!audioNode) continue; // Skip if the audio node hasn't been built yet
-
-                const hasAudioOutputs = Object.keys(reteNode.outputs).some(key => reteNode.outputs[key].socket === audioSocket);
-
-                if (hasAudioOutputs) {
-                    const hasOutgoingAudioConnection = editor.getConnections().some(conn =>
-                        conn.source === reteNode.id && conn.sourceOutput.socket === audioSocket);
-
-                    const connectByDefault = reteNode.connectToDestinationByDefault !== false;
-
-                    // If the node has no outgoing audio connections and should connect by default,
-                    // route it ONLY to the master output node IF that node exists.
-                    // If no master output exists, these nodes will be silent.
-                    if (!hasOutgoingAudioConnection && connectByDefault && masterOutputAudioNode) {
-                        try {
-                            const sourceToConnect = audioNode.mainOutput || audioNode;
-                            if (sourceToConnect.connect) {
-                                sourceToConnect.connect(masterOutputAudioNode);
-                            }
-                        } catch (e) {
-                            console.error(`Error connecting unconnected ${reteNode.label} to Master Output:`, e);
-                        }
-                    }
-                }
-            }
         }
 
         async function updateAudioGraphConnectionsOld() {
