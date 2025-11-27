@@ -1291,12 +1291,13 @@ workspace_data: ${base64Data}
             };
 
             function getDisconnectionStrategy(targetReteNode, targetInputKey, sourceSocket) {
-                 if (sourceSocket === midiSocket) {
+                if (sourceSocket === midiSocket) {
                     return connectionStrategies['midi'];
-                } else if (sourceSocket === cvSocket) {
-                    if (targetInputKey === 'gate') {
-                        return connectionStrategies['gate'];
-                    }
+                }
+                if (targetInputKey === 'gate') {
+                    return connectionStrategies['gate'];
+                }                
+                if (sourceSocket === cvSocket) {
                     return connectionStrategies['cv'];
                 }
                  if (sourceSocket === clockSocket) {
