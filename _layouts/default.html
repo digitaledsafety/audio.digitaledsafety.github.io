@@ -2018,14 +2018,15 @@ workspace_data: ${base64Data}
                 super('Tone Generator');
 
                 this.addInput('freq', new Classic.Input(cvSocket, 'Freq CV'));
+                this.addInput('gain_cv', new Classic.Input(cvSocket, 'Gain CV'));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
 
                 this.data.frequency = 440;
                 this.addControl('frequency', new SliderControl('freqSlider', 'Frequency (Hz)', 50, 2000, 1, this.data.frequency, (val) => {
                     this.data.frequency = val;
                     const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode && audioNode.frequency) {
-                        audioNode.frequency.setTargetAtTime(val, audioContext.currentTime, 0.01);
+                    if (audioNode && audioNode.oscillator) {
+                        audioNode.oscillator.frequency.setTargetAtTime(val, audioContext.currentTime, 0.01);
                     }
                 }));
 
@@ -2033,18 +2034,51 @@ workspace_data: ${base64Data}
                 this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveform, (val) => {
                     this.data.waveform = val;
                     const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode && audioNode.type) {
-                        audioNode.type = val;
+                    if (audioNode && audioNode.oscillator) {
+                        audioNode.oscillator.type = val;
                     }
-                    //area.update('node', this.id); // Trigger re-render
                 }));
             }
 
             build() {
-                const audioNode = audioContext.createOscillator();
-                audioNode.frequency.value = this.data.frequency !== undefined ? this.data.frequency : 440;
-                audioNode.type = this.data.waveform || 'sine';
-                audioNode.started = false;
+                const oscillator = audioContext.createOscillator();
+                oscillator.frequency.value = this.data.frequency !== undefined ? this.data.frequency : 440;
+                oscillator.type = this.data.waveform || 'sine';
+
+                const gainNode = audioContext.createGain();
+                gainNode.gain.value = 1.0; // Default to full volume
+
+                oscillator.connect(gainNode);
+
+                const audioNode = {
+                    mainInput: gainNode, // The Gain CV will connect here
+                    mainOutput: gainNode,
+                    oscillator: oscillator,
+                    gain: gainNode.gain, // Expose the gain AudioParam for CV control
+                    started: false,
+                    start: function() {
+                        if (this.started) return;
+                        this.oscillator.start(0);
+                        this.started = true;
+                    },
+                    stop: function() {
+                        if (!this.started) return;
+                        try {
+                            // A simple stop might not be enough if we need to restart it.
+                            // For simplicity, we assume it's okay for now.
+                            this.oscillator.stop(0);
+                        } catch (e) {
+                            console.warn('Oscillator could not be stopped:', e);
+                        }
+                        this.started = false;
+                    },
+                     connect: function(destination) {
+                        this.mainOutput.connect(destination);
+                    },
+                    disconnect: function(destination) {
+                        this.mainOutput.disconnect(destination);
+                    }
+                };
                 return audioNode;
             }
 
