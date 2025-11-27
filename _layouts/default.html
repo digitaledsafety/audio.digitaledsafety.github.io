@@ -3754,72 +3754,125 @@ workspace_data: ${base64Data}
                 this.reteNodeId = reteNodeId;
                 this.data = data;
                 this.gateOpen = false;
+                this.isLooping = false;
+                this.timeoutId = null;
+                this.nextCycleTime = 0;
 
                 this.internalSource = this.audioContext.createConstantSource();
                 this.internalSource.offset.value = 1.0;
-
                 this.mainOutput = this.audioContext.createGain();
                 this.mainOutput.gain.value = 0;
-
                 this.internalSource.connect(this.mainOutput);
                 this.internalSource.start();
 
-                this.updateParameter('attack', this.data.attack || 0.1, false);
-                this.updateParameter('decay', this.data.decay || 0.1, false);
-                this.updateParameter('sustain', this.data.sustain || 0.5, false);
-                this.updateParameter('release', this.data.release || 0.2, false);
+                // Initialize parameters
+                this.updateParameter('mode', this.data.mode || 'EG');
+                this.updateParameter('attack', this.data.attack || 0.1);
+                this.updateParameter('decay', this.data.decay || 0.1);
+                this.updateParameter('sustain', this.data.sustain || 0.5);
+                this.updateParameter('release', this.data.release || 0.2);
             }
 
             handleGate(isGateHigh) {
+                if (this.data.mode === 'LFO') return;
+
                 if (isGateHigh && !this.gateOpen) {
                     this.gateOpen = true;
-                    this.trigger();
+                    if (this.data.mode === 'EG') {
+                        this.trigger();
+                    } else if (this.data.mode === 'GATE') {
+                        this.startLooping();
+                    }
                 } else if (!isGateHigh && this.gateOpen) {
                     this.gateOpen = false;
-                    this.release();
+                    if (this.data.mode === 'EG') {
+                        this.release();
+                    } else if (this.data.mode === 'GATE') {
+                        this.stopLooping();
+                    }
                 }
             }
 
             trigger() {
-                if (!this.audioContext || this.audioContext.state !== 'running') return;
-
                 const now = this.audioContext.currentTime;
                 const gainParam = this.mainOutput.gain;
+                const attackDuration = Math.max(0.001, this.data.attack);
+                const decayDuration = Math.max(0.001, this.data.decay);
+                const sustainLevel = this.data.sustain;
 
                 gainParam.cancelScheduledValues(now);
                 gainParam.setValueAtTime(gainParam.value, now);
-
-                const attackDuration = this.data.attack || 0.01;
-                const decayDuration = this.data.decay || 0.1;
-                const sustainLevel = this.data.sustain !== undefined ? this.data.sustain : 0.5;
-
                 gainParam.linearRampToValueAtTime(1.0, now + attackDuration);
                 gainParam.linearRampToValueAtTime(sustainLevel, now + attackDuration + decayDuration);
-
-                console.log(`ADSR ${this.reteNodeId} triggered.`);
             }
 
             release() {
-                if (!this.audioContext || this.audioContext.state !== 'running') return;
-
                 const now = this.audioContext.currentTime;
                 const gainParam = this.mainOutput.gain;
+                const releaseDuration = Math.max(0.001, this.data.release);
 
                 gainParam.cancelScheduledValues(now);
                 gainParam.setValueAtTime(gainParam.value, now);
-
-                const releaseDuration = this.data.release || 0.1;
                 gainParam.linearRampToValueAtTime(0, now + releaseDuration);
-                
-                console.log(`ADSR ${this.reteNodeId} released.`);
+            }
+
+            startLooping() {
+                if (this.isLooping) return;
+                this.isLooping = true;
+                this.nextCycleTime = this.audioContext.currentTime;
+                this.scheduleLoop();
+            }
+
+            stopLooping() {
+                if (!this.isLooping) return;
+                this.isLooping = false;
+                if (this.timeoutId) clearTimeout(this.timeoutId);
+                this.timeoutId = null;
+                this.release();
+            }
+
+            scheduleLoop() {
+                if (!this.isLooping) return;
+
+                const gainParam = this.mainOutput.gain;
+                const attackDuration = Math.max(0.001, this.data.attack);
+                const decayDuration = Math.max(0.001, this.data.decay);
+                const sustainLevel = this.data.sustain;
+                const releaseDuration = Math.max(0.001, this.data.release);
+                const cycleDuration = attackDuration + decayDuration + releaseDuration;
+
+                while (this.nextCycleTime < this.audioContext.currentTime + 0.1) {
+                    gainParam.setValueAtTime(0, this.nextCycleTime);
+                    gainParam.linearRampToValueAtTime(1.0, this.nextCycleTime + attackDuration);
+                    gainParam.linearRampToValueAtTime(sustainLevel, this.nextCycleTime + attackDuration + decayDuration);
+                    gainParam.linearRampToValueAtTime(0, this.nextCycleTime + cycleDuration);
+                    this.nextCycleTime += cycleDuration;
+                }
+
+                this.timeoutId = setTimeout(() => this.scheduleLoop(), 25);
             }
 
             stop() {
-                this.release(); // Ensure envelope goes to 0
+                if (this.isLooping) {
+                    this.stopLooping();
+                } else {
+                    this.release();
+                }
             }
 
             updateParameter(paramName, value) {
                 this.data[paramName] = value;
+                if (paramName === 'mode') {
+                    this.stopLooping();
+                    this.gateOpen = false;
+                    if (value === 'LFO') {
+                        this.startLooping();
+                    }
+                } else if (this.isLooping) {
+                    const now = this.audioContext.currentTime;
+                    this.mainOutput.gain.cancelScheduledValues(now);
+                    this.nextCycleTime = now;
+                }
             }
         }
 
@@ -3828,6 +3881,13 @@ workspace_data: ${base64Data}
                 super('ADSR Envelope');
                 this.addInput('gate', new Classic.Input(cvSocket, 'Gate In'));
                 this.addOutput('cv', new Classic.Output(cvSocket, 'CV Out')); // This outputs a control signal
+
+                this.data.mode = 'EG';
+                this.addControl('mode', new SelectControl('adsrMode', 'Mode', ['EG', 'GATE', 'LFO'], this.data.mode, (val) => {
+                    this.data.mode = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof ADSREnvelope) audioNode.updateParameter('mode', val);
+                }));
 
                 this.data.attack = 0.1;
                 this.addControl('attack', new SliderControl('adsrAttack', 'Attack (s)', 0.01, 2, 0.01, this.data.attack, (val) => {
