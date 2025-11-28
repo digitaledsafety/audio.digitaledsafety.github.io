@@ -20,7 +20,7 @@ layout: none
         }
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f0f2f5;
+            background-color: #ffffff;
             display: flex;
             flex-direction: column;
         }
@@ -41,26 +41,26 @@ layout: none
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
         #bottom-nav {
-            background-color: #f0f2f5;
+            background-color: #ffffff;
         }
         #bottom-nav .button {
             padding: 0.25rem 0.5rem;
         }
         .button-primary {
-            background-color: #4f46e5;
+            background-color: #f3a9a8;
             color: white;
         }
         .button-primary:hover {
-            background-color: #4338ca;
+            background-color: #ed7d7b;
             transform: translateY(-1px);
         }
         .button-secondary {
-            background-color: #e0e7ff;
-            color: #4f46e5;
-            border: 1px solid #a5b4fc;
+            background-color: #fee2e2;
+            color: #f3a9a8;
+            border: 1px solid #f3a9a8;
         }
         .button-secondary:hover {
-            background-color: #c7d2fe;
+            background-color: #fecaca;
             transform: translateY(-1px);
         }
         .button-danger {
@@ -95,7 +95,7 @@ layout: none
         }
         .node {
             background: #ffffff;
-            border: 1px solid #d1d5db;
+            border: 1px solid #fecaca;
             border-radius: 0.75rem;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
             padding: 1rem;
@@ -105,8 +105,8 @@ layout: none
             box-sizing: border-box;
         }
         .node.selected {
-            border-color: #4f46e5;
-            box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
+            border-color: #f3a9a8;
+            box-shadow: 0 4px 15px rgba(243, 169, 168, 0.3);
         }
         .node .title {
             font-weight: 600;
@@ -129,8 +129,8 @@ layout: none
             width: 16px;
             height: 16px;
             border-radius: 50%;
-            background: #9ca3af;
-            border: 2px solid #6b7280;
+            background: #fecaca;
+            border: 2px solid #f3a9a8;
             cursor: pointer;
             transition: background 0.2s ease-in-out, border-color 0.2s ease-in-out;
         }
@@ -141,8 +141,8 @@ layout: none
             margin-left: 0.5rem;
         }
         .socket:hover {
-            background: #4f46e5;
-            border-color: #4338ca;
+            background: #f3a9a8;
+            border-color: #ed7d7b;
         }
         /* Custom control styling */
         .control {
@@ -152,7 +152,7 @@ layout: none
         .control label {
             display: block;
             font-size: 0.875rem;
-            color: #ffffff;
+            color: #374151;
             margin-bottom: 0.25rem;
             text-align: center;
         }
@@ -160,7 +160,7 @@ layout: none
             width: 100%;
             -webkit-appearance: none;
             height: 8px;
-            background: #d1d5db;
+            background: #fecaca;
             border-radius: 5px;
             outline: none;
             opacity: 0.7;
@@ -186,7 +186,7 @@ layout: none
             width: 20px;
             height: 20px;
             border-radius: 50%;
-            background: #4f46e5;
+            background: #f3a9a8;
             cursor: pointer;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
         }
@@ -194,7 +194,7 @@ layout: none
             width: 20px;
             height: 20px;
             border-radius: 50%;
-            background: #4f46e5;
+            background: #f3a9a8;
             cursor: pointer;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
         }
@@ -202,9 +202,12 @@ layout: none
             min-width: 40px;
             text-align: center;
             font-weight: 500;
-            color: #ffffff;
+            color: #374151;
             font-size: 0.9rem;
             margin-top: 0.25rem;
+        }
+        .peer:checked ~ .toggle-bg {
+            background-color: #f3a9a8;
         }
         .control select {
             width: 100%;
@@ -219,14 +222,14 @@ layout: none
         .clock-indicator {
             width: 16px;
             height: 16px;
-            background-color: #777;
+            background-color: #fecaca;
             border-radius: 50%;
             margin: 10px auto;
             transition: background-color 0.05s ease-in-out;
-            border: 2px solid #333;
+            border: 2px solid #f3a9a8;
         }
         .clock-indicator.blinking {
-            background-color: #ff4500; /* Bright orange */
+            background-color: #ed7d7b;
         }
         #hero-overlay {
             position: fixed;
@@ -255,7 +258,7 @@ layout: none
         #cta-button {
             padding: 1rem 2rem;
             font-size: 1.25rem;
-            background-color: #4f46e5;
+            background-color: #f3a9a8;
             color: white;
             border: none;
             border-radius: 0.5rem;
@@ -263,7 +266,7 @@ layout: none
             transition: background-color 0.2s ease-in-out;
         }
         #cta-button:hover {
-            background-color: #4338ca;
+            background-color: #ed7d7b;
         }
     </style>
 </head>
