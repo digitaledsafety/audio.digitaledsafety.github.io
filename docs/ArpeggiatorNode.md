@@ -4,8 +4,8 @@ The Arpeggiator Node can be used to create arpeggios.
 
 ## Outputs
 
-*   **Audio**: The audio output of the node.
-*   **MIDI Out**: MIDI output.
+*   **Gate Out**: A gate signal that is high for the duration of each note in the arpeggio.
+*   **MIDI Out**: MIDI note data for each step in the arpeggio.
 
 ## Controls
 
@@ -15,4 +15,3 @@ The Arpeggiator Node can be used to create arpeggios.
 *   **Root Note**: The root note of the arpeggio.
 *   **Pattern**: The pattern of the arpeggio.
 *   **Octaves**: The number of octaves to span.
-*   **Waveform**: The waveform of the oscillator. Can be one of `sine`, `square`, `sawtooth`, or `triangle`.

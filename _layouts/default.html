@@ -1022,8 +1022,14 @@ workspace_data: ${base64Data}
                 this.midiListeners = [];
                 this.tickCount = 0;
 
+                // Gate output setup, assigned to mainOutput for connection compatibility
                 this.mainOutput = this.audioContext.createGain();
-                this.mainOutput.gain.value = 0.5;
+                this.mainOutput.gain.value = 0;
+                const gateSource = this.audioContext.createConstantSource();
+                gateSource.offset.value = 1.0;
+                gateSource.connect(this.mainOutput);
+                gateSource.start();
+
                 this.setupNotesAndScales();
             }
 
@@ -1049,7 +1055,7 @@ workspace_data: ${base64Data}
                     if (notes.length > 0) {
                         const currentStep = notes[this.currentNoteIndex];
                         const stepDuration = tickDuration * ticksPerStep;
-                        this.scheduleNote(currentStep, stepDuration * 0.9);
+                        this.triggerGate(stepDuration * 0.9, tickTime);
 
                         const midiNotesToBroadcast = Array.isArray(currentStep) ? currentStep : [currentStep];
                         if (this.midiListeners.length > 0) {
@@ -1107,30 +1113,10 @@ workspace_data: ${base64Data}
                 return patternResult;
             }
 
-            scheduleNote(midiNotes, durationSeconds) {
-                if (!this.audioContext) return;
-                const notesToPlay = Array.isArray(midiNotes) ? midiNotes : [midiNotes];
-                notesToPlay.forEach(midiNote => {
-                    const frequency = midiToFrequency(midiNote);
-                    const osc = this.audioContext.createOscillator();
-                    const gainNode = this.audioContext.createGain();
-                    osc.type = this.data.waveform || 'sine';
-                    osc.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
-                    const attackTime = 0.01, releaseTime = 0.1, rampTime = 0.001;
-                    gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
-                    gainNode.gain.linearRampToValueAtTime(0.3 / notesToPlay.length, this.audioContext.currentTime + attackTime);
-                    let myRampTime = this.audioContext.currentTime + durationSeconds - releaseTime;
-                    gainNode.gain.exponentialRampToValueAtTime(rampTime, ((myRampTime < rampTime) ? rampTime : myRampTime));
-                    gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + durationSeconds);
-                    osc.connect(gainNode);
-                    gainNode.connect(this.mainOutput);
-                    osc.start(this.audioContext.currentTime);
-                    osc.stop(this.audioContext.currentTime + durationSeconds);
-                    osc.onended = () => {
-                        osc.disconnect();
-                        gainNode.disconnect();
-                    };
-                });
+            triggerGate(durationSeconds, startTime) {
+                this.mainOutput.gain.cancelScheduledValues(startTime);
+                this.mainOutput.gain.setValueAtTime(1.0, startTime);
+                this.mainOutput.gain.setValueAtTime(0.0, startTime + durationSeconds);
             }
 
             start() {
@@ -1166,7 +1152,7 @@ workspace_data: ${base64Data}
 
                 while (this.nextStepTime < this.audioContext.currentTime + 0.1) {
                     const midiNote = notes[this.currentNoteIndex];
-                    this.scheduleNote(midiNote, stepDuration);
+                    this.triggerGate(stepDuration, this.nextStepTime);
 
                     if (this.midiListeners.length > 0) {
                         const midiNotesToBroadcast = Array.isArray(midiNote) ? midiNote : [midiNote];
@@ -2563,9 +2549,13 @@ workspace_data: ${base64Data}
                 this.tickListeners = [];
                 this.tickCount = 0;
 
-                // Master gain for the Arpeggiator output
+                // Gate output setup, assigned to mainOutput for connection compatibility
                 this.mainOutput = this.audioContext.createGain();
-                this.mainOutput.gain.value = 0.5; // Default volume for arpeggiator
+                this.mainOutput.gain.value = 0;
+                const gateSource = this.audioContext.createConstantSource();
+                gateSource.offset.value = 1.0;
+                gateSource.connect(this.mainOutput);
+                gateSource.start();
 
                 this.setupNotesAndChords();
             }
@@ -2619,8 +2609,7 @@ workspace_data: ${base64Data}
                         const currentStep = notes[this.currentNoteIndex];
                         const stepDuration = tickDuration * ticksPerStep;
 
-                        // Schedule the note to play. Play it slightly shorter than the full step duration for a staccato effect.
-                        this.scheduleNote(currentStep, stepDuration * 0.9);
+                        this.triggerGate(stepDuration * 0.9, tickTime);
 
                         const midiNotesToBroadcast = Array.isArray(currentStep) ? currentStep : [currentStep];
                         if (this.midiListeners.length > 0) {
@@ -2766,42 +2755,10 @@ workspace_data: ${base64Data}
                 return patternResult;
             }
 
-            scheduleNote(midiNotes, durationSeconds) {
-                if (!this.audioContext) return;
-
-                // Ensure midiNotes is always an array
-                const notesToPlay = Array.isArray(midiNotes) ? midiNotes : [midiNotes];
-
-                notesToPlay.forEach(midiNote => {
-                    const frequency = midiToFrequency(midiNote);
-                    const osc = this.audioContext.createOscillator();
-                    const gainNode = this.audioContext.createGain();
-
-                    osc.type = this.data.waveform || 'sine';
-                    osc.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
-
-                    const attackTime = 0.01;
-                    const releaseTime = 0.1;
-                    const rampTime = 0.001;
-
-                    gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
-                    gainNode.gain.linearRampToValueAtTime(0.3 / notesToPlay.length, this.audioContext.currentTime + attackTime);
-
-                    let myRampTime = this.audioContext.currentTime + durationSeconds - releaseTime;
-                    gainNode.gain.exponentialRampToValueAtTime(rampTime, ((myRampTime < rampTime) ? rampTime : myRampTime));
-                    gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + durationSeconds);
-
-                    osc.connect(gainNode);
-                    gainNode.connect(this.mainOutput);
-
-                    osc.start(this.audioContext.currentTime);
-                    osc.stop(this.audioContext.currentTime + durationSeconds);
-
-                    osc.onended = () => {
-                        osc.disconnect();
-                        gainNode.disconnect();
-                    };
-                });
+            triggerGate(durationSeconds, startTime) {
+                this.mainOutput.gain.cancelScheduledValues(startTime);
+                this.mainOutput.gain.setValueAtTime(1.0, startTime);
+                this.mainOutput.gain.setValueAtTime(0.0, startTime + durationSeconds);
             }
 
             start() {
@@ -2837,7 +2794,8 @@ workspace_data: ${base64Data}
 
                 while (this.nextStepTime < this.audioContext.currentTime + 0.1) {
                     const midiNote = notes[this.currentNoteIndex];
-                    this.scheduleNote(midiNote, stepDuration);
+
+                    this.triggerGate(stepDuration, this.nextStepTime);
 
                     if (this.midiListeners.length > 0) {
                         const midiNotesToBroadcast = Array.isArray(midiNote) ? midiNote : [midiNote];
@@ -2874,7 +2832,7 @@ workspace_data: ${base64Data}
                 super('Arpeggiator');
                 this.addInput('clock', new Classic.Input(clockSocket, 'Clock In'));
                 this.addInput('midi', new Classic.Input(midiSocket, 'MIDI In'));
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
+                this.addOutput('gateOut', new Classic.Output(cvSocket, 'Gate Out'));
                 this.addOutput('midi', new Classic.Output(midiSocket, 'MIDI Out'));
 
                 this.data.bpm = 120;
@@ -2920,14 +2878,6 @@ workspace_data: ${base64Data}
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.updateParameter) audioNode.updateParameter('octaveRange', val);
                 }));
-
-                this.data.waveform = 'sine';
-                this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveform, (val) => {
-                    this.data.waveform = val;
-                    // Arpeggiator's internal oscillators will pick this up
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('waveform', val);
-                }));
             }
 
             build() {
@@ -2964,9 +2914,13 @@ workspace_data: ${base64Data}
                 this.sequenceEvents = null;
                 this.midiListeners = [];
 
-                // Master gain for the Sequencer output
+                // Gate output setup, assigned to mainOutput for connection compatibility
                 this.mainOutput = this.audioContext.createGain();
-                this.mainOutput.gain.value = 0.5; // Default volume for sequencer
+                this.mainOutput.gain.value = 0;
+                const gateSource = this.audioContext.createConstantSource();
+                gateSource.offset.value = 1.0;
+                gateSource.connect(this.mainOutput);
+                gateSource.start();
 
                 this.setupNotes();
             }
@@ -3001,23 +2955,24 @@ workspace_data: ${base64Data}
                         return;
                     }
 
-                    // For external clock, we ignore the sequence's own timing modifiers and just use the UI control.
-                    // The note duration is one step long.
                     const stepDuration = tickDuration * ticksPerStep;
-
                     const midiNotesToBroadcast = [];
+                    let hasNote = false;
+
                      if (Array.isArray(event)) {
                         for (const note of event) {
                             if (note.midi !== null) {
-                                this.scheduleNote(note.midi, stepDuration * 0.9);
+                                hasNote = true;
                                 midiNotesToBroadcast.push(note.midi);
                             }
                         }
-                    } else {
-                        if (event.midi !== null) {
-                            this.scheduleNote(event.midi, stepDuration * 0.9);
-                            midiNotesToBroadcast.push(event.midi);
-                        }
+                    } else if (event && event.midi !== null) {
+                        hasNote = true;
+                        midiNotesToBroadcast.push(event.midi);
+                    }
+
+                    if (hasNote) {
+                        this.triggerGate(stepDuration * 0.9, tickTime);
                     }
 
                     if (this.midiListeners.length > 0 && midiNotesToBroadcast.length > 0) {
@@ -3210,40 +3165,10 @@ workspace_data: ${base64Data}
                     };
             }
 
-            scheduleNote(midiNote, durationSeconds) {
-                if (!this.audioContext) return;
-
-                const frequency = midiToFrequency(midiNote);
-                const osc = this.audioContext.createOscillator();
-                const gainNode = this.audioContext.createGain();
-
-                osc.type = this.data.waveform || 'sine'; // Use waveform from node data
-                osc.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
-
-                // Simple ADSR-like envelope (Attack and Release)
-                const attackTime = 0.01;
-                const releaseTime = 0.1;
-                const rampTime = 0.001;
-
-                gainNode.gain.setValueAtTime(0, this.audioContext.currentTime); // Start at 0
-                gainNode.gain.linearRampToValueAtTime(0.3, this.audioContext.currentTime + attackTime); // Attack
-
-                let myRampTime = this.audioContext.currentTime + durationSeconds - releaseTime;
-                // Error when myRampTime less than 0.001
-                gainNode.gain.exponentialRampToValueAtTime(rampTime, ((myRampTime < rampTime) ? rampTime : myRampTime)); // Release
-                gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + durationSeconds); // Turn off
-
-                osc.connect(gainNode);
-                gainNode.connect(this.mainOutput); // Connect to sequencer's main output
-
-                osc.start(this.audioContext.currentTime);
-                osc.stop(this.audioContext.currentTime + durationSeconds);
-
-                // Clean up nodes after they stop
-                osc.onended = () => {
-                    osc.disconnect();
-                    gainNode.disconnect();
-                };
+            triggerGate(durationSeconds, startTime) {
+                this.mainOutput.gain.cancelScheduledValues(startTime);
+                this.mainOutput.gain.setValueAtTime(1.0, startTime);
+                this.mainOutput.gain.setValueAtTime(0.0, startTime + durationSeconds);
             }
 
             start() {
@@ -3286,19 +3211,23 @@ workspace_data: ${base64Data}
                     const secondsPerBeat = 60.0 / bpm;
                     const stepDuration = secondsPerBeat * 4 * baseNoteDuration * (1 / representativeEvent.speed) * representativeEvent.duration;
                     const midiNotesToBroadcast = [];
+                    let hasNote = false;
 
-                    if (Array.isArray(event)) {
+                     if (Array.isArray(event)) {
                         for (const note of event) {
                             if (note.midi !== null) {
-                                this.scheduleNote(note.midi, stepDuration * note.elongation);
+                                hasNote = true;
                                 midiNotesToBroadcast.push(note.midi);
                             }
                         }
-                    } else {
-                        if (event.midi !== null) {
-                             this.scheduleNote(event.midi, stepDuration * event.elongation);
-                             midiNotesToBroadcast.push(event.midi);
-                        }
+                    } else if (representativeEvent && representativeEvent.midi !== null) {
+                        hasNote = true;
+                        midiNotesToBroadcast.push(representativeEvent.midi);
+                    }
+
+                    if (hasNote) {
+                        const duration = stepDuration * representativeEvent.elongation;
+                        this.triggerGate(duration, this.nextStepTime);
                     }
 
                     if (this.midiListeners.length > 0 && midiNotesToBroadcast.length > 0) {
@@ -3335,7 +3264,7 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Sequencer');
                 this.addInput('clock', new Classic.Input(clockSocket, 'Clock In'));
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
+                this.addOutput('gateOut', new Classic.Output(cvSocket, 'Gate Out'));
                 this.addOutput('midi', new Classic.Output(midiSocket, 'MIDI Out'));
 
                 this.data.bpm = 120;
@@ -4137,7 +4066,7 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Scale Arpeggiator');
                 this.addInput('clock', new Classic.Input(clockSocket, 'Clock In'));
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
+                this.addOutput('gateOut', new Classic.Output(cvSocket, 'Gate Out'));
                 this.addOutput('midi', new Classic.Output(midiSocket, 'MIDI Out'));
 
                 this.data.bpm = 120;
@@ -4181,13 +4110,6 @@ workspace_data: ${base64Data}
                     this.data.octaveRange = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.updateParameter) audioNode.updateParameter('octaveRange', val);
-                }));
-
-                this.data.waveform = 'sine';
-                this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveform, (val) => {
-                    this.data.waveform = val;
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('waveform', val);
                 }));
             }
 
