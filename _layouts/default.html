@@ -880,6 +880,36 @@ workspace_data: ${base64Data}
             return 440 * Math.pow(2, (midiNote - 69) / 12);
         }
 
+        function applyADSR(gainNode, adsrData, durationSeconds, audioContext, maxGain = 1.0) {
+            const now = audioContext.currentTime;
+            const gainParam = gainNode.gain;
+
+            const attackDuration = Math.max(0.001, adsrData.attack || 0.01);
+            const decayDuration = Math.max(0.001, adsrData.decay || 0.1);
+            const sustainLevel = (adsrData.sustain !== undefined ? adsrData.sustain : 0.5) * maxGain;
+            const releaseDuration = Math.max(0.001, adsrData.release || 0.1);
+
+            gainParam.cancelScheduledValues(now);
+            gainParam.setValueAtTime(0, now); // Start from silence
+
+            // Attack
+            gainParam.linearRampToValueAtTime(maxGain, now + attackDuration);
+
+            // Decay to Sustain
+            gainParam.linearRampToValueAtTime(sustainLevel, now + attackDuration + decayDuration);
+
+            // Release
+            const releaseStartTime = now + durationSeconds - releaseDuration;
+            if (releaseStartTime > now + attackDuration + decayDuration) {
+                // Hold sustain level until it's time to release
+                gainParam.setValueAtTime(sustainLevel, releaseStartTime);
+                gainParam.linearRampToValueAtTime(0, releaseStartTime + releaseDuration);
+            } else {
+                // If release overlaps with attack/decay, just ramp down from wherever it is
+                gainParam.linearRampToValueAtTime(0, now + durationSeconds);
+            }
+        }
+
         // --- Web Audio API Management ---
 
         /**
@@ -1116,12 +1146,15 @@ workspace_data: ${base64Data}
                     const gainNode = this.audioContext.createGain();
                     osc.type = this.data.waveform || 'sine';
                     osc.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
-                    const attackTime = 0.01, releaseTime = 0.1, rampTime = 0.001;
-                    gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
-                    gainNode.gain.linearRampToValueAtTime(0.3 / notesToPlay.length, this.audioContext.currentTime + attackTime);
-                    let myRampTime = this.audioContext.currentTime + durationSeconds - releaseTime;
-                    gainNode.gain.exponentialRampToValueAtTime(rampTime, ((myRampTime < rampTime) ? rampTime : myRampTime));
-                    gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + durationSeconds);
+
+                    const adsrData = {
+                        attack: this.data.attack,
+                        decay: this.data.decay,
+                        sustain: this.data.sustain,
+                        release: this.data.release
+                    };
+                    applyADSR(gainNode, adsrData, durationSeconds, this.audioContext, 0.3 / notesToPlay.length);
+
                     osc.connect(gainNode);
                     gainNode.connect(this.mainOutput);
                     osc.start(this.audioContext.currentTime);
@@ -2769,9 +2802,7 @@ workspace_data: ${base64Data}
             scheduleNote(midiNotes, durationSeconds) {
                 if (!this.audioContext) return;
 
-                // Ensure midiNotes is always an array
                 const notesToPlay = Array.isArray(midiNotes) ? midiNotes : [midiNotes];
-
                 notesToPlay.forEach(midiNote => {
                     const frequency = midiToFrequency(midiNote);
                     const osc = this.audioContext.createOscillator();
@@ -2780,20 +2811,16 @@ workspace_data: ${base64Data}
                     osc.type = this.data.waveform || 'sine';
                     osc.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
 
-                    const attackTime = 0.01;
-                    const releaseTime = 0.1;
-                    const rampTime = 0.001;
-
-                    gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
-                    gainNode.gain.linearRampToValueAtTime(0.3 / notesToPlay.length, this.audioContext.currentTime + attackTime);
-
-                    let myRampTime = this.audioContext.currentTime + durationSeconds - releaseTime;
-                    gainNode.gain.exponentialRampToValueAtTime(rampTime, ((myRampTime < rampTime) ? rampTime : myRampTime));
-                    gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + durationSeconds);
+                    const adsrData = {
+                        attack: this.data.attack,
+                        decay: this.data.decay,
+                        sustain: this.data.sustain,
+                        release: this.data.release
+                    };
+                    applyADSR(gainNode, adsrData, durationSeconds, this.audioContext, 0.3 / notesToPlay.length);
 
                     osc.connect(gainNode);
                     gainNode.connect(this.mainOutput);
-
                     osc.start(this.audioContext.currentTime);
                     osc.stop(this.audioContext.currentTime + durationSeconds);
 
@@ -2928,6 +2955,42 @@ workspace_data: ${base64Data}
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.updateParameter) audioNode.updateParameter('waveform', val);
                 }));
+
+                // ADSR Controls
+                this.data.showEnvelope = false;
+                this.data.attack = 0.01;
+                this.data.decay = 0.1;
+                this.data.sustain = 0.5;
+                this.data.release = 0.1;
+
+                this.addControl('envelopeToggle', new ButtonControl('envelopeToggle', 'Envelope', () => {
+                    this.data.showEnvelope = !this.data.showEnvelope;
+                    this.controls.attack.hidden = !this.data.showEnvelope;
+                    this.controls.decay.hidden = !this.data.showEnvelope;
+                    this.controls.sustain.hidden = !this.data.showEnvelope;
+                    this.controls.release.hidden = !this.data.showEnvelope;
+                    area.update('node', this.id);
+                }));
+
+                this.addControl('attack', new SliderControl('arpAttack', 'Attack (s)', 0.01, 2, 0.01, this.data.attack, (val) => {
+                    this.data.attack = val;
+                }));
+                this.controls.attack.hidden = true;
+
+                this.addControl('decay', new SliderControl('arpDecay', 'Decay (s)', 0.01, 2, 0.01, this.data.decay, (val) => {
+                    this.data.decay = val;
+                }));
+                this.controls.decay.hidden = true;
+
+                this.addControl('sustain', new SliderControl('arpSustain', 'Sustain', 0, 1, 0.01, this.data.sustain, (val) => {
+                    this.data.sustain = val;
+                }));
+                this.controls.sustain.hidden = true;
+
+                this.addControl('release', new SliderControl('arpRelease', 'Release (s)', 0.01, 5, 0.01, this.data.release, (val) => {
+                    this.data.release = val;
+                }));
+                this.controls.release.hidden = true;
             }
 
             build() {
@@ -3217,29 +3280,23 @@ workspace_data: ${base64Data}
                 const osc = this.audioContext.createOscillator();
                 const gainNode = this.audioContext.createGain();
 
-                osc.type = this.data.waveform || 'sine'; // Use waveform from node data
+                osc.type = this.data.waveform || 'sine';
                 osc.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
 
-                // Simple ADSR-like envelope (Attack and Release)
-                const attackTime = 0.01;
-                const releaseTime = 0.1;
-                const rampTime = 0.001;
-
-                gainNode.gain.setValueAtTime(0, this.audioContext.currentTime); // Start at 0
-                gainNode.gain.linearRampToValueAtTime(0.3, this.audioContext.currentTime + attackTime); // Attack
-
-                let myRampTime = this.audioContext.currentTime + durationSeconds - releaseTime;
-                // Error when myRampTime less than 0.001
-                gainNode.gain.exponentialRampToValueAtTime(rampTime, ((myRampTime < rampTime) ? rampTime : myRampTime)); // Release
-                gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + durationSeconds); // Turn off
+                const adsrData = {
+                    attack: this.data.attack,
+                    decay: this.data.decay,
+                    sustain: this.data.sustain,
+                    release: this.data.release
+                };
+                applyADSR(gainNode, adsrData, durationSeconds, this.audioContext, 0.3);
 
                 osc.connect(gainNode);
-                gainNode.connect(this.mainOutput); // Connect to sequencer's main output
+                gainNode.connect(this.mainOutput);
 
                 osc.start(this.audioContext.currentTime);
                 osc.stop(this.audioContext.currentTime + durationSeconds);
 
-                // Clean up nodes after they stop
                 osc.onended = () => {
                     osc.disconnect();
                     gainNode.disconnect();
@@ -3365,6 +3422,42 @@ workspace_data: ${base64Data}
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.updateParameter) audioNode.updateParameter('waveform', val);
                 }));
+
+                // ADSR Controls
+                this.data.showEnvelope = false;
+                this.data.attack = 0.01;
+                this.data.decay = 0.1;
+                this.data.sustain = 0.5;
+                this.data.release = 0.1;
+
+                this.addControl('envelopeToggle', new ButtonControl('envelopeToggle', 'Envelope', () => {
+                    this.data.showEnvelope = !this.data.showEnvelope;
+                    this.controls.attack.hidden = !this.data.showEnvelope;
+                    this.controls.decay.hidden = !this.data.showEnvelope;
+                    this.controls.sustain.hidden = !this.data.showEnvelope;
+                    this.controls.release.hidden = !this.data.showEnvelope;
+                    area.update('node', this.id);
+                }));
+
+                this.addControl('attack', new SliderControl('seqAttack', 'Attack (s)', 0.01, 2, 0.01, this.data.attack, (val) => {
+                    this.data.attack = val;
+                }));
+                this.controls.attack.hidden = true;
+
+                this.addControl('decay', new SliderControl('seqDecay', 'Decay (s)', 0.01, 2, 0.01, this.data.decay, (val) => {
+                    this.data.decay = val;
+                }));
+                this.controls.decay.hidden = true;
+
+                this.addControl('sustain', new SliderControl('seqSustain', 'Sustain', 0, 1, 0.01, this.data.sustain, (val) => {
+                    this.data.sustain = val;
+                }));
+                this.controls.sustain.hidden = true;
+
+                this.addControl('release', new SliderControl('seqRelease', 'Release (s)', 0.01, 5, 0.01, this.data.release, (val) => {
+                    this.data.release = val;
+                }));
+                this.controls.release.hidden = true;
             }
 
             build() {
@@ -4528,6 +4621,8 @@ workspace_data: ${base64Data}
                 // Add controls
                 for (const key in node.controls) {
                     const control = node.controls[key];
+                    if (control.hidden) continue; // Skip rendering if hidden
+
                     const controlEl = document.createElement('div');
                     controlEl.className = 'control';
 
