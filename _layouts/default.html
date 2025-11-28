@@ -1248,6 +1248,15 @@ workspace_data: ${base64Data}
                         console.warn(`Arpeggiator for node ${id} could not be stopped.`, e);
                     }
                 }
+
+                // Stop master clock (hard stop)
+                if (reteNode && reteNode.label === 'Master Clock' && audioNode.started) {
+                    try {
+                        reteNode.stop(); // This will call the new immediateStop method
+                    } catch (e) {
+                        console.warn(`Master Clock for node ${id} could not be stopped.`, e);
+                    }
+                }
                 
                 // Disconnect each main audio node from the graph (for Arpeggiator, this would be its master gain)
                 try {
@@ -1733,6 +1742,12 @@ workspace_data: ${base64Data}
             }
         }
 
+        class GeneratorNode extends ModulatorNode {
+            constructor(label) {
+                super(label);
+            }
+        }
+
         class WebAudioConnection extends Classic.Connection { }
 
         // Define a custom control for sliders
@@ -1973,7 +1988,7 @@ workspace_data: ${base64Data}
             }
         }
 
-        class ManualGateNode extends ModulatorNode {
+        class ManualGateNode extends GeneratorNode {
             constructor() {
                 super('Manual Gate');
                 this.addOutput('out', new Classic.Output(cvSocket, 'Gate Out'));
@@ -3376,6 +3391,7 @@ workspace_data: ${base64Data}
                 this.reteNodeId = reteNodeId;
                 this.data = data;
                 this.started = false;
+                this.stopping = false;
                 this.tickListeners = [];
                 this.timeoutId = null;
                 this.nextStepTime = 0;
@@ -3398,27 +3414,48 @@ workspace_data: ${base64Data}
             start() {
                 if (this.started || !this.audioContext) return;
                 this.started = true;
+                this.stopping = false;
+                this.beatCount = 0; // Reset beat count on start
                 this.nextStepTime = this.audioContext.currentTime;
                 this.schedule();
             }
 
             stop() {
-                if (!this.started) return;
+                if (!this.started || this.stopping) return;
+                this.stopping = true;
+            }
+
+            _internalStop() {
                 clearTimeout(this.timeoutId);
                 this.timeoutId = null;
                 this.started = false;
+                this.stopping = false;
+
+                // Update the UI toggle control to reflect the stopped state
+                const reteNode = editor.getNode(this.reteNodeId);
+                if (reteNode && reteNode.controls.running) {
+                    reteNode.controls.running.value = false;
+                    reteNode.data.running = false;
+                    area.update('node', this.reteNodeId);
+                }
             }
 
             schedule() {
                 if (!this.started) return;
 
                 const bpm = this.data.bpm || 120;
-                const ppqn = 24;
+                const ppqn = 24; // Pulses per quarter note
+                const ticksPerMeasure = ppqn * 4; // Assuming 4/4 time
                 const secondsPerBeat = 60.0 / bpm;
                 const tickDuration = secondsPerBeat / ppqn;
 
                 while (this.nextStepTime < this.audioContext.currentTime + 0.1) {
-                    if (this.beatCount % ppqn === 0) { // Trigger on the beat
+                    if (this.stopping && this.beatCount % ticksPerMeasure === 0) {
+                        this._internalStop();
+                        return;
+                    }
+
+                    if (this.beatCount % ppqn === 0) { // Visual blink on the beat
                         const indicator = document.querySelector(`[data-node-id='${this.reteNodeId}'] .clock-indicator`);
                         if (indicator) {
                             indicator.classList.add('blinking');
@@ -3440,7 +3477,7 @@ workspace_data: ${base64Data}
             }
         }
 
-        class MasterClockNode extends ModulatorNode {
+        class MasterClockNode extends GeneratorNode {
             constructor() {
                 super('Master Clock');
                 this.addOutput('clock', new Classic.Output(clockSocket, 'Clock Out'));
@@ -3454,17 +3491,16 @@ workspace_data: ${base64Data}
                     if (audioNode) audioNode.updateParameter('bpm', val);
                 }));
 
-                this.addControl('startStop', new ButtonControl('startStopBtn', 'Start', () => {
+                this.data.running = false;
+                this.addControl('running', new ToggleControl('running', 'Enabled', this.data.running, (val) => {
+                    this.data.running = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode) {
-                        if (audioNode.started) {
-                            audioNode.stop();
-                            this.controls.startStop.label = 'Start';
-                        } else {
+                        if (val) {
                             audioNode.start();
-                            this.controls.startStop.label = 'Stop';
+                        } else {
+                            audioNode.stop();
                         }
-                        area.update('node', this.id);
                     }
                 }));
             }
@@ -3474,14 +3510,12 @@ workspace_data: ${base64Data}
             }
 
             start() {
-                const audioNode = reteAudioNodes.get(this.id);
-                if (audioNode && audioNode.start && !audioNode.started) {
-                    try {
+                // This method is called when the main transport starts.
+                // We check if the node's own state was 'running' when the workspace was saved.
+                if (this.data.running) {
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && !audioNode.started) {
                         audioNode.start();
-                        this.controls.startStop.label = 'Stop';
-                        area.update('node', this.id);
-                    } catch (e) {
-                        console.warn(`Could not start ${this.label} for node ${this.id}:`, e);
                     }
                 }
             }
