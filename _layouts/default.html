@@ -1370,7 +1370,7 @@ workspace_data: ${base64Data}
                     const source = sourceAudioNode.mainOutput ? sourceAudioNode.mainOutput : sourceAudioNode;
                     const strategy = getDisconnectionStrategy(targetReteNode, connection.targetInput, connection.sourceOutput.socket);
                     try {
-                        if (connection.sourceOutput.socket === midiSocket || connection.targetInput === 'gate') {
+                        if (connection.targetInput === "clock" || connection.sourceOutput.socket === midiSocket || connection.targetInput === 'gate') {
                             strategy.disconnect(sourceReteNode, targetAudioNode, connection.targetInput);
                         } else {
                             strategy.disconnect(source, targetAudioNode, connection.targetInput);
@@ -1395,7 +1395,7 @@ workspace_data: ${base64Data}
 
                     if (strategy) {
                         try {
-                            if (connection.sourceOutput.socket === midiSocket || connection.targetInput === 'gate') {
+                            if (connection.targetInput === "clock" || connection.sourceOutput.socket === midiSocket || connection.targetInput === 'gate') {
                                 strategy.connect(sourceReteNode, targetAudioNode, connection.targetInput);
                             } else {
                                 strategy.connect(source, targetAudioNode, connection.targetInput);
