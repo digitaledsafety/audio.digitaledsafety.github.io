@@ -4,7 +4,7 @@ The Scale Arpeggiator Node generates a sequence of notes based on a selected mus
 
 ## Outputs
 
-*   **Audio**: The audio output of the internal synthesizer.
+*   **Gate Out**: A gate signal that is high for the duration of each note in the arpeggio.
 *   **MIDI Out**: Outputs the MIDI note numbers of the arpeggiated sequence.
 
 ## Controls
@@ -15,4 +15,3 @@ The Scale Arpeggiator Node generates a sequence of notes based on a selected mus
 *   **Root Note**: The starting note of the scale.
 *   **Pattern**: The order in which the notes of the scale are played (e.g., Up, Down, Up-Down, Random).
 *   **Octaves**: The number of octaves the arpeggio will span.
-*   **Waveform**: The oscillator waveform for the internal synthesizer.
