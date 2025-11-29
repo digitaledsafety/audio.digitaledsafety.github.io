@@ -2027,12 +2027,14 @@ workspace_data: ${base64Data}
                 this.addOutput('out', new Classic.Output(cvSocket, 'Gate Out'));
 
                 this.data.value = false;
-                this.addControl('value', new ToggleControl('toggle', 'Active', this.data.value, (val) => {
-                    this.data.value = val;
+                this.addControl('value', new ButtonControl('valueBtn', 'Low', () => {
+                    this.data.value = !this.data.value;
+                    this.controls.value.label = this.data.value ? 'High' : 'Low';
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode) {
-                        audioNode.updateParameter('value', val);
+                        audioNode.updateParameter('value', this.data.value);
                     }
+                    area.update('node', this.id);
                 }));
             }
 
@@ -2076,6 +2078,7 @@ workspace_data: ${base64Data}
                         }
                     }
                 }));
+                this.blinkInterval = null;
             }
 
             build() {
@@ -3548,14 +3551,8 @@ workspace_data: ${base64Data}
                         return;
                     }
 
-                    if (this.beatCount % ppqn === 0) { // Visual blink on the beat
-                        const indicator = document.querySelector(`[data-node-id='${this.reteNodeId}'] .clock-indicator`);
-                        if (indicator) {
-                            indicator.classList.add('blinking');
-                            setTimeout(() => indicator.classList.remove('blinking'), 50);
-                        }
-                    }
-
+                    // The MasterClockNode will now handle its own visual updates.
+                    // This MasterClock class is only responsible for the audio-rate scheduling.
                     this.tickListeners.forEach(listener => listener(this.nextStepTime, tickDuration));
                     this.nextStepTime += tickDuration;
                     this.beatCount++;
@@ -3585,16 +3582,15 @@ workspace_data: ${base64Data}
                 }));
 
                 this.data.running = false;
-                this.addControl('running', new ToggleControl('running', 'Enabled', this.data.running, (val) => {
-                    this.data.running = val;
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode) {
-                        if (val) {
-                            audioNode.start();
-                        } else {
-                            audioNode.stop();
-                        }
+                this.addControl('running', new ButtonControl('runningBtn', 'Start', () => {
+                    this.data.running = !this.data.running;
+                    this.controls.running.label = this.data.running ? 'Stop' : 'Start';
+                    if (this.data.running) {
+                        this.start();
+                    } else {
+                        this.stop();
                     }
+                    area.update('node', this.id);
                 }));
             }
 
@@ -3603,13 +3599,37 @@ workspace_data: ${base64Data}
             }
 
             start() {
-                // This method is called when the main transport starts.
-                // We check if the node's own state was 'running' when the workspace was saved.
                 if (this.data.running) {
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && !audioNode.started) {
                         audioNode.start();
                     }
+                    // Start visual blinking
+                    if (!this.blinkInterval) {
+                        this.blinkInterval = setInterval(() => {
+                            const audioNode = reteAudioNodes.get(this.id);
+                            if (audioNode && audioNode.started) {
+                                const beatsPerSecond = (this.data.bpm || 120) / 60;
+                                const indicator = document.querySelector(`[data-node-id='${this.id}'] .clock-indicator`);
+                                if (indicator) {
+                                    indicator.classList.add('blinking');
+                                    setTimeout(() => indicator.classList.remove('blinking'), 50);
+                                }
+                            }
+                        }, 1000 / ((this.data.bpm || 120) / 60));
+                    }
+                }
+            }
+
+            stop() {
+                // This is a hard stop from the main transport control
+                const audioNode = reteAudioNodes.get(this.id);
+                if (audioNode && audioNode.started) {
+                    audioNode._internalStop(); // Use internal stop for immediate halt
+                }
+                if (this.blinkInterval) {
+                    clearInterval(this.blinkInterval);
+                    this.blinkInterval = null;
                 }
             }
         }
@@ -5044,6 +5064,9 @@ workspace_data: ${base64Data}
                     multiplayer.broadcast(workspaceData);
                 }                
                 if (context.type === 'rendered' && context.data.type === 'node') {
+                    // Add a data-node-id attribute to the node's root element for easier DOM selection
+                    context.data.element.setAttribute('data-node-id', context.data.payload.id);
+
                     // Check if node data is valid and it's a known node type
                     if (context.data.payload instanceof WebAudioNode) {
                         // Guard clause: Rete's React renderer might not have created the child elements yet.
