@@ -1148,10 +1148,10 @@ workspace_data: ${base64Data}
                     osc.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
 
                     const adsrData = {
-                        attack: this.data.attack,
-                        decay: this.data.decay,
-                        sustain: this.data.sustain,
-                        release: this.data.release
+                        attack: this.data.attack || 0.01,
+                        decay: this.data.decay || 0.1,
+                        sustain: this.data.sustain || 0.5,
+                        release: this.data.release || 0.1
                     };
                     applyADSR(gainNode, adsrData, durationSeconds, this.audioContext, 0.3 / notesToPlay.length);
 
@@ -2975,12 +2975,12 @@ workspace_data: ${base64Data}
                     area.update('node', this.id);
                 }));
 
-                this.addControl('attack', new SliderControl('arpAttack', 'Attack (s)', 0.01, 2, 0.01, this.data.attack, (val) => {
+                this.addControl('attack', new SliderControl('arpAttack', 'Attack (s)', 0.01, 1, 0.01, this.data.attack, (val) => {
                     this.data.attack = val;
                 }));
                 this.controls.attack.hidden = true;
 
-                this.addControl('decay', new SliderControl('arpDecay', 'Decay (s)', 0.01, 2, 0.01, this.data.decay, (val) => {
+                this.addControl('decay', new SliderControl('arpDecay', 'Decay (s)', 0.01, 1, 0.01, this.data.decay, (val) => {
                     this.data.decay = val;
                 }));
                 this.controls.decay.hidden = true;
@@ -2990,7 +2990,7 @@ workspace_data: ${base64Data}
                 }));
                 this.controls.sustain.hidden = true;
 
-                this.addControl('release', new SliderControl('arpRelease', 'Release (s)', 0.01, 5, 0.01, this.data.release, (val) => {
+                this.addControl('release', new SliderControl('arpRelease', 'Release (s)', 0.01, 2, 0.01, this.data.release, (val) => {
                     this.data.release = val;
                 }));
                 this.controls.release.hidden = true;
@@ -3442,12 +3442,12 @@ workspace_data: ${base64Data}
                     area.update('node', this.id);
                 }));
 
-                this.addControl('attack', new SliderControl('seqAttack', 'Attack (s)', 0.01, 2, 0.01, this.data.attack, (val) => {
+                this.addControl('attack', new SliderControl('seqAttack', 'Attack (s)', 0.01, 1, 0.01, this.data.attack, (val) => {
                     this.data.attack = val;
                 }));
                 this.controls.attack.hidden = true;
 
-                this.addControl('decay', new SliderControl('seqDecay', 'Decay (s)', 0.01, 2, 0.01, this.data.decay, (val) => {
+                this.addControl('decay', new SliderControl('seqDecay', 'Decay (s)', 0.01, 1, 0.01, this.data.decay, (val) => {
                     this.data.decay = val;
                 }));
                 this.controls.decay.hidden = true;
@@ -3457,7 +3457,7 @@ workspace_data: ${base64Data}
                 }));
                 this.controls.sustain.hidden = true;
 
-                this.addControl('release', new SliderControl('seqRelease', 'Release (s)', 0.01, 5, 0.01, this.data.release, (val) => {
+                this.addControl('release', new SliderControl('seqRelease', 'Release (s)', 0.01, 2, 0.01, this.data.release, (val) => {
                     this.data.release = val;
                 }));
                 this.controls.release.hidden = true;
@@ -4036,7 +4036,7 @@ workspace_data: ${base64Data}
                     if (audioNode instanceof ADSREnvelope) audioNode.updateParameter('mode', val);
                 }));
 
-                this.data.attack = 0.1;
+                this.data.attack = 0.01;
                 this.addControl('attack', new SliderControl('adsrAttack', 'Attack (s)', 0.01, 2, 0.01, this.data.attack, (val) => {
                     this.data.attack = val;
                     const audioNode = reteAudioNodes.get(this.id);
@@ -4057,7 +4057,7 @@ workspace_data: ${base64Data}
                     if (audioNode instanceof ADSREnvelope) audioNode.updateParameter('sustain', val);
                 }));
 
-                this.data.release = 0.2;
+                this.data.release = 0.1;
                 this.addControl('release', new SliderControl('adsrRelease', 'Release (s)', 0.01, 5, 0.01, this.data.release, (val) => {
                     this.data.release = val;
                     const audioNode = reteAudioNodes.get(this.id);
@@ -4302,6 +4302,42 @@ workspace_data: ${base64Data}
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.updateParameter) audioNode.updateParameter('waveform', val);
                 }));
+
+                // ADSR Controls
+                this.data.showEnvelope = false;
+                this.data.attack = 0.01;
+                this.data.decay = 0.1;
+                this.data.sustain = 0.5;
+                this.data.release = 0.1;
+
+                this.addControl('envelopeToggle', new ButtonControl('envelopeToggle', 'Envelope', () => {
+                    this.data.showEnvelope = !this.data.showEnvelope;
+                    this.controls.attack.hidden = !this.data.showEnvelope;
+                    this.controls.decay.hidden = !this.data.showEnvelope;
+                    this.controls.sustain.hidden = !this.data.showEnvelope;
+                    this.controls.release.hidden = !this.data.showEnvelope;
+                    area.update('node', this.id);
+                }));
+
+                this.addControl('attack', new SliderControl('scaleArpAttack', 'Attack (s)', 0.01, 1, 0.01, this.data.attack, (val) => {
+                    this.data.attack = val;
+                }));
+                this.controls.attack.hidden = true;
+
+                this.addControl('decay', new SliderControl('scaleArpDecay', 'Decay (s)', 0.01, 1, 0.01, this.data.decay, (val) => {
+                    this.data.decay = val;
+                }));
+                this.controls.decay.hidden = true;
+
+                this.addControl('sustain', new SliderControl('scaleArpSustain', 'Sustain', 0, 1, 0.01, this.data.sustain, (val) => {
+                    this.data.sustain = val;
+                }));
+                this.controls.sustain.hidden = true;
+
+                this.addControl('release', new SliderControl('scaleArpRelease', 'Release (s)', 0.01, 2, 0.01, this.data.release, (val) => {
+                    this.data.release = val;
+                }));
+                this.controls.release.hidden = true;
             }
 
             build() {
