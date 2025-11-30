@@ -65,7 +65,7 @@ class VocoderProcessor extends AudioWorkletProcessor {
     static get parameterDescriptors() {
         return [
             { name: 'formantShift', defaultValue: 0, minValue: -1200, maxValue: 1200, automationRate: 'k-rate' },
-            { name: 'unvoicedLevel', defaultValue: 0.5, minValue: 0, maxValue: 1, automationRate: 'k-rate' },
+            { name: 'unvoicedLevel', defaultValue: 0, minValue: 0, maxValue: 1, automationRate: 'k-rate' },
             { name: 'numBands', defaultValue: 16, minValue: 8, maxValue: 40, automationRate: 'k-rate' }
         ];
     }
