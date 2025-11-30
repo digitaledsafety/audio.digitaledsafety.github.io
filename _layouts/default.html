@@ -2975,7 +2975,7 @@ workspace_data: ${base64Data}
                     area.update('node', this.id);
                 }));
 
-                this.addControl('attack', new SliderControl('arpAttack', 'Attack (s)', 0.01, 1, 0.01, this.data.attack, (val) => {
+                this.addControl('attack', new SliderControl('arpAttack', 'Attack (s)', 0.01, 0.10, 0.01, this.data.attack, (val) => {
                     this.data.attack = val;
                 }));
                 this.controls.attack.hidden = true;
@@ -3442,7 +3442,7 @@ workspace_data: ${base64Data}
                     area.update('node', this.id);
                 }));
 
-                this.addControl('attack', new SliderControl('seqAttack', 'Attack (s)', 0.01, 1, 0.01, this.data.attack, (val) => {
+                this.addControl('attack', new SliderControl('seqAttack', 'Attack (s)', 0.01, 0.10, 0.01, this.data.attack, (val) => {
                     this.data.attack = val;
                 }));
                 this.controls.attack.hidden = true;
@@ -4037,7 +4037,7 @@ workspace_data: ${base64Data}
                 }));
 
                 this.data.attack = 0.01;
-                this.addControl('attack', new SliderControl('adsrAttack', 'Attack (s)', 0.01, 2, 0.01, this.data.attack, (val) => {
+                this.addControl('attack', new SliderControl('adsrAttack', 'Attack (s)', 0.01, 0.10, 0.01, this.data.attack, (val) => {
                     this.data.attack = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode instanceof ADSREnvelope) audioNode.updateParameter('attack', val);
@@ -4319,7 +4319,7 @@ workspace_data: ${base64Data}
                     area.update('node', this.id);
                 }));
 
-                this.addControl('attack', new SliderControl('scaleArpAttack', 'Attack (s)', 0.01, 1, 0.01, this.data.attack, (val) => {
+                this.addControl('attack', new SliderControl('scaleArpAttack', 'Attack (s)', 0.01, 0.10, 0.01, this.data.attack, (val) => {
                     this.data.attack = val;
                 }));
                 this.controls.attack.hidden = true;
