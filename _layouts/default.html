@@ -2094,7 +2094,7 @@ workspace_data: ${base64Data}
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
 
                 this.data.frequency = 440;
-                this.addControl('frequency', new SliderControl('freqSlider', 'Frequency (Hz)', 0, 2000, 1, this.data.frequency, (val) => {
+                this.addControl('frequency', new SliderControl('freqSlider', 'Frequency (Hz)', 50, 2000, 1, this.data.frequency, (val) => {
                     this.data.frequency = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.frequency) {
