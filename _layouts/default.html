@@ -4158,6 +4158,13 @@ workspace_data: ${base64Data}
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.unvoicedLevel) audioNode.unvoicedLevel.setTargetAtTime(val, audioContext.currentTime, 0.01);
                 }));
+
+                this.data.modulatorGain = 1;
+                this.addControl('modulatorGain', new SliderControl('modulatorGainSlider', 'Modulator Gain', 0, 10, 0.1, this.data.modulatorGain, (val) => {
+                    this.data.modulatorGain = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('modulatorGain', val);
+                }));
             }
 
             build() {
@@ -4429,6 +4436,9 @@ workspace_data: ${base64Data}
                         break;
                     case 'waveform':
                         this.internalCarrier.type = value;
+                        break;
+                    case 'modulatorGain':
+                        this.modulatorInput.gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
                         break;
                 }
             }

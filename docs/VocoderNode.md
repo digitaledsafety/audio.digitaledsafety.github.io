@@ -19,6 +19,7 @@ The Vocoder Node imposes the spectral characteristics of a modulator signal onto
 
 *   **Carrier Freq**: Sets the frequency of the internal carrier oscillator when no external carrier is connected.
 *   **Carrier Wave**: Sets the waveform of the internal carrier oscillator.
+*   **Modulator Gain**: Adjusts the input level of the modulator signal. If the vocoder effect is too quiet, try increasing this value.
 *   **Bands**: The number of frequency bands used by the vocoder. More bands result in a more detailed and intelligible sound.
 *   **Formant Shift (cents)**: Shifts the filter bank's frequencies up or down, altering the timbral character of the output.
 *   **Unvoiced Level**: Controls the amount of high-frequency noise mixed with the signal, which helps to preserve consonants and sibilance (like "s" sounds).
