@@ -910,6 +910,28 @@ workspace_data: ${base64Data}
             }
         }
 
+        /**
+         * Generates a simple impulse response for a reverb effect.
+         * @param {AudioContext} audioContext - The Web Audio API AudioContext.
+         * @param {number} duration - The duration of the impulse response in seconds.
+         * @param {number} decay - The decay rate of the impulse response.
+         * @returns {AudioBuffer} The generated impulse response as an AudioBuffer.
+         */
+        function generateImpulseResponse(audioContext, duration, decay) {
+            const sampleRate = audioContext.sampleRate;
+            const length = sampleRate * duration;
+            const impulse = audioContext.createBuffer(2, length, sampleRate);
+            const left = impulse.getChannelData(0);
+            const right = impulse.getChannelData(1);
+
+            for (let i = 0; i < length; i++) {
+                const n = length - i;
+                left[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+                right[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+            }
+            return impulse;
+        }
+
         // --- Web Audio API Management ---
 
         /**
@@ -3748,37 +3770,73 @@ workspace_data: ${base64Data}
                 this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
 
-                // IMPORTANT: For Reverb (ConvolverNode) to produce an audible effect,
-                // you must load an impulse response audio file into its buffer.
-                // This typically involves fetching a .wav file and decoding it.
-                // Due to limitations of a single HTML file without a server or
-                // a small, publicly accessible, CORS-enabled impulse response URL,
-                // this example does NOT load an impulse response by default.
-                //
-                // To make it work, you would do something like this in startAudio()
-                // or when the node is created:
-                //
-                // const impulseResponseUrl = 'YOUR_IMPULSE_RESPONSE_URL.wav'; // e.g., from a web server or CDN
-                // fetch(impulseResponseUrl)
-                //     .then(response => response.arrayBuffer())
-                //     .then(buffer => audioContext.decodeAudioData(buffer))
-                //     .then(decodedBuffer => {
-                //         const audioNode = reteAudioNodes.get(this.id);
-                //         if (audioNode instanceof ConvolverNode) {
-                //             audioNode.buffer = decodedBuffer;
-                //             console.log('Reverb Impulse Response loaded!');
-                //         }
-                //     })
-                //     .catch(e => console.error('Error loading impulse response:', e));
-                //
-                // You can find free impulse responses online (search for "free impulse response WAV").
-                // Ensure the URL you use is CORS-enabled if serving from a different domain.
+                this.data.duration = 2;
+                this.addControl('duration', new SliderControl('reverbDuration', 'Duration (s)', 0.1, 10, 0.1, this.data.duration, (val) => {
+                    this.data.duration = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.convolver) {
+                        audioNode.convolver.buffer = generateImpulseResponse(audioContext, this.data.duration, this.data.decay);
+                    }
+                }));
+
+                this.data.decay = 2;
+                this.addControl('decay', new SliderControl('reverbDecay', 'Decay', 0.1, 10, 0.1, this.data.decay, (val) => {
+                    this.data.decay = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.convolver) {
+                        audioNode.convolver.buffer = generateImpulseResponse(audioContext, this.data.duration, this.data.decay);
+                    }
+                }));
+
+                this.data.mix = 0.5;
+                this.addControl('mix', new SliderControl('reverbMix', 'Mix', 0, 1, 0.01, this.data.mix, (val) => {
+                    this.data.mix = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.dryGain && audioNode.wetGain) {
+                        audioNode.dryGain.gain.setTargetAtTime(1 - val, audioContext.currentTime, 0.01);
+                        audioNode.wetGain.gain.setTargetAtTime(val, audioContext.currentTime, 0.01);
+                    }
+                }));
             }
 
             build() {
-                const audioNode = audioContext.createConvolver();
-                // Impulse response loading is handled elsewhere, so we just create the node here.
-                return audioNode;
+                const convolver = audioContext.createConvolver();
+                const dryGain = audioContext.createGain();
+                const wetGain = audioContext.createGain();
+                const mainInput = audioContext.createGain();
+                const mainOutput = audioContext.createGain();
+
+                // Generate and set the impulse response
+                this.data.duration = this.data.duration || 2;
+                this.data.decay = this.data.decay || 2;
+                convolver.buffer = generateImpulseResponse(audioContext, this.data.duration, this.data.decay);
+
+                // Set initial mix
+                this.data.mix = this.data.mix || 0.5;
+                dryGain.gain.value = 1 - this.data.mix;
+                wetGain.gain.value = this.data.mix;
+
+                // Routing
+                mainInput.connect(dryGain);
+                mainInput.connect(convolver);
+                convolver.connect(wetGain);
+                dryGain.connect(mainOutput);
+                wetGain.connect(mainOutput);
+
+                mainInput.convolver = convolver;
+                mainInput.dryGain = dryGain;
+                mainInput.wetGain = wetGain;
+                mainInput.mainOutput = mainOutput;
+
+                mainInput.connect = function(destination) {
+                    this.mainOutput.connect(destination);
+                };
+
+                mainInput.disconnect = function(destination) {
+                    this.mainOutput.disconnect(destination);
+                };
+
+                return mainInput;
             }
         }
 
