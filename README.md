@@ -8,7 +8,6 @@
 *   **Real-Time-Sound-Synthesis**: Generate sound in real time with a variety of oscillator and noise generator nodes.
 *   **MIDI-Support**: Control your synthesizers and sequencers with external MIDI devices.
 *   **Save-and-Share-Workspaces**: Save your creations and share them with others.
-*   **Dynamic Audio Visualizer**: Experience a real-time, audio-reactive visualizer that brings your soundscapes to life with fluid, geometric animations.
 *   **Cross-Platform**: Runs in any modern web browser.
 *   **Progressive-Web-App**: Install AudioGrid on your device for a native-app experience, and use it offline thanks to service worker caching.
 
