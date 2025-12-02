@@ -5747,91 +5747,52 @@ workspace_data: ${base64Data}
     </script>
 
     <script id="fragment-shader" type="x-shader/x-fragment">
-    precision mediump float;
-    uniform float u_time;
-    uniform sampler2D u_frequency_data;
-    uniform vec2 u_resolution;
+        precision mediump float;
+        uniform float u_time;
+        uniform sampler2D u_frequency_data;
+        uniform vec2 u_resolution;
 
-    // --- SDF (Signed Distance Function) for a sphere ---
-    float sdSphere(vec3 p, float s) {
-        return length(p) - s;
-    }
-
-    // --- Raymarching main function ---
-    float map(vec3 p, float bass, float mid, float time) {
-        // Animate sphere radius with bass
-        float radius = 0.3 + bass * 0.15;
-
-        // Distort the space with audio frequencies
-        float distortion = sin(p.y * 10.0 + time * (1.0 + mid * 2.0)) * 0.1 * bass;
-        p.x += distortion;
-        p.z += distortion;
-
-        return sdSphere(p, radius);
-    }
-
-    // --- Calculate normals for lighting ---
-    vec3 calcNormal(vec3 p, float bass, float mid, float time) {
-        const float epsilon = 0.001;
-        vec2 e = vec2(1.0, -1.0) * 0.5773;
-        return normalize(
-            e.xyy * map(p + e.xyy * epsilon, bass, mid, time) +
-            e.yyx * map(p + e.yyx * epsilon, bass, mid, time) +
-            e.yxy * map(p + e.yxy * epsilon, bass, mid, time) +
-            e.xxx * map(p + e.xxx * epsilon, bass, mid, time)
-        );
-    }
-
-    void main() {
-        vec2 uv = (gl_FragCoord.xy * 2.0 - u_resolution.xy) / u_resolution.y;
-
-        // --- Audio Analysis (Sampled once per fragment) ---
-        float bass = texture2D(u_frequency_data, vec2(0.1, 0.0)).r;
-        float mid = texture2D(u_frequency_data, vec2(0.4, 0.0)).r;
-        float high = texture2D(u_frequency_data, vec2(0.8, 0.0)).r;
-        float high_bg = texture2D(u_frequency_data, vec2(0.9, 0.0)).r;
-
-
-        // Camera setup
-        vec3 ro = vec3(0.0, 0.0, -2.0); // Ray origin
-        vec3 rd = normalize(vec3(uv, 1.0)); // Ray direction
-
-        float t = 0.0; // Distance traveled along the ray
-        vec3 p;
-
-        // Raymarching loop (reduced steps for performance)
-        for (int i = 0; i < 48; i++) {
-            p = ro + rd * t;
-            float d = map(p, bass, mid, u_time);
-            if (d < 0.001) {
-                break;
-            }
-            t += d;
-            if (t > 100.0) {
-                break;
-            }
+        float rand(vec2 co){
+            return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
         }
 
-        vec3 color = vec3(0.0);
+        void main() {
+            vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / u_resolution.y;
 
-        if (t < 100.0) {
-            // --- Lighting and Coloring ---
-            vec3 normal = calcNormal(p, bass, mid, u_time);
-            vec3 lightDir = normalize(vec3(0.5, 0.5, -1.0));
-            float diffuse = max(dot(normal, lightDir), 0.0);
+            // Audio analysis
+            float bass = texture2D(u_frequency_data, vec2(0.05, 0.0)).r;
+            float mid = texture2D(u_frequency_data, vec2(0.3, 0.0)).r;
+            float high = texture2D(u_frequency_data, vec2(0.8, 0.0)).r;
 
-            vec3 baseColor = vec3(0.8, 0.2, 0.5); // Base color of the sphere
-            vec3 finalColor = baseColor * (vec3(bass, mid, high) + 0.5);
+            // --- Pulsating Circle (Sphere) ---
+            float circle_radius = 0.2 + bass * 0.1;
+            float circle = 1.0 - smoothstep(circle_radius - 0.01, circle_radius, length(uv));
+            vec3 color = vec3(circle * bass, circle * mid, circle * high);
 
-            color = finalColor * diffuse + vec3(0.1) * (1.0 - diffuse); // Ambient light
+            // --- RGB Split (Glitch) ---
+            vec2 offset = vec2(high * 0.02, 0.0);
+            float r = texture2D(u_frequency_data, uv + offset).r;
+            float g = texture2D(u_frequency_data, uv).r;
+            float b = texture2D(u_frequency_data, uv - offset).r;
+
+            color += vec3(r, g, b) * 0.1;
+
+            // --- Background Chaos ---
+            float time_distortion = u_time * (1.0 + mid * 2.0);
+            vec2 distorted_uv = uv + vec2(
+                sin(uv.y * 10.0 + time_distortion) * 0.1,
+                cos(uv.x * 10.0 + time_distortion) * 0.1
+            );
+            color += vec3(rand(distorted_uv), rand(distorted_uv + 1.0), rand(distorted_uv + 2.0)) * 0.2;
+
+            // --- Color Flashes ---
+            if (high > 0.9) {
+                color = 1.0 - color; // Invert colors on high transients
+            }
+
+            gl_FragColor = vec4(color, 1.0);
         }
-
-        // Background color based on high frequencies
-        color += vec3(high_bg * 0.1, 0.0, high_bg * 0.2);
-
-        gl_FragColor = vec4(color, 1.0);
-    }
-</script>
+    </script>
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
