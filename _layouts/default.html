@@ -1805,9 +1805,31 @@ workspace_data: ${base64Data}
 
         class WebAudioConnection extends Classic.Connection { }
 
+        function linearToLog(value, min, max) {
+            if (min <= 0 || max <= 0) {
+                console.error("Min and max must be positive for logarithmic scale.");
+                return value; // fallback to linear
+            }
+            const minLog = Math.log(min);
+            const maxLog = Math.log(max);
+            const scale = (maxLog - minLog) / 100;
+            return Math.exp(minLog + scale * value);
+        }
+
+        function logToLinear(value, min, max) {
+            if (value <= 0 || min <= 0 || max <= 0) {
+                console.error("Value, min, and max must be positive for logarithmic scale.");
+                return value; // fallback
+            }
+            const minLog = Math.log(min);
+            const maxLog = Math.log(max);
+            const scale = (maxLog - minLog) / 100;
+            return (Math.log(value) - minLog) / scale;
+        }
+
         // Define a custom control for sliders
         class SliderControl extends Classic.Control {
-            constructor(id, label, min, max, step, initialValue, onValueChange) {
+            constructor(id, label, min, max, step, initialValue, onValueChange, isLog = false) {
                 super(id);
                 this.label = label;
                 this.min = min;
@@ -1815,6 +1837,7 @@ workspace_data: ${base64Data}
                 this.step = step;
                 this.value = initialValue; // Rete v2 controls directly hold their value
                 this.onValueChange = onValueChange;
+                this.isLog = isLog;
             }
         }
 
@@ -2116,13 +2139,13 @@ workspace_data: ${base64Data}
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
 
                 this.data.frequency = 440;
-                this.addControl('frequency', new SliderControl('freqSlider', 'Frequency (Hz)', 50, 2000, 1, this.data.frequency, (val) => {
+                this.addControl('frequency', new SliderControl('freqSlider', 'Frequency (Hz)', 20, 20000, 1, this.data.frequency, (val) => {
                     this.data.frequency = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.frequency) {
                         audioNode.frequency.setTargetAtTime(val, audioContext.currentTime, 0.01);
                     }
-                }));
+                }, true));
 
                 this.data.waveform = 'sine';
                 this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveform, (val) => {
@@ -2424,7 +2447,7 @@ workspace_data: ${base64Data}
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
 
                 this.data.gain = 1;
-                this.addControl('gain', new SliderControl('gainSlider', 'Gain', -1, 100, 0.01, this.data.gain, (val) => {
+                this.addControl('gain', new SliderControl('gainSlider', 'Gain', -1, 10, 0.01, this.data.gain, (val) => {
                     this.data.gain = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.gain) {
@@ -2541,17 +2564,17 @@ workspace_data: ${base64Data}
                 this.addInput('q_cv', new Classic.Input(cvSocket, 'Q CV'));
                 this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
 
-                this.data.frequency = 2000;
-                this.addControl('frequency', new SliderControl('filterFreqSlider', 'Frequency (Hz)', 0, 2000, 10, this.data.frequency, (val) => {
+                this.data.frequency = 5000;
+                this.addControl('frequency', new SliderControl('filterFreqSlider', 'Frequency (Hz)', 20, 20000, 10, this.data.frequency, (val) => {
                     this.data.frequency = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.frequency) {
                         audioNode.frequency.setTargetAtTime(val, audioContext.currentTime, 0.01);
                     }
-                }));
+                }, true));
 
                 this.data.q = 1;
-                this.addControl('q', new SliderControl('qSlider', 'Q', 0.1, 10, 0.1, this.data.q, (val) => {
+                this.addControl('q', new SliderControl('qSlider', 'Q', 0.1, 20, 0.1, this.data.q, (val) => {
                     this.data.q = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.Q) {
@@ -2997,12 +3020,12 @@ workspace_data: ${base64Data}
                     area.update('node', this.id);
                 }));
 
-                this.addControl('attack', new SliderControl('arpAttack', 'Attack (s)', 0.01, 0.50, 0.01, this.data.attack, (val) => {
+                this.addControl('attack', new SliderControl('arpAttack', 'Attack (s)', 0.01, 2, 0.01, this.data.attack, (val) => {
                     this.data.attack = val;
                 }));
                 this.controls.attack.hidden = true;
 
-                this.addControl('decay', new SliderControl('arpDecay', 'Decay (s)', 0.01, 1, 0.01, this.data.decay, (val) => {
+                this.addControl('decay', new SliderControl('arpDecay', 'Decay (s)', 0.01, 2, 0.01, this.data.decay, (val) => {
                     this.data.decay = val;
                 }));
                 this.controls.decay.hidden = true;
@@ -3012,7 +3035,7 @@ workspace_data: ${base64Data}
                 }));
                 this.controls.sustain.hidden = true;
 
-                this.addControl('release', new SliderControl('arpRelease', 'Release (s)', 0.01, 2, 0.01, this.data.release, (val) => {
+                this.addControl('release', new SliderControl('arpRelease', 'Release (s)', 0.01, 5, 0.01, this.data.release, (val) => {
                     this.data.release = val;
                 }));
                 this.controls.release.hidden = true;
@@ -3464,12 +3487,12 @@ workspace_data: ${base64Data}
                     area.update('node', this.id);
                 }));
 
-                this.addControl('attack', new SliderControl('seqAttack', 'Attack (s)', 0.01, 0.50, 0.01, this.data.attack, (val) => {
+                this.addControl('attack', new SliderControl('seqAttack', 'Attack (s)', 0.01, 2, 0.01, this.data.attack, (val) => {
                     this.data.attack = val;
                 }));
                 this.controls.attack.hidden = true;
 
-                this.addControl('decay', new SliderControl('seqDecay', 'Decay (s)', 0.01, 1, 0.01, this.data.decay, (val) => {
+                this.addControl('decay', new SliderControl('seqDecay', 'Decay (s)', 0.01, 2, 0.01, this.data.decay, (val) => {
                     this.data.decay = val;
                 }));
                 this.controls.decay.hidden = true;
@@ -3479,7 +3502,7 @@ workspace_data: ${base64Data}
                 }));
                 this.controls.sustain.hidden = true;
 
-                this.addControl('release', new SliderControl('seqRelease', 'Release (s)', 0.01, 2, 0.01, this.data.release, (val) => {
+                this.addControl('release', new SliderControl('seqRelease', 'Release (s)', 0.01, 5, 0.01, this.data.release, (val) => {
                     this.data.release = val;
                 }));
                 this.controls.release.hidden = true;
@@ -3928,8 +3951,8 @@ workspace_data: ${base64Data}
                     if (audioNode instanceof LFOGenerator) audioNode.updateParameter('waveform', val);
                 }));
 
-                this.data.amount = 0.5; // Amplitude of the LFO output
-                this.addControl('amount', new SliderControl('lfoAmount', 'Amount', 0, 2000, 0.01, this.data.amount, (val) => {
+                this.data.amount = 500; // Amplitude of the LFO output
+                this.addControl('amount', new SliderControl('lfoAmount', 'Amount', 0, 2000, 1, this.data.amount, (val) => {
                     this.data.amount = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode instanceof LFOGenerator) audioNode.updateParameter('amount', val);
@@ -4096,7 +4119,7 @@ workspace_data: ${base64Data}
                 }));
 
                 this.data.attack = 0.01;
-                this.addControl('attack', new SliderControl('adsrAttack', 'Attack (s)', 0.01, 0.50, 0.01, this.data.attack, (val) => {
+                this.addControl('attack', new SliderControl('adsrAttack', 'Attack (s)', 0.01, 2, 0.01, this.data.attack, (val) => {
                     this.data.attack = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode instanceof ADSREnvelope) audioNode.updateParameter('attack', val);
@@ -4385,12 +4408,12 @@ workspace_data: ${base64Data}
                     area.update('node', this.id);
                 }));
 
-                this.addControl('attack', new SliderControl('scaleArpAttack', 'Attack (s)', 0.01, 0.50, 0.01, this.data.attack, (val) => {
+                this.addControl('attack', new SliderControl('scaleArpAttack', 'Attack (s)', 0.01, 2, 0.01, this.data.attack, (val) => {
                     this.data.attack = val;
                 }));
                 this.controls.attack.hidden = true;
 
-                this.addControl('decay', new SliderControl('scaleArpDecay', 'Decay (s)', 0.01, 1, 0.01, this.data.decay, (val) => {
+                this.addControl('decay', new SliderControl('scaleArpDecay', 'Decay (s)', 0.01, 2, 0.01, this.data.decay, (val) => {
                     this.data.decay = val;
                 }));
                 this.controls.decay.hidden = true;
@@ -4400,7 +4423,7 @@ workspace_data: ${base64Data}
                 }));
                 this.controls.sustain.hidden = true;
 
-                this.addControl('release', new SliderControl('scaleArpRelease', 'Release (s)', 0.01, 2, 0.01, this.data.release, (val) => {
+                this.addControl('release', new SliderControl('scaleArpRelease', 'Release (s)', 0.01, 5, 0.01, this.data.release, (val) => {
                     this.data.release = val;
                 }));
                 this.controls.release.hidden = true;
@@ -4752,23 +4775,28 @@ workspace_data: ${base64Data}
                     controlEl.className = 'control';
 
                     if (control instanceof SliderControl) {
+                        const sliderMin = control.isLog ? 0 : control.min;
+                        const sliderMax = control.isLog ? 100 : control.max;
+                        const sliderStep = control.isLog ? 0.1 : control.step;
+                        const sliderValue = control.isLog ? logToLinear(control.value, control.min, control.max) : control.value;
+
                         controlEl.innerHTML = `
                             <label>${control.label}</label>
-                            <input type="range" min="${control.min}" max="${control.max}" step="${control.step}" value="${control.value}">
+                            <input type="range" min="${sliderMin}" max="${sliderMax}" step="${sliderStep}" value="${sliderValue}">
                             <span class="value-display">${control.value.toFixed(2)}</span>
                         `;
                         const slider = controlEl.querySelector('input');
                         const valueDisplay = controlEl.querySelector('.value-display');
 
                         slider.oninput = (e) => {
-                            const newValue = parseFloat(e.target.value);
-                            control.value = newValue; // Update control's internal value
-                            valueDisplay.textContent = newValue.toFixed(2);
-                            control.onValueChange(newValue); // Trigger custom callback
-                            // The onValueChange already calls area.update('node', this.node.id); in the node classes
-                            // No need to call it again here.
+                            const linearValue = parseFloat(e.target.value);
+                            const finalValue = control.isLog ? linearToLog(linearValue, control.min, control.max) : linearValue;
+
+                            control.value = finalValue; // Update control's internal value
+                            valueDisplay.textContent = finalValue.toFixed(2);
+                            control.onValueChange(finalValue); // Trigger custom callback
                         };
-                        // Initialize value display
+
                         valueDisplay.textContent = control.value.toFixed(2);
                     } else if (control instanceof SelectControl) {
                         const optionsHtml = control.options.map(opt => `<option value="${opt}">${opt}</option>`).join('');
