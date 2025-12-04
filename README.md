@@ -4,7 +4,6 @@
 
 ## Features
 
-*   **Unified Voltage System**: Embracing the modular philosophy, all non-MIDI connections (Audio, CV, Gate, Clock) are treated as interchangeable voltage signals. Connect an audio output to a clock input to drive a sequencer with a drum beat, or use an oscillator to modulate a filter at audio rates for rich FM tones. This allows for immense creative freedom and happy accidents.
 *   **Node-Based-Audio-Processing**: Connect a variety of audio nodes to create custom audio-processing chains.
 *   **Real-Time-Sound-Synthesis**: Generate sound in real time with a variety of oscillator and noise generator nodes.
 *   **MIDI-Support**: Control your synthesizers and sequencers with external MIDI devices.
