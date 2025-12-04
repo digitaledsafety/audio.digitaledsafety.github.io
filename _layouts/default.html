@@ -1359,14 +1359,13 @@ workspace_data: ${base64Data}
             if (!audioContext || !editor) return;
 
             const connectionStrategies = {
-                'audio': new AudioConnectionStrategy(),
-                'cv': new CvConnectionStrategy(),
+                'voltage': new VoltageConnectionStrategy(),
                 'gate': new GateConnectionStrategy(),
                 'mixer': new MixerConnectionStrategy(),
                 'vocoder': new VocoderConnectionStrategy(),
                 'midi': new MidiConnectionStrategy(),
                 'clock': new ClockConnectionStrategy(),
-                'default': new AudioConnectionStrategy()
+                'default': new VoltageConnectionStrategy()
             };
 
             function getDisconnectionStrategy(targetReteNode, targetInputKey, sourceSocket) {
@@ -1568,7 +1567,7 @@ workspace_data: ${base64Data}
             connect(sourceReteNode, targetNode, targetInputKey) {
                 const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
 
-                if (sourceReteNode instanceof ManualGateNode) {
+                if (sourceAudioNode && typeof sourceAudioNode.addGateListener === 'function') {
                     // PUSH method for ManualGateNode
                     const listener = targetNode.handleGate.bind(targetNode);
 
@@ -1613,7 +1612,7 @@ workspace_data: ${base64Data}
             disconnect(sourceReteNode, targetNode, targetInputKey) {
                 const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
 
-                if (sourceReteNode instanceof ManualGateNode) {
+                if (sourceAudioNode && typeof sourceAudioNode.removeGateListener === 'function') {
                     // PUSH method disconnect
                     if (sourceAudioNode && typeof sourceAudioNode.removeGateListener === 'function') {
                         if (targetNode._gateListeners && targetNode._gateListeners.has(sourceReteNode.id)) {
@@ -1689,30 +1688,32 @@ workspace_data: ${base64Data}
             }
         }
 
-        class AudioConnectionStrategy extends ConnectionStrategy {
-            connect(sourceNode, targetNode, targetInputKey) {
-                const target = targetNode.mainInput || targetNode;
-                sourceNode.connect(target);
-            }
-
-            disconnect(sourceNode, targetNode, targetInputKey) {
-                const target = targetNode.mainInput || targetNode;
-                sourceNode.disconnect(target);
-            }
-        }
-
-        class CvConnectionStrategy extends ConnectionStrategy {
+        class VoltageConnectionStrategy extends ConnectionStrategy {
             connect(sourceNode, targetNode, targetInputKey) {
                 const audioParam = this.getAudioParam(targetNode, targetInputKey);
                 if (audioParam) {
                     sourceNode.connect(audioParam);
+                } else {
+                    const target = targetNode.mainInput || targetNode;
+                    sourceNode.connect(target);
                 }
             }
 
             disconnect(sourceNode, targetNode, targetInputKey) {
                 const audioParam = this.getAudioParam(targetNode, targetInputKey);
                 if (audioParam) {
-                    sourceNode.disconnect(audioParam);
+                    try {
+                        sourceNode.disconnect(audioParam);
+                    } catch (e) {
+                        console.warn(`Could not disconnect from AudioParam. This may be expected.`, e);
+                    }
+                } else {
+                    const target = targetNode.mainInput || targetNode;
+                    try {
+                        sourceNode.disconnect(target);
+                    } catch (e) {
+                        console.warn(`Could not disconnect from target node. This may be expected.`, e);
+                    }
                 }
             }
 
@@ -1725,7 +1726,7 @@ workspace_data: ${base64Data}
                     case 'delay_cv':
                         return targetNode.delayTime;
                     case 'gain_cv':
-                         return targetNode.gain;
+                        return targetNode.gain;
                     case 'bands_cv':
                         return targetNode.numBands;
                     case 'formant_cv':
@@ -1763,27 +1764,82 @@ workspace_data: ${base64Data}
         }
 
         class ClockConnectionStrategy extends ConnectionStrategy {
+            constructor() {
+                super();
+                this.analysers = new Map();
+                this.clockThreshold = 0.1; // Threshold for detecting a clock pulse
+            }
+
             connect(sourceReteNode, targetAudioNode) {
-                if (targetAudioNode && typeof targetAudioNode.onTick === 'function') {
-                    const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
-                    if (sourceAudioNode && typeof sourceAudioNode.addTickListener === 'function') {
-                        const listener = targetAudioNode.onTick.bind(targetAudioNode);
-                        if (!targetAudioNode._tickListeners) {
-                            targetAudioNode._tickListeners = new Map();
-                        }
-                        targetAudioNode._tickListeners.set(sourceReteNode.id, listener);
-                        sourceAudioNode.addTickListener(listener);
+                if (!targetAudioNode || typeof targetAudioNode.onTick !== 'function') return;
+
+                const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
+
+                // PUSH method for dedicated clock sources
+                if (sourceAudioNode && typeof sourceAudioNode.addTickListener === 'function') {
+                    const listener = targetAudioNode.onTick.bind(targetAudioNode);
+                    if (!targetAudioNode._tickListeners) {
+                        targetAudioNode._tickListeners = new Map();
                     }
+                    targetAudioNode._tickListeners.set(sourceReteNode.id, listener);
+                    sourceAudioNode.addTickListener(listener);
+                }
+                // POLLING method for any other voltage source (Audio/CV)
+                else if (sourceAudioNode) {
+                    const sourceToConnect = sourceAudioNode.mainOutput || sourceAudioNode;
+                    const analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 32; // Small buffer for low latency
+                    const buffer = new Float32Array(1);
+                    let lastValue = 0;
+                    let lastTickTime = audioContext.currentTime;
+
+                    const key = sourceReteNode.id + '-' + targetAudioNode.reteNodeId;
+                    sourceToConnect.connect(analyser);
+
+                    const checkClock = () => {
+                        if (!this.analysers.has(key)) return; // Stop the loop if disconnected
+
+                        analyser.getFloatTimeDomainData(buffer);
+                        const currentValue = buffer[0];
+
+                        // Rising edge detection
+                        if (currentValue >= this.clockThreshold && lastValue < this.clockThreshold) {
+                            const now = audioContext.currentTime;
+                            const tickDuration = now - lastTickTime;
+                            targetAudioNode.onTick(now, tickDuration);
+                            lastTickTime = now;
+                        }
+                        lastValue = currentValue;
+                        requestAnimationFrame(checkClock);
+                    };
+
+                    this.analysers.set(key, { analyser, sourceNode: sourceToConnect });
+                    requestAnimationFrame(checkClock);
                 }
             }
 
             disconnect(sourceReteNode, targetAudioNode) {
                 const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
+
+                // PUSH method disconnect
                 if (sourceAudioNode && typeof sourceAudioNode.removeTickListener === 'function') {
                     if (targetAudioNode._tickListeners && targetAudioNode._tickListeners.has(sourceReteNode.id)) {
                         const listener = targetAudioNode._tickListeners.get(sourceReteNode.id);
                         sourceAudioNode.removeTickListener(listener);
                         targetAudioNode._tickListeners.delete(sourceReteNode.id);
+                    }
+                }
+                // POLLING method disconnect
+                else {
+                    const key = sourceReteNode.id + '-' + targetAudioNode.reteNodeId;
+                    if (this.analysers.has(key)) {
+                        const { analyser, sourceNode: storedSource } = this.analysers.get(key);
+                        try {
+                            storedSource.disconnect(analyser);
+                        } catch (e) {
+                            console.warn('Error disconnecting clock analyser:', e);
+                        }
+                        this.analysers.delete(key); // This will stop the animation frame loop
                     }
                 }
             }
@@ -1902,10 +1958,8 @@ workspace_data: ${base64Data}
         }
 
         // Define the common Audio Socket
-        const audioSocket = new Classic.Socket('audio');
+        const voltageSocket = new Classic.Socket('voltage');
         const midiSocket = new Classic.Socket('midi');
-        const cvSocket = new Classic.Socket('cv');
-        const clockSocket = new Classic.Socket('clock');
 
         // --- New ChordGenerator Internal Class ---
         class ChordGenerator {
@@ -2084,7 +2138,7 @@ workspace_data: ${base64Data}
         class ManualGateNode extends GeneratorNode {
             constructor() {
                 super('Manual Gate');
-                this.addOutput('out', new Classic.Output(cvSocket, 'Gate Out'));
+                this.addOutput('out', new Classic.Output(voltageSocket, 'Gate Out'));
 
                 this.data.value = false;
                 this.addControl('value', new ButtonControl('valueBtn', 'Low', () => {
@@ -2117,7 +2171,7 @@ workspace_data: ${base64Data}
         class MicrophoneInputNode extends WebAudioNode {
             constructor() {
                 super('🎤 Mic Input');
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio'));
 
                 this.addControl('mic', new ButtonControl('micButton', '🎤 Activate Mic', async () => {
                     const audioNode = reteAudioNodes.get(this.id);
@@ -2150,8 +2204,8 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Tone Generator');
 
-                this.addInput('freq', new Classic.Input(cvSocket, 'Freq CV'));
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
+                this.addInput('freq', new Classic.Input(voltageSocket, 'Freq CV'));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio'));
 
                 this.data.frequency = 440;
                 this.addControl('frequency', new SliderControl('freqSlider', 'Frequency (Hz)', 20, 20000, 1, this.data.frequency, (val) => {
@@ -2294,7 +2348,7 @@ workspace_data: ${base64Data}
         class NoiseGeneratorNode extends WebAudioNode {
             constructor() {
                 super('Noise Generator');
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio'));
 
                 this.data.gainValue = 1;
                 this.addControl('gain', new SliderControl('gainSlider', 'Gain', 0, 5, 0.01, this.data.gainValue, (val) => {
@@ -2365,7 +2419,7 @@ workspace_data: ${base64Data}
         class WavePlayerNode extends WebAudioNode {
             constructor() {
                 super('Wave Player');
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio'));
 
                 this.data.audioUrl = 'https://webaudio.github.io/web-audio-api/samples/audio/impulse-responses/small-room.wav';
                 this.addControl('audioUrl', new TextControl('audioUrl', 'Audio URL', this.data.audioUrl, (val) => {
@@ -2394,7 +2448,7 @@ workspace_data: ${base64Data}
                 super('Chord Generator');
 
                 this.addInput('midi', new Classic.Input(midiSocket, 'MIDI In'));
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio'));
 
                 // Initialize default data values for the new controls
                 this.data.chordType = 'Major Triad';
@@ -2457,9 +2511,9 @@ workspace_data: ${base64Data}
             constructor() {
                 super('VCA');
 
-                this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
-                this.addInput('gain_cv', new Classic.Input(cvSocket, 'Gain CV'));
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
+                this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addInput('gain_cv', new Classic.Input(voltageSocket, 'Gain CV'));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
                 this.data.gain = 1;
                 this.addControl('gain', new SliderControl('gainSlider', 'Gain', -1, 10, 0.01, this.data.gain, (val) => {
@@ -2482,11 +2536,11 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Mixer');
 
-                this.addInput('in1', new Classic.Input(audioSocket, 'In 1'));
-                this.addInput('in2', new Classic.Input(audioSocket, 'In 2'));
-                this.addInput('in3', new Classic.Input(audioSocket, 'In 3'));
-                this.addInput('in4', new Classic.Input(audioSocket, 'In 4'));
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
+                this.addInput('in1', new Classic.Input(voltageSocket, 'In 1'));
+                this.addInput('in2', new Classic.Input(voltageSocket, 'In 2'));
+                this.addInput('in3', new Classic.Input(voltageSocket, 'In 3'));
+                this.addInput('in4', new Classic.Input(voltageSocket, 'In 4'));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
                 this.data.gain1 = 0.5;
                 this.addControl('gain1', new SliderControl('gainSlider1', 'Gain 1', -1, 100, 0.01, this.data.gain1, (val) => {
@@ -2550,7 +2604,7 @@ workspace_data: ${base64Data}
         class MasterGainOutputNode extends WebAudioNode {
             constructor() {
                 super('Master');
-                this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
+                this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
 
                 this.data.gain = 0.5;
                 this.addControl('gain', new SliderControl('gainSlider', 'Gain', 0, 1, 0.01, this.data.gain, (val) => {
@@ -2574,10 +2628,10 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Filter');
 
-                this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
-                this.addInput('freq', new Classic.Input(cvSocket, 'Freq CV'));
-                this.addInput('q_cv', new Classic.Input(cvSocket, 'Q CV'));
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
+                this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addInput('freq', new Classic.Input(voltageSocket, 'Freq CV'));
+                this.addInput('q_cv', new Classic.Input(voltageSocket, 'Q CV'));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
                 this.data.frequency = 5000;
                 this.addControl('frequency', new SliderControl('filterFreqSlider', 'Frequency (Hz)', 20, 20000, 10, this.data.frequency, (val) => {
@@ -2621,9 +2675,9 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Delay');
 
-                this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
-                this.addInput('delay_cv', new Classic.Input(cvSocket, 'Delay CV'));
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
+                this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addInput('delay_cv', new Classic.Input(voltageSocket, 'Delay CV'));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
                 this.data.delayTime = 0.5;
                 this.addControl('delayTime', new SliderControl('delayTimeSlider', 'Delay Time (s)', 0, 5, 0.01, this.data.delayTime, (val) => {
@@ -2962,9 +3016,9 @@ workspace_data: ${base64Data}
         class ArpeggiatorNode extends WebAudioNode {
             constructor() {
                 super('Arpeggiator');
-                this.addInput('clock', new Classic.Input(clockSocket, 'Clock In'));
+                this.addInput('clock', new Classic.Input(voltageSocket, 'Clock In'));
                 this.addInput('midi', new Classic.Input(midiSocket, 'MIDI In'));
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio'));
                 this.addOutput('midi', new Classic.Output(midiSocket, 'MIDI Out'));
 
                 this.data.bpm = 120;
@@ -3454,8 +3508,8 @@ workspace_data: ${base64Data}
         class SequencerNode extends WebAudioNode {
             constructor() {
                 super('Sequencer');
-                this.addInput('clock', new Classic.Input(clockSocket, 'Clock In'));
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
+                this.addInput('clock', new Classic.Input(voltageSocket, 'Clock In'));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio'));
                 this.addOutput('midi', new Classic.Output(midiSocket, 'MIDI Out'));
 
                 this.data.bpm = 120;
@@ -3630,7 +3684,7 @@ workspace_data: ${base64Data}
         class MasterClockNode extends GeneratorNode {
             constructor() {
                 super('Master Clock');
-                this.addOutput('clock', new Classic.Output(clockSocket, 'Clock Out'));
+                this.addOutput('clock', new Classic.Output(voltageSocket, 'Clock Out'));
 
                 this.addControl('indicator', new IndicatorControl('indicator', 'Clock Pulse'));
 
@@ -3700,8 +3754,8 @@ workspace_data: ${base64Data}
         class DistortionNode extends WebAudioNode {
             constructor() {
                 super('Distortion');
-                this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
+                this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
                 this.data.drive = 50; // Initial drive value
                 this.addControl('drive', new SliderControl('distortionDrive', 'Drive', 0, 100, 1, this.data.drive, (val) => {
@@ -3760,8 +3814,8 @@ workspace_data: ${base64Data}
         class CompressorNode extends WebAudioNode {
             constructor() {
                 super('Compressor');
-                this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
+                this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
                 this.data.threshold = -24; // dB
                 this.addControl('threshold', new SliderControl('compThreshold', 'Threshold (dB)', -60, 0, 1, this.data.threshold, (val) => {
@@ -3805,8 +3859,8 @@ workspace_data: ${base64Data}
         class ReverbNode extends WebAudioNode {
             constructor() {
                 super('Reverb');
-                this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
+                this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
                 
                 this.data.duration = 2;
                 this.addControl('duration', new SliderControl('reverbDuration', 'Duration (s)', 0.1, 10, 0.1, this.data.duration, (val) => {
@@ -3950,7 +4004,7 @@ workspace_data: ${base64Data}
         class LFONode extends ModulatorNode {
             constructor() {
                 super('LFO');
-                this.addOutput('cv', new Classic.Output(cvSocket, 'CV Out')); // Can be used for modulation
+                this.addOutput('cv', new Classic.Output(voltageSocket, 'CV Out')); // Can be used for modulation
 
                 this.data.frequency = 5;
                 this.addControl('frequency', new SliderControl('lfoFreq', 'Frequency (Hz)', 0.1, 20, 0.1, this.data.frequency, (val) => {
@@ -4123,8 +4177,8 @@ workspace_data: ${base64Data}
         class ADSREnvelopeNode extends ModulatorNode {
             constructor() {
                 super('ADSR Envelope');
-                this.addInput('gate', new Classic.Input(cvSocket, 'Gate In'));
-                this.addOutput('cv', new Classic.Output(cvSocket, 'CV Out')); // This outputs a control signal
+                this.addInput('gate', new Classic.Input(voltageSocket, 'Gate In'));
+                this.addOutput('cv', new Classic.Output(voltageSocket, 'CV Out')); // This outputs a control signal
 
                 this.data.mode = 'EG';
                 this.addControl('mode', new SelectControl('adsrMode', 'Mode', ['EG', 'GATE', 'LFO'], this.data.mode, (val) => {
@@ -4170,8 +4224,8 @@ workspace_data: ${base64Data}
         class BitcrusherNode extends WebAudioNode {
             constructor() {
                 super('Bitcrusher');
-                this.addInput('audio', new Classic.Input(audioSocket, 'Audio In', true));
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
+                this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
                 // The actual AudioWorkletNode will be created in startAudio().
                 // this.audioNode will be assigned there.
@@ -4214,12 +4268,12 @@ workspace_data: ${base64Data}
         class VocoderNode extends WebAudioNode {
             constructor() {
                 super('Vocoder');
-                this.addInput('carrier', new Classic.Input(audioSocket, 'Carrier In'));
-                this.addInput('modulator', new Classic.Input(audioSocket, 'Modulator In'));
-                this.addInput('bands_cv', new Classic.Input(cvSocket, 'Bands CV'));
-                this.addInput('formant_cv', new Classic.Input(cvSocket, 'Formant CV'));
-                this.addInput('unvoiced_cv', new Classic.Input(cvSocket, 'Unvoiced CV'));
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
+                this.addInput('carrier', new Classic.Input(voltageSocket, 'Carrier In'));
+                this.addInput('modulator', new Classic.Input(voltageSocket, 'Modulator In'));
+                this.addInput('bands_cv', new Classic.Input(voltageSocket, 'Bands CV'));
+                this.addInput('formant_cv', new Classic.Input(voltageSocket, 'Formant CV'));
+                this.addInput('unvoiced_cv', new Classic.Input(voltageSocket, 'Unvoiced CV'));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
                 this.data.frequency = 110;
                 this.addControl('frequency', new SliderControl('freqSlider', 'Carrier Freq', 50, 1000, 1, this.data.frequency, (val) => {
@@ -4286,8 +4340,8 @@ workspace_data: ${base64Data}
         class AttenuverterNode extends WebAudioNode {
             constructor() {
                 super('Attenuverter');
-                this.addInput('in', new Classic.Input(cvSocket, 'In'));
-                this.addOutput('out', new Classic.Output(cvSocket, 'Out'));
+                this.addInput('in', new Classic.Input(voltageSocket, 'In'));
+                this.addOutput('out', new Classic.Output(voltageSocket, 'Out'));
 
                 this.data.level = 1;
                 this.addControl('level', new SliderControl('levelSlider', 'Level', -1, 1, 0.01, this.data.level, (val) => {
@@ -4309,12 +4363,12 @@ workspace_data: ${base64Data}
         class GranularSynthesizerNode extends WebAudioNode {
             constructor() {
                 super('Granular Synthesizer');
-                this.addInput('audio', new Classic.Input(audioSocket, 'Audio In'));
-                this.addInput('grainSizeCV', new Classic.Input(cvSocket, 'Grain Size CV'));
-                this.addInput('grainDensityCV', new Classic.Input(cvSocket, 'Grain Density CV'));
-                this.addInput('pitchShiftCV', new Classic.Input(cvSocket, 'Pitch Shift CV'));
-                this.addInput('positionJitterCV', new Classic.Input(cvSocket, 'Jitter CV'));
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio Out'));
+                this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In'));
+                this.addInput('grainSizeCV', new Classic.Input(voltageSocket, 'Grain Size CV'));
+                this.addInput('grainDensityCV', new Classic.Input(voltageSocket, 'Grain Density CV'));
+                this.addInput('pitchShiftCV', new Classic.Input(voltageSocket, 'Pitch Shift CV'));
+                this.addInput('positionJitterCV', new Classic.Input(voltageSocket, 'Jitter CV'));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
                 this.data.grainSize = 0.1;
                 this.addControl('grainSize', new SliderControl('grainSize', 'Grain Size (s)', 0.01, 0.5, 0.001, this.data.grainSize, (val) => {
@@ -4353,8 +4407,8 @@ workspace_data: ${base64Data}
         class ScaleArpeggiatorNode extends WebAudioNode {
             constructor() {
                 super('Scale Arpeggiator');
-                this.addInput('clock', new Classic.Input(clockSocket, 'Clock In'));
-                this.addOutput('audio', new Classic.Output(audioSocket, 'Audio'));
+                this.addInput('clock', new Classic.Input(voltageSocket, 'Clock In'));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio'));
                 this.addOutput('midi', new Classic.Output(midiSocket, 'MIDI Out'));
 
                 this.data.bpm = 120;
