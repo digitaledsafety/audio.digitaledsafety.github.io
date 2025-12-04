@@ -4,3 +4,4 @@ _site/
 test-results/
 *.png
 tests/*.spec.ts
+server.log
