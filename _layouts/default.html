@@ -1348,7 +1348,6 @@ workspace_data: ${base64Data}
             playStopBtn.textContent = '▶️';
             recordBtn.textContent = '⏺️ Record';
             recordBtn.disabled = false;
-            //showMessage('Audio stopped.', 'info');
         }
 
 
@@ -1427,67 +1426,22 @@ workspace_data: ${base64Data}
                 }
             }
 
-        }
-
-        async function updateAudioGraphConnectionsOld() {
-            if (!audioContext || !editor) return;
-
-            // 1. Disconnect all existing connections in the Web Audio graph
-            reteAudioNodes.forEach(audioNode => {
-                try {
-                    if (audioNode.mainOutput) { // Arpeggiator has a mainOutput
-                        audioNode.mainOutput.disconnect();
-                    } else if (audioNode.disconnect) { // Regular Web Audio nodes
-                        audioNode.disconnect();
-                    }
-                } catch (e) {
-                    console.warn("Error disconnecting audio node:", e);
-                }
-            });
-
-            // 2. Reconnect based on Rete.js editor's connections
-            for (const connection of editor.getConnections()) { // Use editor.getConnections() in v2
-                const sourceNode = editor.getNode(connection.source);
-                const targetNode = editor.getNode(connection.target);
-
-                // Get the actual Web Audio nodes
-                let sourceAudioNode = reteAudioNodes.get(sourceNode.id);
-                let targetAudioNode = reteAudioNodes.get(targetNode.id);
-
-                // If source is an Arpeggiator, use its mainOutput for connection
-                if ((sourceNode.label === 'Arpeggiator' ||  sourceNode.label === 'Chord Generator') && sourceAudioNode && sourceAudioNode.mainOutput) {
-                    sourceAudioNode = sourceAudioNode.mainOutput;
-                }
-
-
-                if (sourceAudioNode && targetAudioNode) {
-                    try {
-                        sourceAudioNode.connect(targetAudioNode);
-                    } catch (e) {
-                        console.error(`Error connecting ${sourceNode.label} to ${targetNode.label}:`, e);
-                    }
-                }
-            }
-
-            // 3. Connect any Rete.js nodes that have outputs but no outgoing connections to the destination
+            // 3. Connect any audio-producing nodes with no outgoing connections to the masterGain
             for (const reteNode of editor.getNodes()) {
-                const hasOutputs = Object.keys(reteNode.outputs).length > 0;
+                const hasAudioOutput = Object.values(reteNode.outputs).some(output => output.socket === voltageSocket);
 
-                if (hasOutputs) {
+                if (hasAudioOutput) {
                     const hasOutgoingConnection = editor.getConnections().some(conn => conn.source === reteNode.id);
 
                     if (!hasOutgoingConnection) {
-                        let audioNode = reteAudioNodes.get(reteNode.id);
+                        const audioNode = reteAudioNodes.get(reteNode.id);
                         if (audioNode) {
                             try {
-                                if ((reteNode.label === 'Arpeggiator' || reteNode.label === 'Chord Generator') && audioNode.mainOutput) {
-                                    audioNode.mainOutput.connect(audioContext.destination);
-                                } else if (audioNode.connect) {
-                                    audioNode.connect(audioContext.destination);
-                                }
-                            }
-                            catch (e) {
-                                console.error(`Error connecting ${reteNode.label} to destination:`, e);
+                                const sourceToConnect = audioNode.mainOutput || audioNode;
+                                sourceToConnect.connect(masterGain);
+                                console.log(`Connected orphaned node ${reteNode.label} to master output.`);
+                            } catch (e) {
+                                console.error(`Error connecting orphaned node ${reteNode.label} to master output:`, e);
                             }
                         }
                     }
@@ -1509,33 +1463,31 @@ workspace_data: ${base64Data}
 
         
         class MidiConnectionStrategy extends ConnectionStrategy {
-            connect(sourceReteNode, targetAudioNode) {
-                if (targetAudioNode && typeof targetAudioNode.receiveMidiNotes === 'function') {
-                    const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
-                    if (sourceAudioNode && typeof sourceAudioNode.addMidiListener === 'function') {
-                        // Create the bound listener function
-                        const listener = targetAudioNode.receiveMidiNotes.bind(targetAudioNode);
+            connect(sourceReteNode, targetReteNode) {
+                const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
+                const targetAudioNode = reteAudioNodes.get(targetReteNode.id);
 
-                        // Store the listener on the target node, keyed by the source node's ID
-                        // to handle multiple MIDI inputs to the same target.
+                if (targetAudioNode && typeof targetAudioNode.receiveMidiNotes === 'function') {
+                    if (sourceAudioNode && typeof sourceAudioNode.addMidiListener === 'function') {
+                        const listener = targetAudioNode.receiveMidiNotes.bind(targetAudioNode);
                         if (!targetAudioNode._midiListeners) {
                             targetAudioNode._midiListeners = new Map();
                         }
                         targetAudioNode._midiListeners.set(sourceReteNode.id, listener);
-
                         sourceAudioNode.addMidiListener(listener);
                     }
                 }
             }
 
-            disconnect(sourceReteNode, targetAudioNode) {
-                 const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
-                 if (sourceAudioNode && typeof sourceAudioNode.removeMidiListener === 'function') {
-                    // Retrieve the stored listener
+            disconnect(sourceReteNode, targetReteNode) {
+                const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
+                const targetAudioNode = reteAudioNodes.get(targetReteNode.id);
+
+                if (sourceAudioNode && typeof sourceAudioNode.removeMidiListener === 'function') {
                     if (targetAudioNode._midiListeners && targetAudioNode._midiListeners.has(sourceReteNode.id)) {
                         const listener = targetAudioNode._midiListeners.get(sourceReteNode.id);
                         sourceAudioNode.removeMidiListener(listener);
-                        targetAudioNode._midiListeners.delete(sourceReteNode.id); // Clean up
+                        targetAudioNode._midiListeners.delete(sourceReteNode.id);
                     }
                 }
             }
@@ -1567,44 +1519,32 @@ workspace_data: ${base64Data}
                     }
                 }
 
-                if (targetInputKey === 'clock' || targetInputKey === 'gate') {
-                    // POLLING method for clock/gate signals from any audio source
-                    const analyser = audioContext.createAnalyser();
-                    analyser.fftSize = 32;
-                    const buffer = new Float32Array(1);
-                    let lastValue = 0;
-                    let lastTickTime = audioContext.currentTime;
-
-                    const key = `${sourceReteNode.id}-${targetReteNode.id}-${targetInputKey}`;
-                    sourceToConnect.connect(analyser);
-
-                    const checkSignal = () => {
-                        if (!this.analysers.has(key)) return;
-
-                        analyser.getFloatTimeDomainData(buffer);
-                        const currentValue = buffer[0];
-                        const threshold = targetInputKey === 'clock' ? this.clockThreshold : this.gateThreshold;
-
-                        if (currentValue >= threshold && lastValue < threshold) { // Rising edge
-                            const now = audioContext.currentTime;
-                            if (targetInputKey === 'clock' && typeof targetAudioNode.onTick === 'function') {
-                                targetAudioNode.onTick(now, now - lastTickTime);
-                                lastTickTime = now;
-                            } else if (targetInputKey === 'gate' && typeof targetAudioNode.handleGate === 'function') {
-                                targetAudioNode.handleGate(true);
-                            }
-                        } else if (currentValue < threshold && lastValue >= threshold) { // Falling edge
-                            if (targetInputKey === 'gate' && typeof targetAudioNode.handleGate === 'function') {
-                                targetAudioNode.handleGate(false);
-                            }
+                if (targetInputKey === 'clock' && typeof targetAudioNode.onTick === 'function') {
+                    // PUSH method for dedicated clock sources
+                    if (sourceAudioNode && typeof sourceAudioNode.addTickListener === 'function') {
+                        const listener = targetAudioNode.onTick.bind(targetAudioNode);
+                        if (!targetAudioNode._tickListeners) {
+                            targetAudioNode._tickListeners = new Map();
                         }
-                        lastValue = currentValue;
-                        requestAnimationFrame(checkSignal);
-                    };
-
-                    this.analysers.set(key, { analyser, sourceNode: sourceToConnect });
-                    requestAnimationFrame(checkSignal);
-
+                        targetAudioNode._tickListeners.set(sourceReteNode.id, listener);
+                        sourceAudioNode.addTickListener(listener);
+                    } else {
+                        // POLLING method as fallback
+                        this.startPolling(sourceReteNode, targetReteNode, targetInputKey, 'clock');
+                    }
+                } else if (targetInputKey === 'gate' && typeof targetAudioNode.handleGate === 'function') {
+                     // PUSH method for dedicated gate sources (like ManualGateNode)
+                    if (sourceAudioNode && typeof sourceAudioNode.addGateListener === 'function') {
+                        const listener = targetAudioNode.handleGate.bind(targetAudioNode);
+                        if (!targetAudioNode._gateListeners) {
+                            targetAudioNode._gateListeners = new Map();
+                        }
+                        targetAudioNode._gateListeners.set(sourceReteNode.id, listener);
+                        sourceAudioNode.addGateListener(listener);
+                    } else {
+                        // POLLING method as fallback
+                        this.startPolling(sourceReteNode, targetReteNode, targetInputKey, 'gate');
+                    }
                 } else {
                     // Default connection for AudioParams or main inputs
                     const audioParam = this.getAudioParam(targetAudioNode, targetInputKey);
@@ -1621,6 +1561,24 @@ workspace_data: ${base64Data}
                 const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
                 const targetAudioNode = reteAudioNodes.get(targetReteNode.id);
                 if (!sourceAudioNode || !targetAudioNode) return;
+
+                // PUSH method disconnect
+                if (targetInputKey === 'clock' && sourceAudioNode && typeof sourceAudioNode.removeTickListener === 'function') {
+                    if (targetAudioNode._tickListeners && targetAudioNode._tickListeners.has(sourceReteNode.id)) {
+                        const listener = targetAudioNode._tickListeners.get(sourceReteNode.id);
+                        sourceAudioNode.removeTickListener(listener);
+                        targetAudioNode._tickListeners.delete(sourceReteNode.id);
+                        return;
+                    }
+                }
+                if (targetInputKey === 'gate' && sourceAudioNode && typeof sourceAudioNode.removeGateListener === 'function') {
+                    if (targetAudioNode._gateListeners && targetAudioNode._gateListeners.has(sourceReteNode.id)) {
+                        const listener = targetAudioNode._gateListeners.get(sourceReteNode.id);
+                        sourceAudioNode.removeGateListener(listener);
+                        targetAudioNode._gateListeners.delete(sourceReteNode.id);
+                        return;
+                    }
+                }
 
                 const sourceToDisconnect = sourceAudioNode.mainOutput || sourceAudioNode;
                  // Specific handling for Vocoder inputs
@@ -1660,6 +1618,48 @@ workspace_data: ${base64Data}
                         }
                     }
                 }
+            }
+
+            startPolling(sourceReteNode, targetReteNode, targetInputKey, type) {
+                const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
+                const targetAudioNode = reteAudioNodes.get(targetReteNode.id);
+                const sourceToConnect = sourceAudioNode.mainOutput || sourceAudioNode;
+
+                const analyser = audioContext.createAnalyser();
+                analyser.fftSize = 32;
+                const buffer = new Float32Array(1);
+                let lastValue = 0;
+                let lastTickTime = audioContext.currentTime;
+
+                const key = `${sourceReteNode.id}-${targetReteNode.id}-${targetInputKey}`;
+                sourceToConnect.connect(analyser);
+
+                const checkSignal = () => {
+                    if (!this.analysers.has(key)) return;
+
+                    analyser.getFloatTimeDomainData(buffer);
+                    const currentValue = buffer[0];
+                    const threshold = type === 'clock' ? this.clockThreshold : this.gateThreshold;
+
+                    if (currentValue >= threshold && lastValue < threshold) { // Rising edge
+                        const now = audioContext.currentTime;
+                        if (type === 'clock') {
+                            targetAudioNode.onTick(now, now - lastTickTime);
+                            lastTickTime = now;
+                        } else { // gate
+                            targetAudioNode.handleGate(true);
+                        }
+                    } else if (currentValue < threshold && lastValue >= threshold) { // Falling edge
+                        if (type === 'gate') {
+                            targetAudioNode.handleGate(false);
+                        }
+                    }
+                    lastValue = currentValue;
+                    requestAnimationFrame(checkSignal);
+                };
+
+                this.analysers.set(key, { analyser, sourceNode: sourceToConnect });
+                requestAnimationFrame(checkSignal);
             }
 
             getAudioParam(targetNode, targetInputKey) {
@@ -5313,17 +5313,15 @@ workspace_data: ${base64Data}
 
             playStopBtn.addEventListener('click', async () => {
                 if (audioState === 'stopped') {
-                    await startAudio();
+                    await startAudio(); // This is async, so we await its completion
                     audioState = 'playing';
                     playStopBtn.textContent = '⏹️';
                 } else { // 'playing'
                     if (mediaRecorder && mediaRecorder.state === 'recording') {
-                        mediaRecorder.stop(); // Stop recording if it's active
+                        mediaRecorder.stop();
                     }
-                    audioState = 'stopped';
-                    playStopBtn.textContent = '▶️';
-                    await stopAudio();
-                    // stopAudio resets the button text and audioState
+                    await stopAudio(); // stopAudio is also async
+                    // stopAudio now correctly sets the state and button text
                 }
             });
 
