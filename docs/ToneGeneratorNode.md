@@ -4,7 +4,7 @@ The Tone Generator Node is a basic oscillator that can be used to generate a var
 
 ## Inputs
 
-*   **FM In**: Frequency modulation input.
+*   **Freq CV**: A CV input to control the oscillator's frequency.
 
 ## Outputs
 

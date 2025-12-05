@@ -20,6 +20,7 @@ The envelope is controlled by an incoming gate signal. When the gate signal goes
 
 | Name          | Description                                |
 | ------------- | ------------------------------------------ |
+| **Mode**        | Sets the operational mode of the envelope: <ul><li>**EG (Envelope Generator):** The classic, one-shot ADSR mode. Requires a gate to trigger.</li><li>**GATE:** A looping ADSR mode that is active only while the gate is high.</li><li>**LFO:** A free-running, looping ADSR mode that does not require a gate.</li></ul> |
 | **Attack (s)**  | The attack time of the envelope in seconds.  |
 | **Decay (s)**   | The decay time of the envelope in seconds.   |
 | **Sustain**     | The sustain level of the envelope (0-1).     |

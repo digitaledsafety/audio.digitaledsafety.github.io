@@ -5,7 +5,8 @@ The Filter Node can be used to filter an audio signal.
 ## Inputs
 
 *   **Audio In**: The audio input to the node.
-*   **FM In**: Frequency modulation input.
+*   **Freq CV**: A CV input to control the filter's cutoff frequency.
+*   **Q CV**: A CV input to control the filter's Q factor.
 
 ## Outputs
 
