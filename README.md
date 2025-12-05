@@ -4,7 +4,7 @@
 
 ## Features
 
-*   **Unified Voltage System**: Embracing the modular philosophy, all non-MIDI connections (Audio, CV, Gate, Clock) are treated as interchangeable voltage signals. Connect an audio output to a clock input to drive a sequencer with a drum beat, or use an oscillator to modulate a filter at audio rates for rich FM tones. This allows for immense creative freedom and happy accidents.
+*   **Unified Voltage System**: Inspired by modular hardware, all non-MIDI connections are interchangeable voltage signals, allowing for maximum creative flexibility. See the [Core Concepts](./docs/core-concepts.md) guide to learn more.
 *   **Node-Based-Audio-Processing**: Connect a variety of audio nodes to create custom audio-processing chains.
 *   **Real-Time-Sound-Synthesis**: Generate sound in real time with a variety of oscillator and noise generator nodes.
 *   **MIDI-Support**: Control your synthesizers and sequencers with external MIDI devices.
@@ -41,7 +41,6 @@ To get started with AudioGrid, simply visit the [AudioGrid website](https://audi
 *   [Master](./docs/MasterGainOutputNode.md)
 *   [Master Clock](./docs/MasterClockNode.md)
 *   [Microphone Input](./docs/MicrophoneInputNode.md)
-*   [Mixer](./docs/MixerNode.md)
 *   [Noise Generator](./docs/NoiseGeneratorNode.md)
 *   [Reverb](./docs/ReverbNode.md)
 *   [Scale Arpeggiator](./docs/ScaleArpeggiatorNode.md)

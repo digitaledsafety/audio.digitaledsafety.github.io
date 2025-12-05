@@ -1,18 +1,24 @@
 # Chord Generator Node
 
-The Chord Generator Node can be used to generate a variety of chords.
+The **Chord Generator Node** produces a chord consisting of multiple simultaneous notes. It has its own internal bank of oscillators to generate sound. This node is useful for creating harmonic textures and pads.
 
 ## Inputs
 
-*   **MIDI In**: MIDI input.
+| Name        | Description                                                                    |
+| ----------- | ------------------------------------------------------------------------------ |
+| **MIDI In**   | A MIDI input that allows an external source (like a `SequencerNode` or `ArpeggiatorNode`) to set the root note of the chord dynamically. |
 
 ## Outputs
 
-*   **Audio**: The audio output of the node.
+| Name      | Description                               |
+| --------- | ----------------------------------------- |
+| **Audio** | The audio output of the internal oscillators. |
 
 ## Controls
 
-*   **Chord Type**: The type of chord to generate.
-*   **Root Note**: The root note of the chord.
-*   **Octave Offset**: The octave offset of the chord.
-*   **Waveform**: The waveform of the oscillator. Can be one of `sine`, `square`, `sawtooth`, or `triangle`.
+| Name            | Description                                                                    |
+| --------------- | ------------------------------------------------------------------------------ |
+| **Chord Type**    | The musical type of the chord to be generated (e.g., Major Triad, Minor 7th, Sus4). |
+| **Root Note**     | The fundamental note upon which the chord is built.                            |
+| **Octave Offset** | Transposes the entire chord up or down by a specified number of octaves.     |
+| **Waveform**      | The oscillator waveform used for all notes in the chord.                       |
