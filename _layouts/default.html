@@ -1371,10 +1371,7 @@ workspace_data: ${base64Data}
                 if (targetInputKey === 'midi') {
                     return connectionStrategies['midi'];
                 }
-                if (sourceSocket === voltageSocket) {
-                    return connectionStrategies['voltage'];
-                }
-                return null;
+                return connectionStrategies['default'];
             }
             
             // 1. Disconnect everything to rebuild connections from scratch.
@@ -1395,7 +1392,7 @@ workspace_data: ${base64Data}
                 const targetAudioNode = reteAudioNodes.get(connection.target);
 
                 if (sourceAudioNode && targetAudioNode) {
-                    const strategy = getDisconnectionStrategy(targetReteNode, connection.targetInput, connection.sourceOutput.socket);
+                    const strategy = getDisconnectionStrategy(targetReteNode, connection.targetInput, connection.sourceOutput);
                     try {
                         // Pass the Rete nodes directly, as strategies need them.
                         strategy.disconnect(sourceReteNode, targetReteNode, connection.targetInput);
@@ -1413,7 +1410,7 @@ workspace_data: ${base64Data}
                 const targetAudioNode = reteAudioNodes.get(targetReteNode.id);
 
                 if (sourceAudioNode && targetAudioNode) {
-                    const strategy = getConnectionStrategy(targetReteNode, connection.targetInput, connection.sourceOutput.socket);
+                    const strategy = getConnectionStrategy(targetReteNode, connection.targetInput, connection.sourceOutput);
                     if (strategy) {
                         try {
                             // Pass the Rete nodes directly to the connect method.
@@ -1421,28 +1418,6 @@ workspace_data: ${base64Data}
                             console.log(`Connected: ${sourceReteNode.label} to ${targetReteNode.label} via ${connection.targetInput}`);
                         } catch (e) {
                             console.error(`Error connecting ${sourceReteNode.label} to ${targetReteNode.label}:`, e);
-                        }
-                    }
-                }
-            }
-
-            // 3. Connect any audio-producing nodes with no outgoing connections to the masterGain
-            for (const reteNode of editor.getNodes()) {
-                const hasAudioOutput = Object.values(reteNode.outputs).some(output => output.socket === voltageSocket);
-
-                if (hasAudioOutput) {
-                    const hasOutgoingConnection = editor.getConnections().some(conn => conn.source === reteNode.id);
-
-                    if (!hasOutgoingConnection) {
-                        const audioNode = reteAudioNodes.get(reteNode.id);
-                        if (audioNode) {
-                            try {
-                                const sourceToConnect = audioNode.mainOutput || audioNode;
-                                sourceToConnect.connect(masterGain);
-                                console.log(`Connected orphaned node ${reteNode.label} to master output.`);
-                            } catch (e) {
-                                console.error(`Error connecting orphaned node ${reteNode.label} to master output:`, e);
-                            }
                         }
                     }
                 }
