@@ -1646,34 +1646,22 @@ workspace_data: ${base64Data}
             }
 
             getAudioParam(targetNode, targetInputKey) {
-                switch (targetInputKey) {
-                    case 'freq':
-                        return targetNode.frequency;
-                    case 'q_cv':
-                        return targetNode.Q;
-                    case 'delay_cv':
-                        return targetNode.delayTime;
-                    case 'gain_cv':
-                        return targetNode.gain;
-                    case 'transpose_cv':
-                        return targetNode.transposeControl;
-                    case 'bands_cv':
-                        return targetNode.numBands;
-                    case 'formant_cv':
-                        return targetNode.formantShift;
-                    case 'unvoiced_cv':
-                        return targetNode.unvoicedLevel;
-                    case 'grainSizeCV':
-                        return targetNode.grainSize;
-                    case 'grainDensityCV':
-                        return targetNode.grainDensity;
-                    case 'pitchShiftCV':
-                        return targetNode.pitchShift;
-                    case 'positionJitterCV':
-                        return targetNode.positionJitter;
-                    default:
-                        return null;
+                if (!targetInputKey.endsWith('_cv')) {
+                    return null;
                 }
+
+                const paramName = targetInputKey.slice(0, -3);
+
+                if (targetNode.params && targetNode.params[paramName]) {
+                    return targetNode.params[paramName];
+                }
+
+                // Fallback for AudioWorkletNode parameters
+                if (targetNode.parameters && targetNode.parameters.has(paramName)) {
+                    return targetNode.parameters.get(paramName);
+                }
+
+                return null;
             }
         }
 
@@ -2044,7 +2032,7 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Tone Generator');
 
-                this.addInput('freq', new Classic.Input(voltageSocket, 'Freq CV'));
+                this.addInput('frequency_cv', new Classic.Input(voltageSocket, 'Frequency CV'));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio'));
 
                 this.data.frequency = 440;
@@ -2072,6 +2060,9 @@ workspace_data: ${base64Data}
                 audioNode.frequency.value = this.data.frequency !== undefined ? this.data.frequency : 440;
                 audioNode.type = this.data.waveform || 'sine';
                 audioNode.started = false;
+                audioNode.params = {
+                    frequency: audioNode.frequency
+                };
                 return audioNode;
             }
 
@@ -2188,6 +2179,7 @@ workspace_data: ${base64Data}
         class NoiseGeneratorNode extends WebAudioNode {
             constructor() {
                 super('Noise Generator');
+                this.addInput('gain_cv', new Classic.Input(voltageSocket, 'Gain CV'));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio'));
 
                 this.data.gainValue = 1;
@@ -2201,7 +2193,11 @@ workspace_data: ${base64Data}
             }
 
             build() {
-                return new NoiseGenerator(audioContext, this.id, this.data);
+                const audioNode = new NoiseGenerator(audioContext, this.id, this.data);
+                audioNode.params = {
+                    gain: audioNode.mainOutput.gain
+                };
+                return audioNode;
             }
 
             start() {
@@ -2331,7 +2327,11 @@ workspace_data: ${base64Data}
             }
 
             build() {
-                return new ChordGenerator(audioContext, this.id, this.data);
+                const audioNode = new ChordGenerator(audioContext, this.id, this.data);
+                audioNode.params = {
+                    transpose: audioNode.transposeControl.gain
+                };
+                return audioNode;
             }
 
             start() {
@@ -2369,6 +2369,9 @@ workspace_data: ${base64Data}
             build() {
                 const audioNode = audioContext.createGain();
                 audioNode.gain.value = this.data.gain;
+                audioNode.params = {
+                    gain: audioNode.gain
+                };
                 return audioNode;
             }
         }
@@ -2377,6 +2380,7 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Master');
                 this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addInput('gain_cv', new Classic.Input(voltageSocket, 'Gain CV'));
 
                 this.data.gain = 0.5;
                 this.addControl('gain', new SliderControl('gainSlider', 'Gain', 0, 1, 0.01, this.data.gain, (val) => {
@@ -2391,6 +2395,9 @@ workspace_data: ${base64Data}
                 // This node doesn't create a new audio node, it controls the global masterGain
                 if (masterGain) {
                     masterGain.gain.value = this.data.gain;
+                    masterGain.params = {
+                        gain: masterGain.gain
+                    };
                 }
                 return masterGain; // Return the existing masterGain
             }
@@ -2401,7 +2408,7 @@ workspace_data: ${base64Data}
                 super('Filter');
 
                 this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
-                this.addInput('freq', new Classic.Input(voltageSocket, 'Freq CV'));
+                this.addInput('frequency_cv', new Classic.Input(voltageSocket, 'Frequency CV'));
                 this.addInput('q_cv', new Classic.Input(voltageSocket, 'Q CV'));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
@@ -2439,6 +2446,10 @@ workspace_data: ${base64Data}
                 audioNode.type = this.data.filterType || 'lowpass';
                 audioNode.frequency.value = this.data.frequency !== undefined ? this.data.frequency : 2000;
                 audioNode.Q.value = this.data.q !== undefined ? this.data.q : 1;
+                audioNode.params = {
+                    frequency: audioNode.frequency,
+                    q: audioNode.Q
+                };
                 return audioNode;
             }
         }
@@ -2464,6 +2475,9 @@ workspace_data: ${base64Data}
             build() {
                 const audioNode = audioContext.createDelay(5.0);
                 audioNode.delayTime.value = this.data.delayTime !== undefined ? this.data.delayTime : 0.5;
+                audioNode.params = {
+                    delay: audioNode.delayTime
+                };
                 return audioNode;
             }
         }
@@ -2888,7 +2902,11 @@ workspace_data: ${base64Data}
             }
 
             build() {
-                return new Arpeggiator(audioContext, this.id, this.data);
+                const audioNode = new Arpeggiator(audioContext, this.id, this.data);
+                audioNode.params = {
+                    transpose: audioNode.transposeControl.gain
+                };
+                return audioNode;
             }
 
             start() {
@@ -3360,7 +3378,11 @@ workspace_data: ${base64Data}
             }
 
             build() {
-                return new Sequencer(audioContext, this.id, this.data);
+                const audioNode = new Sequencer(audioContext, this.id, this.data);
+                audioNode.params = {
+                    transpose: audioNode.transposeControl.gain
+                };
+                return audioNode;
             }
 
             start() {
@@ -3537,6 +3559,7 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Distortion');
                 this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addInput('tone_cv', new Classic.Input(voltageSocket, 'Tone CV'));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
                 this.data.drive = 50; // Initial drive value
@@ -3582,6 +3605,9 @@ workspace_data: ${base64Data}
                     mainOutput: toneFilter,
                     waveShaper: waveShaper,
                     toneFilter: toneFilter,
+                    params: {
+                        tone: toneFilter.frequency
+                    },
                     connect: function(destination) {
                         this.mainOutput.connect(destination);
                     },
@@ -3597,6 +3623,10 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Compressor');
                 this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addInput('threshold_cv', new Classic.Input(voltageSocket, 'Threshold CV'));
+                this.addInput('ratio_cv', new Classic.Input(voltageSocket, 'Ratio CV'));
+                this.addInput('attack_cv', new Classic.Input(voltageSocket, 'Attack CV'));
+                this.addInput('release_cv', new Classic.Input(voltageSocket, 'Release CV'));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
                 this.data.threshold = -24; // dB
@@ -3634,6 +3664,12 @@ workspace_data: ${base64Data}
                 audioNode.ratio.value = this.data.ratio !== undefined ? this.data.ratio : 12;
                 audioNode.attack.value = this.data.attack !== undefined ? this.data.attack : 0.003;
                 audioNode.release.value = this.data.release !== undefined ? this.data.release : 0.25;
+                audioNode.params = {
+                    threshold: audioNode.threshold,
+                    ratio: audioNode.ratio,
+                    attack: audioNode.attack,
+                    release: audioNode.release
+                };
                 return audioNode;
             }
         }
@@ -3642,6 +3678,7 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Reverb');
                 this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addInput('mix_cv', new Classic.Input(voltageSocket, 'Mix CV'));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
                 
                 this.data.duration = 2;
@@ -3676,42 +3713,56 @@ workspace_data: ${base64Data}
 
             build() {
                 const convolver = audioContext.createConvolver();
-                const dryGain = audioContext.createGain();
-                const wetGain = audioContext.createGain();
                 const mainInput = audioContext.createGain();
                 const mainOutput = audioContext.createGain();
+                const wetGain = audioContext.createGain();
+                const dryGain = audioContext.createGain();
 
-                // Generate and set the impulse response
+                // Crossfader for dry/wet mix
+                const mixControl = audioContext.createConstantSource();
+                mixControl.offset.value = this.data.mix !== undefined ? this.data.mix : 0.5;
+                const wetInverter = audioContext.createGain();
+                wetInverter.gain.value = -1;
+                const dryInverter = audioContext.createGain();
+                dryInverter.gain.value = -1;
+                const drySum = audioContext.createGain();
+
+                mixControl.connect(wetGain.gain);
+
+                mixControl.connect(wetInverter);
+                wetInverter.connect(drySum.gain);
+                drySum.connect(dryGain.gain);
+
+                mainInput.connect(convolver);
+                convolver.connect(wetGain);
+                wetGain.connect(mainOutput);
+
+                mainInput.connect(dryGain);
+                dryGain.connect(mainOutput);
+
                 this.data.duration = this.data.duration || 2;
                 this.data.decay = this.data.decay || 2;
                 convolver.buffer = generateImpulseResponse(audioContext, this.data.duration, this.data.decay);
 
-                // Set initial mix
-                this.data.mix = this.data.mix || 0.5;
-                dryGain.gain.value = 1 - this.data.mix;
-                wetGain.gain.value = this.data.mix;
-
-                // Routing
-                mainInput.connect(dryGain);
-                mainInput.connect(convolver);
-                convolver.connect(wetGain);
-                dryGain.connect(mainOutput);
-                wetGain.connect(mainOutput);
-
-                mainInput.convolver = convolver;
-                mainInput.dryGain = dryGain;
-                mainInput.wetGain = wetGain;
-                mainInput.mainOutput = mainOutput;
-
-                mainInput.connect = function(destination) {
-                    this.mainOutput.connect(destination);
-                };
-
-                mainInput.disconnect = function(destination) {
-                    this.mainOutput.disconnect(destination);
+                const audioNode = {
+                    mainInput: mainInput,
+                    mainOutput: mainOutput,
+                    convolver: convolver,
+                    mixControl: mixControl, // Expose for CV control
+                    params: {
+                        mix: mixControl.offset
+                    },
+                    connect: function(destination) {
+                        this.mainOutput.connect(destination);
+                    },
+                    disconnect: function(destination) {
+                        this.mainOutput.disconnect(destination);
+                    }
                 };
                 
-                return mainInput;
+                mixControl.start();
+
+                return audioNode;
             }
         }
 
@@ -3786,6 +3837,8 @@ workspace_data: ${base64Data}
         class LFONode extends ModulatorNode {
             constructor() {
                 super('LFO');
+                this.addInput('frequency_cv', new Classic.Input(voltageSocket, 'Frequency CV'));
+                this.addInput('amount_cv', new Classic.Input(voltageSocket, 'Amount CV'));
                 this.addOutput('cv', new Classic.Output(voltageSocket, 'CV Out')); // Can be used for modulation
 
                 this.data.frequency = 5;
@@ -3811,7 +3864,12 @@ workspace_data: ${base64Data}
             }
 
             build() {
-                return new LFOGenerator(audioContext, this.id, this.data);
+                const audioNode = new LFOGenerator(audioContext, this.id, this.data);
+                audioNode.params = {
+                    frequency: audioNode.oscillator.frequency,
+                    amount: audioNode.mainOutput.gain
+                };
+                return audioNode;
             }
 
             start() {
@@ -3845,12 +3903,23 @@ workspace_data: ${base64Data}
                 this.internalSource.connect(this.mainOutput);
                 this.internalSource.start();
 
+                this.attack = this.audioContext.createConstantSource();
+                this.attack.offset.value = this.data.attack || 0.1;
+                this.decay = this.audioContext.createConstantSource();
+                this.decay.offset.value = this.data.decay || 0.1;
+                this.sustain = this.audioContext.createConstantSource();
+                this.sustain.offset.value = this.data.sustain || 0.5;
+                this.release = this.audioContext.createConstantSource();
+                this.release.offset.value = this.data.release || 0.2;
+
+                this.attack.start();
+                this.decay.start();
+                this.sustain.start();
+                this.release.start();
+
+
                 // Initialize parameters
                 this.updateParameter('mode', this.data.mode || 'EG');
-                this.updateParameter('attack', this.data.attack || 0.1);
-                this.updateParameter('decay', this.data.decay || 0.1);
-                this.updateParameter('sustain', this.data.sustain || 0.5);
-                this.updateParameter('release', this.data.release || 0.2);
             }
 
             handleGate(isGateHigh) {
@@ -3876,9 +3945,9 @@ workspace_data: ${base64Data}
             trigger() {
                 const now = this.audioContext.currentTime;
                 const gainParam = this.mainOutput.gain;
-                const attackDuration = Math.max(0.001, this.data.attack);
-                const decayDuration = Math.max(0.001, this.data.decay);
-                const sustainLevel = this.data.sustain;
+                const attackDuration = Math.max(0.001, this.attack.offset.value);
+                const decayDuration = Math.max(0.001, this.decay.offset.value);
+                const sustainLevel = this.sustain.offset.value;
 
                 gainParam.cancelScheduledValues(now);
                 gainParam.setValueAtTime(gainParam.value, now);
@@ -3889,7 +3958,7 @@ workspace_data: ${base64Data}
             release() {
                 const now = this.audioContext.currentTime;
                 const gainParam = this.mainOutput.gain;
-                const releaseDuration = Math.max(0.001, this.data.release);
+                const releaseDuration = Math.max(0.001, this.release.offset.value);
 
                 gainParam.cancelScheduledValues(now);
                 gainParam.setValueAtTime(gainParam.value, now);
@@ -3960,6 +4029,10 @@ workspace_data: ${base64Data}
             constructor() {
                 super('ADSR Envelope');
                 this.addInput('gate', new Classic.Input(voltageSocket, 'Gate In'));
+                this.addInput('attack_cv', new Classic.Input(voltageSocket, 'Attack CV'));
+                this.addInput('decay_cv', new Classic.Input(voltageSocket, 'Decay CV'));
+                this.addInput('sustain_cv', new Classic.Input(voltageSocket, 'Sustain CV'));
+                this.addInput('release_cv', new Classic.Input(voltageSocket, 'Release CV'));
                 this.addOutput('cv', new Classic.Output(voltageSocket, 'CV Out')); // This outputs a control signal
 
                 this.data.mode = 'EG';
@@ -3999,7 +4072,14 @@ workspace_data: ${base64Data}
             }
 
             build() {
-                return new ADSREnvelope(audioContext, this.id, this.data);
+                const audioNode = new ADSREnvelope(audioContext, this.id, this.data);
+                audioNode.params = {
+                    attack: audioNode.attack.offset,
+                    decay: audioNode.decay.offset,
+                    sustain: audioNode.sustain.offset,
+                    release: audioNode.release.offset
+                };
+                return audioNode;
             }
         }
 
@@ -4007,6 +4087,8 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Bitcrusher');
                 this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addInput('bits_cv', new Classic.Input(voltageSocket, 'Bits CV'));
+                this.addInput('sample_rate_reduction_cv', new Classic.Input(voltageSocket, 'Sample Rate Reduction CV'));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
                 // The actual AudioWorkletNode will be created in startAudio().
@@ -4043,6 +4125,10 @@ workspace_data: ${base64Data}
                     this.data.sampleRateReduction !== undefined ? this.data.sampleRateReduction : 1,
                     audioContext.currentTime
                 );
+                audioNode.params = {
+                    bits: audioNode.parameters.get('bits'),
+                    sample_rate_reduction: audioNode.parameters.get('sampleRateReduction')
+                };
                 return audioNode;
             }
         }
@@ -4052,6 +4138,8 @@ workspace_data: ${base64Data}
                 super('Vocoder');
                 this.addInput('carrier', new Classic.Input(voltageSocket, 'Carrier In'));
                 this.addInput('modulator', new Classic.Input(voltageSocket, 'Modulator In'));
+                this.addInput('frequency_cv', new Classic.Input(voltageSocket, 'Frequency CV'));
+                this.addInput('modulator_gain_cv', new Classic.Input(voltageSocket, 'Modulator Gain CV'));
                 this.addInput('bands_cv', new Classic.Input(voltageSocket, 'Bands CV'));
                 this.addInput('formant_cv', new Classic.Input(voltageSocket, 'Formant CV'));
                 this.addInput('unvoiced_cv', new Classic.Input(voltageSocket, 'Unvoiced CV'));
@@ -4101,7 +4189,15 @@ workspace_data: ${base64Data}
             }
 
             build() {
-                return new Vocoder(audioContext, this.id, this.data);
+                const audioNode = new Vocoder(audioContext, this.id, this.data);
+                audioNode.params = {
+                    frequency: audioNode.internalCarrier.frequency,
+                    modulator_gain: audioNode.modulatorInput.gain,
+                    bands: audioNode.numBands,
+                    formant: audioNode.formantShift,
+                    unvoiced: audioNode.unvoicedLevel
+                };
+                return audioNode;
             }
 
             start() {
@@ -4123,6 +4219,7 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Attenuverter');
                 this.addInput('in', new Classic.Input(voltageSocket, 'In'));
+                this.addInput('level_cv', new Classic.Input(voltageSocket, 'Level CV'));
                 this.addOutput('out', new Classic.Output(voltageSocket, 'Out'));
 
                 this.data.level = 1;
@@ -4138,6 +4235,9 @@ workspace_data: ${base64Data}
             build() {
                 const audioNode = audioContext.createGain();
                 audioNode.gain.value = this.data.level;
+                audioNode.params = {
+                    level: audioNode.gain
+                };
                 return audioNode;
             }
         }
@@ -4205,10 +4305,10 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Granular Synthesizer');
                 this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In'));
-                this.addInput('grainSizeCV', new Classic.Input(voltageSocket, 'Grain Size CV'));
-                this.addInput('grainDensityCV', new Classic.Input(voltageSocket, 'Grain Density CV'));
-                this.addInput('pitchShiftCV', new Classic.Input(voltageSocket, 'Pitch Shift CV'));
-                this.addInput('positionJitterCV', new Classic.Input(voltageSocket, 'Jitter CV'));
+                this.addInput('grain_size_cv', new Classic.Input(voltageSocket, 'Grain Size CV'));
+                this.addInput('grain_density_cv', new Classic.Input(voltageSocket, 'Grain Density CV'));
+                this.addInput('pitch_shift_cv', new Classic.Input(voltageSocket, 'Pitch Shift CV'));
+                this.addInput('position_jitter_cv', new Classic.Input(voltageSocket, 'Jitter CV'));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
                 this.data.grainSize = 0.1;
@@ -4241,7 +4341,14 @@ workspace_data: ${base64Data}
             }
 
             build() {
-                return new GranularSynthesizer(audioContext, this.id, this.data);
+                const audioNode = new GranularSynthesizer(audioContext, this.id, this.data);
+                audioNode.params = {
+                    grain_size: audioNode.grainSize,
+                    grain_density: audioNode.grainDensity,
+                    pitch_shift: audioNode.pitchShift,
+                    position_jitter: audioNode.positionJitter
+                };
+                return audioNode;
             }
         }
 
@@ -4341,7 +4448,11 @@ workspace_data: ${base64Data}
             }
 
             build() {
-                return new ScaleArpeggiator(audioContext, this.id, this.data);
+                const audioNode = new ScaleArpeggiator(audioContext, this.id, this.data);
+                audioNode.params = {
+                    transpose: audioNode.transposeControl.gain
+                };
+                return audioNode;
             }
 
             start() {
