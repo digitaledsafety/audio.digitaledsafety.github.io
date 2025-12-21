@@ -4,10 +4,11 @@ The Arpeggiator Node can be used to create arpeggios.
 
 ## Inputs
 
-| Name      | Description                              |
-| --------- | ---------------------------------------- |
-| **Clock In**| A CV input that accepts a clock signal to drive the arpeggiator's timing externally. |
-| **MIDI In** | A MIDI input to receive note data, which will override the root note setting. |
+| Name             | Description                              |
+| ---------------- | ---------------------------------------- |
+| **Clock In**     | A CV input that accepts a clock signal to drive the arpeggiator's timing externally. |
+| **MIDI In**      | A MIDI input to receive note data, which will override the root note setting. |
+| **Transpose CV** | Modulates the root note of the arpeggio. Follows the 1V/Octave standard (+1V = +12 semitones). |
 
 ## Outputs
 

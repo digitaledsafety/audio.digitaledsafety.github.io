@@ -4,9 +4,10 @@ The Sequencer Node can be used to create musical sequences.
 
 ## Inputs
 
-| Name      | Description                              |
-| --------- | ---------------------------------------- |
-| **Clock In**| A CV input that accepts a clock signal to drive the sequencer's timing externally. |
+| Name             | Description                              |
+| ---------------- | ---------------------------------------- |
+| **Clock In**     | A CV input that accepts a clock signal to drive the sequencer's timing externally. |
+| **Transpose CV** | Modulates the root note of the sequence. Follows the 1V/Octave standard (+1V = +12 semitones). |
 
 ## Outputs
 

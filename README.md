@@ -42,6 +42,7 @@ To get started with AudioGrid, simply visit the [AudioGrid website](https://audi
 *   [Master Clock](./docs/MasterClockNode.md)
 *   [Microphone Input](./docs/MicrophoneInputNode.md)
 *   [Noise Generator](./docs/NoiseGeneratorNode.md)
+*   [Quantizer](./docs/quantizer-node.md)
 *   [Reverb](./docs/ReverbNode.md)
 *   [Scale Arpeggiator](./docs/ScaleArpeggiatorNode.md)
 *   [Sequencer](./docs/SequencerNode.md)
