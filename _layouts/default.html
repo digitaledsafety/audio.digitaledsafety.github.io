@@ -402,7 +402,80 @@ layout: none
         const { ConnectionPlugin, Presets: ConnectionPresets } = window.ReteConnectionPlugin;
         const { DataflowEngine } = window.ReteEngine;
         const { ReactRenderPlugin, Presets: ReactPresets } = window.ReteReactRenderPlugin
-        const { ContextMenuPlugin, Presets: ContextMenuPresets } = window.ReteContextMenuPlugin;        
+        const { ContextMenuPlugin, Presets: ContextMenuPresets } = window.ReteContextMenuPlugin;
+
+
+function getElementCenter(el, area) {
+    const rect = el.getBoundingClientRect();
+    const center = {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+    };
+    return area.screenToWorld(center);
+}
+
+function distance(p1, p2) {
+    return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+}
+
+function useMagneticConnection(props) {
+    const preset = ConnectionPresets.classic.setup(props);
+    const radius = 40;
+
+    return {
+        ...preset,
+        async drop(context) {
+            if (context.type !== 'connection') return;
+            const scope = this.scope;
+            const area = scope.parent;
+            const { end } = context.payload.payload;
+            const target = preset.drop(context);
+
+            if (target) return target;
+
+            for (const view of area.nodeViews.values()) {
+                for (const port of Object.values(view.ports)) {
+                    if (!port.element) continue;
+                    const d = distance(getElementCenter(port.element, area), end);
+
+                    if (d < radius) {
+                        return {
+                            ...context.payload,
+                            end: {
+                                id: view.id,
+                                portId: port.id,
+                            },
+                        };
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+const MagneticConnection = React.forwardRef(function MagneticConnection(
+    { data, ...props },
+    ref
+) {
+    const classic = ConnectionPresets.classic.useClassic(props);
+    const path = React.useMemo(() => {
+        if (!data.end) return classic.path;
+        const scope = classic.scope.parent;
+        const area = scope.parent;
+        const view = area.nodeViews.get(data.end.id);
+        const port = view.ports[data.end.portId];
+        const center = getElementCenter(port.element, area);
+
+        return classic.path.replace(
+            /M \d+(\.\d+)?,\d+(\.\d+)? C \d+(\.\d+)?,\d+(\.\d+)? \d+(\.\d+)?,\d+(\.\d+)? ([\d\.]+),([\d\.]+)/,
+            `C ${center.x},${center.y} ${center.x},${center.y} ${center.x},${center.y}`
+        );
+    }, [classic, data.end]);
+
+    return <ConnectionPresets.classic.Path ref={ref} {...props} path={path} />;
+});
+
 
         // Global variables for Web Audio API
         var audioContext;
@@ -4297,7 +4370,7 @@ workspace_data: ${base64Data}
             });
             
             // Rete.js v2: Add presets to connection and contextMenu plugins
-            connection.addPreset(ConnectionPresets.classic.setup());
+            connection.addPreset(useMagneticConnection());
             
             // Corrected: ContextMenuPresets.classic.setup expects an object with an 'items' property.
             /*contextMenu.addPreset(ContextMenuPresets.classic.setup({
@@ -4315,7 +4388,12 @@ workspace_data: ${base64Data}
             area.use(reactRender);
             area.use(contextMenu); // Use the instantiated contextMenu plugin
 
-            reactRender.addPreset(ReactPresets.classic.setup({ area }));
+            reactRender.addPreset(ReactPresets.classic.setup({
+                area,
+                props: {
+                    component: MagneticConnection
+                }
+            }));
             reactRender.addPreset(ReactPresets.contextMenu.setup())
 
             //AreaExtensions.simpleNodesOrder(area);
