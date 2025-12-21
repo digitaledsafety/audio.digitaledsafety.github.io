@@ -4,9 +4,10 @@ The **Chord Generator Node** produces a chord consisting of multiple simultaneou
 
 ## Inputs
 
-| Name        | Description                                                                    |
-| ----------- | ------------------------------------------------------------------------------ |
-| **MIDI In**   | A MIDI input that allows an external source (like a `SequencerNode` or `ArpeggiatorNode`) to set the root note of the chord dynamically. |
+| Name             | Description                                                                    |
+| ---------------- | ------------------------------------------------------------------------------ |
+| **MIDI In**      | A MIDI input that allows an external source (like a `SequencerNode` or `ArpeggiatorNode`) to set the root note of the chord dynamically. |
+| **Transpose CV** | Modulates the root note of the chord. Follows the 1V/Octave standard (+1V = +12 semitones). |
 
 ## Outputs
 

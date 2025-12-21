@@ -322,6 +322,7 @@ layout: none
                             <button id="addMicrophoneInputNodeBtn" class="button button-secondary w-full text-xs">🎤 Mic Input</button>
                             <button id="addGranularSynthesizerNodeBtn" class="button button-secondary w-full text-xs">✨ Granular</button>
                             <button id="addManualGateNodeBtn" class="button button-secondary w-full text-xs">🔳 Manual Gate</button>
+                            <button id="addQuantizerNodeBtn" class="button button-secondary w-full text-xs">🎹 Quantizer</button>
                         </div>
                     </div>
                 </div>
@@ -496,6 +497,7 @@ layout: none
         const addMicrophoneInputNodeBtn = document.getElementById('addMicrophoneInputNodeBtn');
         const addGranularSynthesizerNodeBtn = document.getElementById('addGranularSynthesizerNodeBtn');
         const addManualGateNodeBtn = document.getElementById('addManualGateNodeBtn');
+        const addQuantizerNodeBtn = document.getElementById('addQuantizerNodeBtn');
         const clearEditorBtn = document.getElementById('clearEditorBtn');
         const reteContainer = document.getElementById('rete-container');
         const messageBox = document.getElementById('messageBox');
@@ -601,7 +603,8 @@ layout: none
                     'Vocoder': VocoderNode,
                     '🎤 Mic Input': MicrophoneInputNode,
                     'Granular Synthesizer': GranularSynthesizerNode,
-                    'Manual Gate': ManualGateNode
+                    'Manual Gate': ManualGateNode,
+                    'Quantizer': QuantizerNode
                 };
 
                 // Stage 1: Create and add all nodes to the editor's data model.
@@ -1088,6 +1091,10 @@ workspace_data: ${base64Data}
 
                 this.mainOutput = this.audioContext.createGain();
                 this.mainOutput.gain.value = 0.5;
+
+                this.transposeControl = this.audioContext.createGain();
+                this.transposeControl.gain.value = 1200; // 1V = 1200 cents
+
                 this.setupNotesAndScales();
             }
 
@@ -1180,6 +1187,7 @@ workspace_data: ${base64Data}
                     const gainNode = this.audioContext.createGain();
                     osc.type = this.data.waveform || 'sine';
                     osc.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+                    this.transposeControl.connect(osc.detune);
 
                     const adsrData = {
                         attack: this.data.attack || 0.01,
@@ -1647,6 +1655,8 @@ workspace_data: ${base64Data}
                         return targetNode.delayTime;
                     case 'gain_cv':
                         return targetNode.gain;
+                    case 'transpose_cv':
+                        return targetNode.transposeControl;
                     case 'bands_cv':
                         return targetNode.numBands;
                     case 'formant_cv':
@@ -1797,6 +1807,11 @@ workspace_data: ${base64Data}
                 this.mainOutput = this.audioContext.createGain();
                 this.mainOutput.gain.value = 0.5; // Default volume for chord
 
+                // This GainNode scales the incoming CV (1V/Oct) to cents for the detune parameter.
+                // 1 Volt = 1 Octave = 12 Semitones = 1200 Cents.
+                this.transposeControl = this.audioContext.createGain();
+                this.transposeControl.gain.value = 1200;
+
                 this.setupNotesAndChords();
                 this.updateParameter('chordType', this.data.chordType || 'Major Triad');
                 this.updateParameter('rootNote', this.data.rootNote || 'C4');
@@ -1863,6 +1878,8 @@ workspace_data: ${base64Data}
 
                     osc.frequency.value = freq;
                     osc.type = this.data.waveform || 'sine';
+                    this.transposeControl.connect(osc.detune);
+
                     gain.gain.value = 1 / notesToPlay.length; // Distribute volume evenly
 
                     osc.connect(gain);
@@ -2271,6 +2288,7 @@ workspace_data: ${base64Data}
                 super('Chord Generator');
 
                 this.addInput('midi', new Classic.Input(midiSocket, 'MIDI In'));
+                this.addInput('transpose_cv', new Classic.Input(voltageSocket, 'Transpose CV'));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio'));
 
                 // Initialize default data values for the new controls
@@ -2470,6 +2488,9 @@ workspace_data: ${base64Data}
                 // Master gain for the Arpeggiator output
                 this.mainOutput = this.audioContext.createGain();
                 this.mainOutput.gain.value = 0.5; // Default volume for arpeggiator
+
+                this.transposeControl = this.audioContext.createGain();
+                this.transposeControl.gain.value = 1200; // 1V = 1200 cents
 
                 this.setupNotesAndChords();
             }
@@ -2681,6 +2702,7 @@ workspace_data: ${base64Data}
 
                     osc.type = this.data.waveform || 'sine';
                     osc.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+                    this.transposeControl.connect(osc.detune);
 
                     const adsrData = {
                         attack: this.data.attack,
@@ -2772,6 +2794,7 @@ workspace_data: ${base64Data}
                 super('Arpeggiator');
                 this.addInput('clock', new Classic.Input(voltageSocket, 'Clock In'));
                 this.addInput('midi', new Classic.Input(midiSocket, 'MIDI In'));
+                this.addInput('transpose_cv', new Classic.Input(voltageSocket, 'Transpose CV'));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio'));
                 this.addOutput('midi', new Classic.Output(midiSocket, 'MIDI Out'));
 
@@ -2901,6 +2924,9 @@ workspace_data: ${base64Data}
                 // Master gain for the Sequencer output
                 this.mainOutput = this.audioContext.createGain();
                 this.mainOutput.gain.value = 0.5; // Default volume for sequencer
+
+                this.transposeControl = this.audioContext.createGain();
+                this.transposeControl.gain.value = 1200; // 1V = 1200 cents
 
                 this.setupNotes();
             }
@@ -3153,6 +3179,7 @@ workspace_data: ${base64Data}
 
                 osc.type = this.data.waveform || 'sine';
                 osc.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+                this.transposeControl.connect(osc.detune);
 
                 const adsrData = {
                     attack: this.data.attack,
@@ -3263,6 +3290,7 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Sequencer');
                 this.addInput('clock', new Classic.Input(voltageSocket, 'Clock In'));
+                this.addInput('transpose_cv', new Classic.Input(voltageSocket, 'Transpose CV'));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio'));
                 this.addOutput('midi', new Classic.Output(midiSocket, 'MIDI Out'));
 
@@ -4114,6 +4142,65 @@ workspace_data: ${base64Data}
             }
         }
 
+        class Quantizer {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+
+                this.workletNode = new AudioWorkletNode(this.audioContext, 'quantizer-processor');
+                this.mainInput = this.workletNode;
+                this.mainOutput = this.workletNode;
+
+                this.rootNoteParam = this.workletNode.parameters.get('rootNote');
+
+                this.updateParameter('rootNote', this.data.rootNote || 'C4');
+                this.updateParameter('scaleType', this.data.scaleType || 'Major (Ionian)');
+            }
+
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+                if (paramName === 'rootNote') {
+                    const rootMidi = ROOT_NOTES[value] || 60;
+                    // The worklet processor itself doesn't use the rootNote param directly for quantization math,
+                    // but it's good practice to keep it updated. The real magic happens with the scale intervals.
+                    this.rootNoteParam.setTargetAtTime(rootMidi, this.audioContext.currentTime, 0.01);
+                } else if (paramName === 'scaleType') {
+                    const scaleIntervals = SCALE_TYPES[value] || SCALE_TYPES['Major (Ionian)'];
+                    this.workletNode.port.postMessage({ scale: scaleIntervals });
+                }
+            }
+
+            start() {}
+            stop() {}
+        }
+
+        class QuantizerNode extends WebAudioNode {
+            constructor() {
+                super('Quantizer');
+                this.addInput('in', new Classic.Input(voltageSocket, 'CV In'));
+                this.addOutput('out', new Classic.Output(voltageSocket, 'CV Out'));
+
+                this.data.rootNote = 'C4';
+                this.addControl('rootNote', new SelectControl('quantRootNote', 'Root Note', Object.keys(ROOT_NOTES), this.data.rootNote, (val) => {
+                    this.data.rootNote = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('rootNote', val);
+                }));
+
+                this.data.scaleType = 'Major (Ionian)';
+                this.addControl('scaleType', new SelectControl('quantScaleType', 'Scale', Object.keys(SCALE_TYPES), this.data.scaleType, (val) => {
+                    this.data.scaleType = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('scaleType', val);
+                }));
+            }
+
+            build() {
+                return new Quantizer(audioContext, this.id, this.data);
+            }
+        }
+
         class GranularSynthesizerNode extends WebAudioNode {
             constructor() {
                 super('Granular Synthesizer');
@@ -4162,6 +4249,7 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Scale Arpeggiator');
                 this.addInput('clock', new Classic.Input(voltageSocket, 'Clock In'));
+                this.addInput('transpose_cv', new Classic.Input(voltageSocket, 'Transpose CV'));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio'));
                 this.addOutput('midi', new Classic.Output(midiSocket, 'MIDI Out'));
 
@@ -4875,6 +4963,11 @@ workspace_data: ${base64Data}
             clearEditorBtn.disabled = false;
         });
 
+        addQuantizerNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new QuantizerNode());
+            clearEditorBtn.disabled = false;
+        });
+
         // Initialize editor on window load
         window.onload = async () => {
 
@@ -5408,6 +5501,7 @@ workspace_data: ${base64Data}
                 await audioContext.audioWorklet.addModule('{{ "assets/js/audio-worklets/bitcrusher-processor.js" | relative_url }}');
                 await audioContext.audioWorklet.addModule('{{ "assets/js/audio-worklets/granular-processor.js" | relative_url }}');
                 await audioContext.audioWorklet.addModule('{{ "assets/js/audio-worklets/vocoder-processor.js" | relative_url }}');
+                await audioContext.audioWorklet.addModule('{{ "assets/js/audio-worklets/quantizer-processor.js" | relative_url }}');
                 
                 const urlParams = new URLSearchParams(window.location.search);
                 const sessionId = urlParams.get('session');

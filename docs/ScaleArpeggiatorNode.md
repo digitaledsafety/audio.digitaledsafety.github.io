@@ -4,9 +4,10 @@ The **Scale Arpeggiator Node** generates melodic sequences of notes based on a s
 
 ## Inputs
 
-| Name        | Description                                                                    |
-| ----------- | ------------------------------------------------------------------------------ |
-| **Clock In**  | A CV input that accepts a clock signal to drive the arpeggiator's timing externally. When connected, this overrides the internal BPM control. |
+| Name             | Description                                                                    |
+| ---------------- | ------------------------------------------------------------------------------ |
+| **Clock In**     | A CV input that accepts a clock signal to drive the arpeggiator's timing externally. When connected, this overrides the internal BPM control. |
+| **Transpose CV** | Modulates the root note of the scale. Follows the 1V/Octave standard (+1V = +12 semitones). |
 
 ## Outputs
 
