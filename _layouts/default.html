@@ -298,31 +298,38 @@ layout: none
                 <div class="relative inline-block text-left">
                     <button id="addNodeToggle" class="button button-primary">➕</button>
                     <div id="addNodeDropdown" class="origin-bottom-right absolute right-0 bottom-full mb-2 w-64 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-30">
-                        <div class="grid grid-cols-2 gap-2 p-2" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
-                            <button id="addToneGeneratorNodeBtn" class="button button-secondary w-full text-xs">🔊 Tone Gen</button>
-                            <button id="addNoiseGeneratorNodeBtn" class="button button-secondary w-full text-xs">🌫️ Noise Gen</button>
-                            <button id="addWavePlayerNodeBtn" class="button button-secondary w-full text-xs">🎵 Wave Player</button>
-                            <button id="addChordGeneratorNodeBtn" class="button button-secondary w-full text-xs">🎼 Chord Gen</button>
-                            <button id="addVCANodeBtn" class="button button-secondary w-full text-xs">🎚️ VCA</button>
-                            <button id="addMasterGainOutputNodeBtn" class="button button-secondary w-full text-xs">🔊 Master</button>
-                            <button id="addFilterNodeBtn" class="button button-secondary w-full text-xs">📉 Filter</button>
-                            <button id="addDelayNodeBtn" class="button button-secondary w-full text-xs">⏳ Delay</button>
-                            <button id="addDistortionNodeBtn" class="button button-secondary w-full text-xs">🎸 Distortion</button>
-                            <button id="addCompressorNodeBtn" class="button button-secondary w-full text-xs">📊 Compressor</button>
-                            <button id="addReverbNodeBtn" class="button button-secondary w-full text-xs">🏞️ Reverb</button>
-                            <button id="addArpeggiatorNodeBtn" class="button button-secondary w-full text-xs">🎹 Chord Arp</button>
-                            <button id="addScaleArpeggiatorNodeBtn" class="button button-secondary w-full text-xs">🎹 Scale Arp</button>
-                            <button id="addLFONodeBtn" class="button button-secondary w-full text-xs">🌊 LFO</button>
-                            <button id="addADSREnvelopeNodeBtn" class="button button-secondary w-full text-xs">✉️ ADSR</button>
-                            <button id="addBitcrusherNodeBtn" class="button button-secondary w-full text-xs">👾 Bitcrusher</button>
-                            <button id="addSequencerNodeBtn" class="button button-secondary w-full text-xs">🎶 Sequencer</button>
-                            <button id="addAttenuverterNodeBtn" class="button button-secondary w-full text-xs">🔄 Attenuverter</button>
-                            <button id="addMasterClockNodeBtn" class="button button-secondary w-full text-xs">⏱️ Master Clock</button>
-                            <button id="addVocoderNodeBtn" class="button button-secondary w-full text-xs">🗣️ Vocoder</button>
-                            <button id="addMicrophoneInputNodeBtn" class="button button-secondary w-full text-xs">🎤 Mic Input</button>
-                            <button id="addGranularSynthesizerNodeBtn" class="button button-secondary w-full text-xs">✨ Granular</button>
-                            <button id="addManualGateNodeBtn" class="button button-secondary w-full text-xs">🔳 Manual Gate</button>
-                            <button id="addQuantizerNodeBtn" class="button button-secondary w-full text-xs">🎹 Quantizer</button>
+                        <div class="p-2" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
+                            <div class="grid grid-cols-2 gap-2">
+                                <button id="addToneGeneratorNodeBtn" class="button button-secondary w-full text-xs">🔊 Tone Gen</button>
+                                <button id="addNoiseGeneratorNodeBtn" class="button button-secondary w-full text-xs">🌫️ Noise Gen</button>
+                                <button id="addWavePlayerNodeBtn" class="button button-secondary w-full text-xs">🎵 Wave Player</button>
+                                <button id="addChordGeneratorNodeBtn" class="button button-secondary w-full text-xs">🎼 Chord Gen</button>
+                                <button id="addVCANodeBtn" class="button button-secondary w-full text-xs">🎚️ VCA</button>
+                                <button id="addMasterGainOutputNodeBtn" class="button button-secondary w-full text-xs">🔊 Master</button>
+                                <button id="addFilterNodeBtn" class="button button-secondary w-full text-xs">📉 Filter</button>
+                                <button id="addDelayNodeBtn" class="button button-secondary w-full text-xs">⏳ Delay</button>
+                                <button id="addDistortionNodeBtn" class="button button-secondary w-full text-xs">🎸 Distortion</button>
+                                <button id="addCompressorNodeBtn" class="button button-secondary w-full text-xs">📊 Compressor</button>
+                                <button id="addReverbNodeBtn" class="button button-secondary w-full text-xs">🏞️ Reverb</button>
+                                <button id="addArpeggiatorNodeBtn" class="button button-secondary w-full text-xs">🎹 Chord Arp</button>
+                                <button id="addScaleArpeggiatorNodeBtn" class="button button-secondary w-full text-xs">🎹 Scale Arp</button>
+                                <button id="addLFONodeBtn" class="button button-secondary w-full text-xs">🌊 LFO</button>
+                                <button id="addADSREnvelopeNodeBtn" class="button button-secondary w-full text-xs">✉️ ADSR</button>
+                                <button id="addBitcrusherNodeBtn" class="button button-secondary w-full text-xs">👾 Bitcrusher</button>
+                                <button id="addSequencerNodeBtn" class="button button-secondary w-full text-xs">🎶 Sequencer</button>
+                                <button id="addAttenuverterNodeBtn" class="button button-secondary w-full text-xs">🔄 Attenuverter</button>
+                                <button id="addMasterClockNodeBtn" class="button button-secondary w-full text-xs">⏱️ Master Clock</button>
+                                <button id="addVocoderNodeBtn" class="button button-secondary w-full text-xs">🗣️ Vocoder</button>
+                                <button id="addMicrophoneInputNodeBtn" class="button button-secondary w-full text-xs">🎤 Mic Input</button>
+                                <button id="addGranularSynthesizerNodeBtn" class="button button-secondary w-full text-xs">✨ Granular</button>
+                                <button id="addManualGateNodeBtn" class="button button-secondary w-full text-xs">🔳 Manual Gate</button>
+                                <button id="addQuantizerNodeBtn" class="button button-secondary w-full text-xs">🎹 Quantizer</button>
+                            </div>
+                            <hr class="my-2 border-gray-200">
+                            <h4 class="font-semibold text-center text-gray-500 text-sm mb-2">Groups</h4>
+                            <div id="nodeGroupsContainer" class="flex flex-col gap-2">
+                                <!-- Node group buttons will be dynamically added here -->
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -347,6 +354,7 @@ layout: none
                                 <button id="saveWorkspaceBtn" class="button button-primary">💾 Save</button>
                                 <button id="deleteWorkspaceBtn" class="button button-danger">🗑️ Delete</button>
                             </div>
+                            <button id="saveGroupBtn" class="button button-secondary w-full mt-2">💾 Save Selection as Group</button>
                             <select id="workspaceSelector" class="w-full p-2 border rounded-md"></select>
                             <button id="loadWorkspaceBtn" class="button button-secondary">🔄 Load Selected</button>
                             <div class="grid grid-cols-2 gap-2">
@@ -669,6 +677,194 @@ layout: none
         function getWorkspaces() {
             const workspaces = localStorage.getItem('rete-workspaces');
             return workspaces ? JSON.parse(workspaces) : {};
+        }
+
+        function saveNodeGroup() {
+            const selectedNodes = area.plugin.selector.items;
+            if (selectedNodes.length === 0) {
+                showMessage('Please select one or more nodes to save as a group.', 'error');
+                return;
+            }
+
+            const groupName = prompt('Enter a name for the node group:');
+            if (!groupName) return;
+
+            const selectedNodeIds = new Set(selectedNodes.map(node => node.id));
+            const allConnections = editor.getConnections();
+
+            // Filter for connections that are internal to the selected group
+            const internalConnections = allConnections.filter(conn =>
+                selectedNodeIds.has(conn.source) && selectedNodeIds.has(conn.target)
+            );
+
+            // Find the top-left corner of the selection to make positions relative
+            let minX = Infinity;
+            let minY = Infinity;
+            selectedNodes.forEach(node => {
+                const position = area.nodeViews.get(node.id).position;
+                if (position.x < minX) minX = position.x;
+                if (position.y < minY) minY = position.y;
+            });
+
+            const groupNodes = selectedNodes.map(node => {
+                const originalPosition = area.nodeViews.get(node.id).position;
+                return {
+                    id: node.id, // We'll re-ID on load, but keep original for connection mapping
+                    label: node.label,
+                    data: node.data,
+                    position: {
+                        x: originalPosition.x - minX,
+                        y: originalPosition.y - minY
+                    }
+                };
+            });
+
+            const groupConnections = internalConnections.map(conn => ({
+                id: conn.id,
+                source: conn.source,
+                sourceOutput: Object.keys(editor.getNode(conn.source).outputs).find(key => editor.getNode(conn.source).outputs[key].socket === conn.sourceOutput),
+                target: conn.target,
+                targetInput: Object.keys(editor.getNode(conn.target).inputs).find(key => editor.getNode(conn.target).inputs[key].socket === conn.targetInput)
+            }));
+
+            const nodeGroup = {
+                nodes: groupNodes,
+                connections: groupConnections
+            };
+
+            const nodeGroups = JSON.parse(localStorage.getItem('rete-node-groups') || '{}');
+            nodeGroups[groupName] = nodeGroup;
+            localStorage.setItem('rete-node-groups', JSON.stringify(nodeGroups));
+
+            showMessage(`Node group "${groupName}" saved successfully.`, 'success');
+            populateNodeGroupsDropdown();
+        }
+
+        async function loadNodeGroup(groupName) {
+            const nodeGroups = JSON.parse(localStorage.getItem('rete-node-groups') || '{}');
+            const groupData = nodeGroups[groupName];
+
+            if (!groupData) {
+                showMessage(`Node group "${groupName}" not found.`, 'error');
+                return;
+            }
+
+            // Unselect any currently selected nodes to avoid confusion
+            await area.plugin.selector.clear();
+
+            const idMap = new Map();
+            const newNodes = [];
+
+            // Get the center of the current view to place the new group
+            const viewCenter = {
+                x: reteContainer.clientWidth / 2,
+                y: reteContainer.clientHeight / 2,
+            };
+            const centerPositionInEditor = area.view.area.pointerToSchematic(viewCenter);
+
+            const nodeConstructors = {
+                'Tone Generator': ToneGeneratorNode,
+                'Noise Generator': NoiseGeneratorNode,
+                'Wave Player': WavePlayerNode,
+                'Chord Generator': ChordGeneratorNode,
+                'VCA': VCANode,
+                'Master': MasterGainOutputNode,
+                'Filter': FilterNode,
+                'Delay': DelayNode,
+                'Distortion': DistortionNode,
+                'Compressor': CompressorNode,
+                'Reverb': ReverbNode,
+                'Arpeggiator': ArpeggiatorNode,
+                'LFO': LFONode,
+                'ADSR Envelope': ADSREnvelopeNode,
+                'Bitcrusher': BitcrusherNode,
+                'Sequencer': SequencerNode,
+                'Attenuverter': AttenuverterNode,
+                'Master Clock': MasterClockNode,
+                'Vocoder': VocoderNode,
+                '🎤 Mic Input': MicrophoneInputNode,
+                'Granular Synthesizer': GranularSynthesizerNode,
+                'Manual Gate': ManualGateNode,
+                'Quantizer': QuantizerNode
+            };
+
+            // First, create all the new nodes with new IDs
+            for (const nodeData of groupData.nodes) {
+                const oldId = nodeData.id;
+                const newId = crypto.randomUUID(); // Generate a new unique ID
+                idMap.set(oldId, newId);
+
+                const Constructor = nodeConstructors[nodeData.label];
+                if (Constructor) {
+                    const node = new Constructor();
+                    node.id = newId;
+                    node.data = { ...node.data, ...nodeData.data };
+
+                    for (const key in node.controls) {
+                        if (node.data.hasOwnProperty(key)) {
+                            node.controls[key].value = node.data[key];
+                        }
+                    }
+
+                    await editor.addNode(node);
+
+                    // Calculate position relative to the center of the screen
+                    const newPosition = {
+                        x: centerPositionInEditor.x + nodeData.position.x,
+                        y: centerPositionInEditor.y + nodeData.position.y
+                    };
+                    await area.translate(node.id, newPosition);
+
+                    newNodes.push(node);
+                } else {
+                     console.warn(`Node type "${nodeData.label}" not found while loading group.`);
+                }
+            }
+
+            // Second, create the connections using the new IDs
+            for (const connData of groupData.connections) {
+                const newSourceId = idMap.get(connData.source);
+                const newTargetId = idMap.get(connData.target);
+
+                if (newSourceId && newTargetId) {
+                    const sourceNode = editor.getNode(newSourceId);
+                    const targetNode = editor.getNode(newTargetId);
+
+                    if (sourceNode && targetNode) {
+                        const sourceOutput = connData.sourceOutput;
+                        const targetInput = connData.targetInput;
+
+                        if (sourceNode.outputs[sourceOutput] && targetNode.inputs[targetInput]) {
+                            await editor.addConnection(new Classic.Connection(sourceNode, sourceOutput, targetNode, targetInput));
+                        }
+                    }
+                }
+            }
+
+            showMessage(`Loaded group "${groupName}".`, 'success');
+        }
+
+        function populateNodeGroupsDropdown() {
+            const nodeGroups = JSON.parse(localStorage.getItem('rete-node-groups') || '{}');
+            const container = document.getElementById('nodeGroupsContainer');
+            container.innerHTML = ''; // Clear existing buttons
+
+            if (Object.keys(nodeGroups).length === 0) {
+                container.innerHTML = '<p class="text-xs text-gray-400 text-center px-2">No groups saved yet. Select nodes and use the settings menu to save a group.</p>';
+                return;
+            }
+
+            for (const groupName in nodeGroups) {
+                const button = document.createElement('button');
+                button.className = 'button button-secondary w-full text-xs';
+                button.textContent = `+ ${groupName}`;
+                button.onclick = () => {
+                    loadNodeGroup(groupName);
+                    // Close the dropdown after selection
+                    document.getElementById('addNodeDropdown').classList.add('hidden');
+                };
+                container.appendChild(button);
+            }
         }
 
         function populateWorkspacesDropdown() {
@@ -5093,9 +5289,9 @@ workspace_data: ${base64Data}
             //AreaExtensions.simpleNodesOrder(area);
             //AreaExtensions.showInputControl(area)
 
-            //AreaExtensions.selectableNodes(area, AreaExtensions.selector(), {
-            //  accumulating: AreaExtensions.accumulateOnCtrl(),
-            //});
+            AreaExtensions.selectableNodes(area, AreaExtensions.selector(), {
+              accumulating: AreaExtensions.accumulateOnCtrl(),
+            });
 
             // Rete.js v2: Register custom node rendering (plain JS DOM manipulation)
             area.addPipe((context) => {
@@ -5292,6 +5488,7 @@ workspace_data: ${base64Data}
             // });
 
             populateWorkspacesDropdown();
+            populateNodeGroupsDropdown();
             showMessage('Editor ready. Add nodes and then click "Record" or "Play" to start audio.', 'info');
 
             // --- Dropdown Logic ---
@@ -5323,6 +5520,7 @@ workspace_data: ${base64Data}
 
 
             // --- Workspace Button Logic ---
+            document.getElementById('saveGroupBtn').addEventListener('click', saveNodeGroup);
             document.getElementById('saveWorkspaceBtn').addEventListener('click', saveWorkspace);
             document.getElementById('loadWorkspaceBtn').addEventListener('click', () => {
                 loadWorkspace();
