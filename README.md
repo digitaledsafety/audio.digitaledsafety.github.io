@@ -34,6 +34,7 @@ To get started with AudioGrid, simply visit the [AudioGrid website](https://audi
 *   [Compressor](./docs/CompressorNode.md)
 *   [Delay](./docs/DelayNode.md)
 *   [Distortion](./docs/DistortionNode.md)
+*   [Drum Machine](./docs/drum-machine-node.md)
 *   [Filter](./docs/FilterNode.md)
 *   [Granular Synthesizer](./docs/GranularSynthesizerNode.md)
 *   [LFO](./docs/LFONode.md)

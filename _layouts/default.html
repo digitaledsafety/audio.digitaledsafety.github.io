@@ -323,6 +323,7 @@ layout: none
                             <button id="addGranularSynthesizerNodeBtn" class="button button-secondary w-full text-xs">✨ Granular</button>
                             <button id="addManualGateNodeBtn" class="button button-secondary w-full text-xs">🔳 Manual Gate</button>
                             <button id="addQuantizerNodeBtn" class="button button-secondary w-full text-xs">🎹 Quantizer</button>
+                            <button id="addDrumMachineNodeBtn" class="button button-secondary w-full text-xs">🥁 Drum Machine</button>
                         </div>
                     </div>
                 </div>
@@ -395,6 +396,7 @@ layout: none
     <script type="text/javascript" src="https://cdn.digitaleducationsafety.org/packages/rete-context-menu-plugin@2.0.6/rete-context-menu-plugin.min.js"></script>
     <script type="text/javascript" src="https://cdn.digitaleducationsafety.org/packages/rete-engine@2.1.1/rete-engine.min.js"></script>
     <script type="text/javascript" src="https://cdn.digitaleducationsafety.org/packages/peerjs@1.5.5/peerjs.min.js"></script>
+    <script src="{{ "assets/js/mini-notation-parser.js" | relative_url }}"></script>
 
     <script>
         // Capture global Rete.js objects into local constants after all CDN scripts have loaded
@@ -498,6 +500,7 @@ layout: none
         const addGranularSynthesizerNodeBtn = document.getElementById('addGranularSynthesizerNodeBtn');
         const addManualGateNodeBtn = document.getElementById('addManualGateNodeBtn');
         const addQuantizerNodeBtn = document.getElementById('addQuantizerNodeBtn');
+        const addDrumMachineNodeBtn = document.getElementById('addDrumMachineNodeBtn');
         const clearEditorBtn = document.getElementById('clearEditorBtn');
         const reteContainer = document.getElementById('rete-container');
         const messageBox = document.getElementById('messageBox');
@@ -604,7 +607,8 @@ layout: none
                     '🎤 Mic Input': MicrophoneInputNode,
                     'Granular Synthesizer': GranularSynthesizerNode,
                     'Manual Gate': ManualGateNode,
-                    'Quantizer': QuantizerNode
+                    'Quantizer': QuantizerNode,
+                    'Drum Machine': DrumMachineNode
                 };
 
                 // Stage 1: Create and add all nodes to the editor's data model.
@@ -2906,6 +2910,230 @@ workspace_data: ${base64Data}
 
 
 
+        // --- New Drum Machine Node ---
+        class DrumMachine {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+                this.started = false;
+                this.currentStep = 0;
+                this.sequenceEvents = [];
+                this.timeoutId = null;
+                this.nextStepTime = 0;
+                this.midiListeners = []; // Kept for consistency, might not be used
+                this.tickCount = 0;
+
+                this.mainOutput = this.audioContext.createGain();
+                this.mainOutput.gain.value = 0.8; // Drums can be loud
+
+                // Note map for drum sounds
+                const drumNoteMap = { 'k': 60, 's': 62, 'h': 64 }; // Using midi numbers as placeholders
+                this.parser = new MiniNotationParser({ 'noteMap': drumNoteMap });
+                this.sequenceEvents = this.parseSequence();
+            }
+
+            addMidiListener(callback) {
+                // Not typically used for a drum machine, but here for API consistency
+            }
+
+            removeMidiListener(callback) {
+                // Not typically used for a drum machine
+            }
+
+            onTick(tickTime, tickDuration) {
+                const noteDurationMap = { '1': 96, '1/2': 48, '1/4': 24, '1/8': 12, '1/16': 6, '1/32': 3, '1/64': 1.5, '1/128': 0.75 };
+                const baseTicks = noteDurationMap[this.data.noteDuration] || 6;
+                const event = this.sequenceEvents[this.currentStep];
+                const representativeEvent = Array.isArray(event) ? event[0] : event;
+
+                if (representativeEvent) {
+                    const ticksForThisStep = baseTicks * (1 / representativeEvent.speed) * representativeEvent.duration;
+                    if (this.tickCount % ticksForThisStep === 0) {
+                        const stepDuration = tickDuration * ticksForThisStep;
+                        if (Array.isArray(event)) {
+                            for (const note of event) {
+                                if (note.noteName) this.scheduleNote(note.noteName, stepDuration * note.elongation);
+                            }
+                        } else {
+                            if (event.noteName) this.scheduleNote(event.noteName, stepDuration * event.elongation);
+                        }
+                        this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
+                    }
+                }
+                this.tickCount++;
+            }
+
+            parseSequence() {
+                return this.parser.parse(this.data.sequence || '');
+            }
+
+            // --- Sound Synthesis ---
+            createKick(now) {
+                const osc = this.audioContext.createOscillator();
+                const gain = this.audioContext.createGain();
+                osc.connect(gain);
+                gain.connect(this.mainOutput);
+
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(0.01, now + 0.1);
+                gain.gain.setValueAtTime(1, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+
+                osc.start(now);
+                osc.stop(now + 0.15);
+            }
+
+            createSnare(now) {
+                const noise = this.audioContext.createBufferSource();
+                const noiseBuffer = this.audioContext.createBuffer(1, this.audioContext.sampleRate * 0.2, this.audioContext.sampleRate);
+                const output = noiseBuffer.getChannelData(0);
+                for (let i = 0; i < noiseBuffer.length; i++) {
+                    output[i] = Math.random() * 2 - 1;
+                }
+                noise.buffer = noiseBuffer;
+
+                const noiseFilter = this.audioContext.createBiquadFilter();
+                noiseFilter.type = 'highpass';
+                noiseFilter.frequency.value = 1500;
+                noise.connect(noiseFilter);
+
+                const noiseEnvelope = this.audioContext.createGain();
+                noiseFilter.connect(noiseEnvelope);
+                noiseEnvelope.connect(this.mainOutput);
+
+                noiseEnvelope.gain.setValueAtTime(1, now);
+                noiseEnvelope.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                noise.start(now);
+                noise.stop(now + 0.1);
+
+                // Snare body
+                const osc = this.audioContext.createOscillator();
+                const oscEnvelope = this.audioContext.createGain();
+                osc.type = 'triangle';
+                osc.frequency.value = 180;
+                osc.connect(oscEnvelope);
+                oscEnvelope.connect(this.mainOutput);
+                oscEnvelope.gain.setValueAtTime(0.5, now);
+                oscEnvelope.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+                osc.start(now);
+                osc.stop(now + 0.08);
+            }
+
+            createHiHat(now) {
+                const noise = this.audioContext.createBufferSource();
+                const noiseBuffer = this.audioContext.createBuffer(1, this.audioContext.sampleRate * 0.1, this.audioContext.sampleRate);
+                const output = noiseBuffer.getChannelData(0);
+                for (let i = 0; i < noiseBuffer.length; i++) {
+                    output[i] = Math.random() * 2 - 1;
+                }
+                noise.buffer = noiseBuffer;
+
+                const noiseFilter = this.audioContext.createBiquadFilter();
+                noiseFilter.type = 'highpass';
+                noiseFilter.frequency.value = 7000;
+                noise.connect(noiseFilter);
+
+                const noiseEnvelope = this.audioContext.createGain();
+                noiseFilter.connect(noiseEnvelope);
+                noiseEnvelope.connect(this.mainOutput);
+                noiseEnvelope.gain.setValueAtTime(1, now);
+                noiseEnvelope.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+                noise.start(now);
+                noise.stop(now + 0.05);
+            }
+
+
+            scheduleNote(noteName, durationSeconds) {
+                if (!this.audioContext) return;
+                const now = this.audioContext.currentTime;
+
+                switch (noteName) {
+                    case 'k':
+                        this.createKick(now);
+                        break;
+                    case 's':
+                        this.createSnare(now);
+                        break;
+                    case 'h':
+                        this.createHiHat(now);
+                        break;
+                }
+            }
+
+            start() {
+                if (this.started || !this.audioContext) return;
+                this.started = true;
+                this.currentStep = 0;
+                this.sequenceEvents = this.parseSequence();
+                this.nextStepTime = this.audioContext.currentTime;
+                this.schedule();
+            }
+
+            schedule() {
+                if (!this.started) return;
+
+                const hasClockConnection = editor.getConnections().some(conn => conn.target === this.reteNodeId && conn.targetInput === 'clock');
+                if (hasClockConnection) {
+                    this.timeoutId = setTimeout(() => this.schedule(), 100);
+                    return;
+                }
+                 if (!this.sequenceEvents || this.sequenceEvents.length === 0) {
+                    this.stop();
+                    return;
+                }
+
+                while (this.nextStepTime < this.audioContext.currentTime + 0.1) {
+                    const event = this.sequenceEvents[this.currentStep];
+                    const representativeEvent = Array.isArray(event) ? event[0] : event;
+
+                    if (!representativeEvent) {
+                        this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
+                        continue;
+                    }
+
+                    const bpm = this.data.bpm || 120;
+                    const noteDurationMap = { '1': 1, '1/2': 0.5, '1/4': 0.25, '1/8': 0.125, '1/16': 0.0625, '1/32': 0.03125, '1/64': 0.015625, '1/128': 0.0078125 };
+                    const baseNoteDuration = noteDurationMap[this.data.noteDuration] || 0.25;
+                    const secondsPerBeat = 60.0 / bpm;
+                    const stepDuration = secondsPerBeat * 4 * baseNoteDuration * (1 / representativeEvent.speed) * representativeEvent.duration;
+
+                    if (Array.isArray(event)) {
+                        for (const note of event) {
+                            if (note.noteName) this.scheduleNote(note.noteName, stepDuration * note.elongation);
+                        }
+                    } else {
+                        if (event.noteName) this.scheduleNote(event.noteName, stepDuration * event.elongation);
+                    }
+
+                    this.nextStepTime += stepDuration;
+                    this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
+                }
+
+                this.timeoutId = setTimeout(() => this.schedule(), 25);
+            }
+
+            stop() {
+                if (!this.started) return;
+                clearTimeout(this.timeoutId);
+                this.timeoutId = null;
+                this.started = false;
+            }
+
+            updateParameter(param, value) {
+                this.data[param] = value;
+                // Re-parse sequence if it changes
+                if (param === 'sequence') {
+                    this.sequenceEvents = this.parseSequence();
+                }
+                if (this.started) {
+                    this.stop();
+                    this.start();
+                }
+            }
+        }
+
+
         // --- New Sequencer Node ---
         // Internal class to manage the Web Audio API aspects of the Sequencer
         class Sequencer {
@@ -2929,6 +3157,7 @@ workspace_data: ${base64Data}
                 this.transposeControl.gain.value = 1200; // 1V = 1200 cents
 
                 this.setupNotes();
+                this.parser = new MiniNotationParser(this.rootNotes);
             }
 
             addMidiListener(callback) {
@@ -2996,180 +3225,8 @@ workspace_data: ${base64Data}
             }
 
             parseSequence() {
-                const sequence = this.data.sequence || 'C4';
-                const tokens = sequence
-                    .replace(/([\[\(\{])/g, ' $1 ') // Openers
-                    .replace(/([\]\)\}](?:[:*\/]\d*|<|\?)*)/g, ' $1 ') // Closers with modifiers
-                    .split(/\s+/)
-                    .filter(s => s.length > 0);
-                return this.buildStructure(tokens);
+                return this.parser.parse(this.data.sequence || '');
             }
-
-            generateEuclidean(pulses, steps) {
-                if (pulses > steps || pulses < 0 || steps <= 0) return Array(steps).fill(0);
-                const pattern = [];
-                for (let i = 0; i < steps; i++) {
-                    // This generates a well-distributed pattern
-                    pattern.push(Math.floor(i * pulses / steps) !== Math.floor((i - 1) * pulses / steps) ? 1 : 0);
-                }
-                return pattern;
-            }
-
-            buildStructure(tokens) {
-                const structure = [];
-                const openers = ['[', '(', '{'];
-                const closers = [']', ')', '}'];
-
-                while (tokens.length > 0) {
-                    const token = tokens.shift();
-                    const euclideanMatch = token.match(/^([A-G#?0-9~_@]+)\*(\d+)\/(\d+)$/);
-                    if (euclideanMatch) {
-                        const note = euclideanMatch[1];
-                        const pulses = parseInt(euclideanMatch[2], 10);
-                        const steps = parseInt(euclideanMatch[3], 10);
-
-                        if (steps > 0) {
-                            const pattern = this.generateEuclidean(pulses, steps);
-                            const speedModifier = `/${steps}`;
-                            const generatedTokens = pattern.map(p => (p === 1 ? note : '~') + speedModifier);
-                            tokens.unshift(...generatedTokens);
-                            continue;
-                        }
-                    }
-
-                    if (openers.includes(token)) {
-                        structure.push(this.buildStructure(tokens));
-                    } else if (closers.includes(token[0])) {
-                        const modifierString = token.substring(1);
-                        return this.applyGroupModifiers(structure, modifierString);
-                    } else {
-                        structure.push(token);
-                    }
-                }
-                return this.flattenAndProcess(structure);
-            }
-
-            applyGroupModifiers(group, modifiers) {
-                let modifiedGroup = [...group];
-
-                // Polymetric Tuplets (e.g., :3 for triplets)
-                const tupletMatch = modifiers.match(/:(\d+)/);
-                if (tupletMatch) {
-                    const tupletValue = parseInt(tupletMatch[1], 10);
-                    if (tupletValue > 0) {
-                        const speedModifier = `*` + tupletValue;
-                        modifiedGroup = this.applyModifierRecursively(modifiedGroup, speedModifier);
-                    }
-                }
-
-                // Repetition (* operator)
-                const repetitionMatch = modifiers.match(/\*(\d+)/);
-                if (repetitionMatch) {
-                    const count = parseInt(repetitionMatch[1], 10);
-                    const originalGroup = [...modifiedGroup];
-                    if (count > 1) {
-                        for (let i = 1; i < count; i++) {
-                            modifiedGroup.push(...JSON.parse(JSON.stringify(originalGroup)));
-                        }
-                    } else if (count === 0) {
-                        modifiedGroup = [];
-                    }
-                }
-
-                // Reverse
-                if (modifiers.includes('<')) {
-                    modifiedGroup.reverse();
-                }
-
-                // Shuffle
-                if (modifiers.includes('?')) {
-                    for (let i = modifiedGroup.length - 1; i > 0; i--) {
-                        const j = Math.floor(Math.random() * (i + 1));
-                        [modifiedGroup[i], modifiedGroup[j]] = [modifiedGroup[j], modifiedGroup[i]];
-                    }
-                }
-
-                // Speed/Subdivision (/ operator)
-                const speedMatch = modifiers.match(/\/(\d+)/);
-                if (speedMatch) {
-                    const modifierToApply = `/` + speedMatch[1];
-                    modifiedGroup = this.applyModifierRecursively(modifiedGroup, modifierToApply);
-                }
-
-                return modifiedGroup;
-            }
-
-            applyModifierRecursively(group, modifier) {
-                return group.map(item => {
-                    if (typeof item === 'string') {
-                        return item + modifier;
-                    } else if (Array.isArray(item)) {
-                        return this.applyModifierRecursively(item, modifier);
-                    }
-                    return item;
-                });
-            }
-
-            flattenAndProcess(structure) {
-                const flatList = [];
-                for (const item of structure) {
-                    if (Array.isArray(item)) {
-                        // It's a chord/group, process each note inside
-                        const chord = item.map(noteString => this.parseNoteEvent(noteString));
-                        flatList.push(chord);
-                    } else {
-                        // It's a single note
-                        flatList.push(this.parseNoteEvent(item));
-                    }
-                }
-                return flatList;
-            }
-
-            parseNoteEvent(eventString) {
-                // Return a single note event object, similar to the old .map callback
-                if (Array.isArray(eventString)) {
-                    return eventString.map(s => this.parseNoteEvent(s));
-                }
-                let noteName = eventString.match(/[A-G]#?[0-9]/)?.[0] || (eventString.includes('~') ? '~' : null);
-                    let speed = 1;
-                    let duration = 1;
-                    let elongation = 1;
-
-                    // Speed multiplier/divider
-                    const speedMatch = eventString.match(/[*\/]\d+/);
-                    if (speedMatch) {
-                        const operator = speedMatch[0][0];
-                        const value = parseInt(speedMatch[0].substring(1), 10);
-                        if (operator === '*') {
-                            speed *= value;
-                        } else if (operator === '/') {
-                            speed /= value;
-                        }
-                    }
-
-                    // Duration weight
-                    const durationMatch = eventString.match(/@\d+/);
-                    if (durationMatch) {
-                        duration = parseInt(durationMatch[0].substring(1), 10);
-                    }
-
-                    // Elongation
-                    const elongationMatch = eventString.match(/_/);
-                    if (elongationMatch) {
-                        elongation = 1.5;
-                    }
-
-                    const midi = noteName === '~' ? null : (this.rootNotes[noteName] || null);
-
-                    return {
-                        midi: midi,
-                        speed: speed,
-                        duration: duration,
-                        elongation: elongation,
-                        noteName: noteName
-                    };
-            }
-
             scheduleNote(midiNote, durationSeconds) {
                 if (!this.audioContext) return;
 
@@ -3369,6 +3426,50 @@ workspace_data: ${base64Data}
                     try {
                         audioNode.start();
                         audioNode.started = true;
+                    } catch (e) {
+                        console.warn(`Could not start ${this.label} for node ${this.id}:`, e);
+                    }
+                }
+            }
+        }
+
+        class DrumMachineNode extends WebAudioNode {
+            constructor() {
+                super('Drum Machine');
+                this.addInput('clock', new Classic.Input(voltageSocket, 'Clock In'));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio'));
+
+                this.data.bpm = 120;
+                this.addControl('bpm', new SliderControl('dmBpm', 'BPM', 60, 240, 1, this.data.bpm, (val) => {
+                    this.data.bpm = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('bpm', val);
+                }));
+
+                this.data.noteDuration = '1/16';
+                this.addControl('noteDuration', new SelectControl('dmNoteDuration', 'Note Duration', ['1', '1/2', '1/4', '1/8', '1/16', '1/32', '1/64', '1/128'], this.data.noteDuration, (val) => {
+                    this.data.noteDuration = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('noteDuration', val);
+                }));
+
+                this.data.sequence = 'k s h s';
+                this.addControl('sequence', new TextControl('dmSequence', 'Sequence', this.data.sequence, (val) => {
+                    this.data.sequence = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('sequence', val);
+                }));
+            }
+
+            build() {
+                return new DrumMachine(audioContext, this.id, this.data);
+            }
+
+            start() {
+                const audioNode = reteAudioNodes.get(this.id);
+                if (audioNode && audioNode.start && !audioNode.started) {
+                    try {
+                        audioNode.start();
                     } catch (e) {
                         console.warn(`Could not start ${this.label} for node ${this.id}:`, e);
                     }
@@ -4965,6 +5066,11 @@ workspace_data: ${base64Data}
 
         addQuantizerNodeBtn.addEventListener('click', async () => {
             await editor.addNode(new QuantizerNode());
+            clearEditorBtn.disabled = false;
+        });
+
+        addDrumMachineNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new DrumMachineNode());
             clearEditorBtn.disabled = false;
         });
 
