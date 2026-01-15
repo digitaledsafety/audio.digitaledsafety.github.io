@@ -596,6 +596,7 @@ layout: none
                     'Distortion': DistortionNode,
                     'Compressor': CompressorNode,
                     'Reverb': ReverbNode,
+                    'Scale Arpeggiator': ScaleArpeggiatorNode,
                     'Arpeggiator': ArpeggiatorNode,
                     'LFO': LFONode,
                     'ADSR Envelope': ADSREnvelopeNode,
@@ -3341,6 +3342,23 @@ workspace_data: ${base64Data}
                     this.start();
                 }
             }
+
+            generateRandomSequence() {
+                const notes = ['C4', 'D4', 'E4', 'G4', 'A4', 'C5', 'B4'];
+                const rests = ['~', '~', '~', '~'];
+                const vocabulary = [...notes, ...rests];
+                let sequence = [];
+                for (let i = 0; i < 16; i++) {
+                    const isRest = Math.random() < 0.25; // 25% chance of a rest
+                    if (isRest) {
+                        sequence.push('~');
+                    } else {
+                        const note = notes[Math.floor(Math.random() * notes.length)];
+                        sequence.push(note);
+                    }
+                }
+                return sequence.join(' ');
+            }            
         }
 
         class SequencerNode extends WebAudioNode {
@@ -3371,6 +3389,17 @@ workspace_data: ${base64Data}
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.updateParameter) audioNode.updateParameter('sequence', val);
                 }));
+
+                this.addControl('randomize', new ButtonControl('randomizeSeq', '🎲', () => {
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) {
+                        const newSequence = audioNode.generateRandomSequence();
+                        this.controls.sequence.value = newSequence;
+                        this.data.sequence = newSequence;
+                        audioNode.updateParameter('sequence', newSequence);
+                        area.update('node', this.id);
+                    }
+                }));                
 
                 this.data.waveform = 'sine';
                 this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveform, (val) => {
@@ -3459,10 +3488,45 @@ workspace_data: ${base64Data}
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.updateParameter) audioNode.updateParameter('sequence', val);
                 }));
+
+                this.addControl('randomize', new ButtonControl('randomizeDm', '🎲', () => {
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) {
+                        const newSequence = audioNode.generateRandomSequence();
+                        this.controls.sequence.value = newSequence;
+                        this.data.sequence = newSequence;
+                        audioNode.updateParameter('sequence', newSequence);
+                        area.update('node', this.id);
+                    }
+                }));
             }
 
             build() {
                 return new DrumMachine(audioContext, this.id, this.data);
+            }
+
+            generateRandomSequence() {
+                const steps = 16;
+                let sequence = new Array(steps).fill('~');
+
+                // Four on the floor kick
+                for (let i = 0; i < steps; i += 4) {
+                    sequence[i] = 'k';
+                }
+
+                // Snare on 2 and 4
+                sequence[4] = 's';
+                sequence[12] = 's';
+
+                // Hi-hats
+                for (let i = 0; i < steps; i++) {
+                    if (Math.random() < 0.7) { // 70% chance of a hi-hat
+                        if (sequence[i] === '~') {
+                            sequence[i] = 'h';
+                        }
+                    }
+                }
+                return sequence.join(' ');
             }
 
             start() {
