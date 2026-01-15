@@ -3119,19 +3119,39 @@ workspace_data: ${base64Data}
                 clearTimeout(this.timeoutId);
                 this.timeoutId = null;
                 this.started = false;
-            }
+            }            
 
             updateParameter(param, value) {
                 this.data[param] = value;
-                // Re-parse sequence if it changes
-                if (param === 'sequence') {
-                    this.sequenceEvents = this.parseSequence();
-                }
                 if (this.started) {
                     this.stop();
                     this.start();
                 }
             }
+
+            generateRandomSequence() {
+                const steps = 16;
+                let sequence = new Array(steps).fill('~');
+
+                // Four on the floor kick
+                for (let i = 0; i < steps; i += 4) {
+                    sequence[i] = 'k';
+                }
+
+                // Snare on 2 and 4
+                sequence[4] = 's';
+                sequence[12] = 's';
+
+                // Hi-hats
+                for (let i = 0; i < steps; i++) {
+                    if (Math.random() < 0.7) { // 70% chance of a hi-hat
+                        if (sequence[i] === '~') {
+                            sequence[i] = 'h';
+                        }
+                    }
+                }
+                return sequence.join(' ');
+            }            
         }
 
 
@@ -3503,30 +3523,6 @@ workspace_data: ${base64Data}
 
             build() {
                 return new DrumMachine(audioContext, this.id, this.data);
-            }
-
-            generateRandomSequence() {
-                const steps = 16;
-                let sequence = new Array(steps).fill('~');
-
-                // Four on the floor kick
-                for (let i = 0; i < steps; i += 4) {
-                    sequence[i] = 'k';
-                }
-
-                // Snare on 2 and 4
-                sequence[4] = 's';
-                sequence[12] = 's';
-
-                // Hi-hats
-                for (let i = 0; i < steps; i++) {
-                    if (Math.random() < 0.7) { // 70% chance of a hi-hat
-                        if (sequence[i] === '~') {
-                            sequence[i] = 'h';
-                        }
-                    }
-                }
-                return sequence.join(' ');
             }
 
             start() {
