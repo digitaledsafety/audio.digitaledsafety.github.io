@@ -7,7 +7,7 @@ layout: none
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Audio</title>
-    <link rel="manifest" href="/audio/manifest.json">
+    <link rel="manifest" href="/manifest.json">
     <script src="https://cdn.digitaleducationsafety.org/packages/tailwindcss@3.4.17/tailwindcss.js"></script>
     <base target="_top">
     <style>
@@ -608,7 +608,8 @@ layout: none
                     'Granular Synthesizer': GranularSynthesizerNode,
                     'Manual Gate': ManualGateNode,
                     'Quantizer': QuantizerNode,
-                    'Drum Machine': DrumMachineNode
+                    'Drum Machine': DrumMachineNode,
+                    'Scale Arpeggiator': ScaleArpeggiatorNode
                 };
 
                 // Stage 1: Create and add all nodes to the editor's data model.
@@ -3335,11 +3336,32 @@ workspace_data: ${base64Data}
             // Method to update parameters dynamically (called from Rete.js control changes)
             updateParameter(param, value) {
                 this.data[param] = value;
+                 // Re-parse sequence if it changes
+                if (param === 'sequence') {
+                    this.sequenceEvents = this.parseSequence();
+                }
                 if (this.started) {
                     // Restart sequencer to apply new tempo/notes
                     this.stop();
                     this.start();
                 }
+            }
+
+            generateRandomSequence() {
+                const notes = ['C4', 'D4', 'E4', 'G4', 'A4', 'C5', 'B4'];
+                const rests = ['~', '~', '~', '~'];
+                const vocabulary = [...notes, ...rests];
+                let sequence = [];
+                for (let i = 0; i < 16; i++) {
+                    const isRest = Math.random() < 0.25; // 25% chance of a rest
+                    if (isRest) {
+                        sequence.push('~');
+                    } else {
+                        const note = notes[Math.floor(Math.random() * notes.length)];
+                        sequence.push(note);
+                    }
+                }
+                return sequence.join(' ');
             }
         }
 
@@ -3370,6 +3392,17 @@ workspace_data: ${base64Data}
                     this.data.sequence = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.updateParameter) audioNode.updateParameter('sequence', val);
+                }));
+
+                this.addControl('randomize', new ButtonControl('randomizeSeq', '🎲', () => {
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) {
+                        const newSequence = audioNode.generateRandomSequence();
+                        this.controls.sequence.value = newSequence;
+                        this.data.sequence = newSequence;
+                        audioNode.updateParameter('sequence', newSequence);
+                        area.update('node', this.id);
+                    }
                 }));
 
                 this.data.waveform = 'sine';
@@ -3458,6 +3491,17 @@ workspace_data: ${base64Data}
                     this.data.sequence = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.updateParameter) audioNode.updateParameter('sequence', val);
+                }));
+
+                this.addControl('randomize', new ButtonControl('randomizeDm', '🎲', () => {
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) {
+                        const newSequence = audioNode.generateRandomSequence();
+                        this.controls.sequence.value = newSequence;
+                        this.data.sequence = newSequence;
+                        audioNode.updateParameter('sequence', newSequence);
+                        area.update('node', this.id);
+                    }
                 }));
             }
 
@@ -3881,6 +3925,30 @@ workspace_data: ${base64Data}
                     this.stop();
                     this.start();
                 }
+            }
+
+            generateRandomSequence() {
+                const steps = 16;
+                let sequence = new Array(steps).fill('~');
+
+                // Four on the floor kick
+                for (let i = 0; i < steps; i += 4) {
+                    sequence[i] = 'k';
+                }
+
+                // Snare on 2 and 4
+                sequence[4] = 's';
+                sequence[12] = 's';
+
+                // Hi-hats
+                for (let i = 0; i < steps; i++) {
+                    if (Math.random() < 0.7) { // 70% chance of a hi-hat
+                        if (sequence[i] === '~') {
+                            sequence[i] = 'h';
+                        }
+                    }
+                }
+                return sequence.join(' ');
             }
         }
 
@@ -5619,7 +5687,7 @@ workspace_data: ${base64Data}
                 } else {
                 
                     workspaceData = {
-                        "workspaceFormatVersion": "1.0",
+                        "workspaceFormatVersion": "2.0",
                         "nodes": [
                             { "id": "1", "label": "Master Clock", "data": { "bpm": 120 }, "position": { "x": 50, "y": 300 } },
                             { "id": "2", "label": "Sequencer", "data": { "bpm": 120, "noteDuration": "1/16", "sequence": "C4 G3 D4 A3", "waveform": "sawtooth" }, "position": { "x": 300, "y": 100 } },
@@ -5838,7 +5906,7 @@ workspace_data: ${base64Data}
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/audio/sw.js').then(registration => {
+          navigator.serviceWorker.register('/sw.js').then(registration => {
             console.log('ServiceWorker registration successful with scope: ', registration.scope);
           }, err => {
             console.log('ServiceWorker registration failed: ', err);
