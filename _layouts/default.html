@@ -3364,21 +3364,44 @@ workspace_data: ${base64Data}
             }
 
             generateRandomSequence() {
-                const notes = ['C4', 'D4', 'E4', 'G4', 'A4', 'C5', 'B4'];
-                const rests = ['~', '~', '~', '~'];
-                const vocabulary = [...notes, ...rests];
+                const chordType = this.data.chordType || 'Major Triad';
+                const rootNote = this.data.rootNote || 'C4';
+                const octaveRange = this.data.octaveRange !== undefined ? this.data.octaveRange : 0;
+
+                const chordIntervals = CHORD_TYPES[chordType] || CHORD_TYPES['Major Triad'];
+                const rootMidi = ROOT_NOTES[rootNote] || ROOT_NOTES['C4'];
+
+                // Reverse map for MIDI to Note Name
+                const midiToNoteName = {};
+                for (const [name, midi] of Object.entries(ROOT_NOTES)) {
+                    midiToNoteName[midi] = name;
+                }
+
+                let possibleNotes = [];
+                for (let oct = -octaveRange; oct <= octaveRange; oct++) {
+                    const offset = oct * 12;
+                    chordIntervals.forEach(interval => {
+                        const midi = rootMidi + interval + offset;
+                        if (midiToNoteName[midi]) {
+                            possibleNotes.push(midiToNoteName[midi]);
+                        }
+                    });
+                }
+
+                if (possibleNotes.length === 0) possibleNotes = ['C4'];
+
                 let sequence = [];
                 for (let i = 0; i < 16; i++) {
                     const isRest = Math.random() < 0.25; // 25% chance of a rest
                     if (isRest) {
                         sequence.push('~');
                     } else {
-                        const note = notes[Math.floor(Math.random() * notes.length)];
+                        const note = possibleNotes[Math.floor(Math.random() * possibleNotes.length)];
                         sequence.push(note);
                     }
                 }
                 return sequence.join(' ');
-            }            
+            }
         }
 
         class SequencerNode extends WebAudioNode {
@@ -3410,16 +3433,28 @@ workspace_data: ${base64Data}
                     if (audioNode && audioNode.updateParameter) audioNode.updateParameter('sequence', val);
                 }));
 
+                // Randomization settings
+                this.data.chordType = this.data.chordType || 'Major Triad';
+                this.addControl('chordType', new SelectControl('chordTypeSelect', 'Chord Type', Object.keys(CHORD_TYPES), this.data.chordType, (val) => {
+                    this.data.chordType = val;
+                    this.randomize();
+                }));
+
+                this.data.rootNote = this.data.rootNote || 'C4';
+                this.addControl('rootNote', new SelectControl('rootNoteSelect', 'Root Note', Object.keys(ROOT_NOTES), this.data.rootNote, (val) => {
+                    this.data.rootNote = val;
+                    this.randomize();
+                }));
+
+                this.data.octaveRange = this.data.octaveRange || 0;
+                this.addControl('octaveRange', new SliderControl('octaveRangeSlider', 'Octave Spread', 0, 3, 1, this.data.octaveRange, (val) => {
+                    this.data.octaveRange = val;
+                    this.randomize();
+                }));
+
                 this.addControl('randomize', new ButtonControl('randomizeSeq', '🎲', () => {
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode) {
-                        const newSequence = audioNode.generateRandomSequence();
-                        this.controls.sequence.value = newSequence;
-                        this.data.sequence = newSequence;
-                        audioNode.updateParameter('sequence', newSequence);
-                        area.update('node', this.id);
-                    }
-                }));                
+                    this.randomize();
+                }));
 
                 this.data.waveform = 'sine';
                 this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveform, (val) => {
@@ -3463,6 +3498,17 @@ workspace_data: ${base64Data}
                     this.data.release = val;
                 }));
                 this.controls.release.hidden = true;
+            }
+
+            randomize() {
+                const audioNode = reteAudioNodes.get(this.id);
+                if (audioNode) {
+                    const newSequence = audioNode.generateRandomSequence();
+                    this.controls.sequence.value = newSequence;
+                    this.data.sequence = newSequence;
+                    audioNode.updateParameter('sequence', newSequence);
+                    area.update('node', this.id);
+                }
             }
 
             build() {
