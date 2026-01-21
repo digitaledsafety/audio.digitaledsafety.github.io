@@ -3062,7 +3062,8 @@ workspace_data: ${base64Data}
                 if (!this.audioContext) return;
                 const now = this.audioContext.currentTime;
 
-                switch (noteName) {
+                const normalizedNote = typeof noteName === 'string' ? noteName.toLowerCase() : noteName;
+                switch (normalizedNote) {
                     case 'k':
                         this.createKick(now);
                         break;

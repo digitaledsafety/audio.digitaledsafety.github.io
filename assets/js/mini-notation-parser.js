@@ -40,7 +40,7 @@ class MiniNotationParser {
                 continue;
             }
 
-            const euclideanMatch = token.match(/^([A-G#?0-9~_@]+)\*(\d+)\/(\d+)$/);
+            const euclideanMatch = token.match(/^([A-Ga-g#?0-9~_@]+)\*(\d+)\/(\d+)$/);
             if (euclideanMatch) {
                 const note = euclideanMatch[1];
                 const pulses = parseInt(euclideanMatch[2], 10);
@@ -213,8 +213,8 @@ class MiniNotationParser {
             return eventString.map(s => this.parseNoteEvent(s));
         }
 
-        // Updated regex to include drum notation 'k', 's', 'h'
-        let noteName = eventString.match(/[A-G]#?[0-9]|k|s|h/)?.[0] || (eventString.includes('~') ? '~' : null);
+        // Updated regex to include case-insensitive note names and drum notation 'k', 's', 'h'
+        let noteName = eventString.match(/[A-Ga-g]#?[0-9]|k|s|h/i)?.[0] || (eventString.includes('~') ? '~' : null);
         let speed = 1;
         let duration = 1;
         let elongation = 1;
@@ -245,7 +245,15 @@ class MiniNotationParser {
             elongation = 1.5;
         }
 
-        const midi = noteName === '~' ? null : (this.rootNotes[noteName] || null);
+        let midi = null;
+        if (noteName && noteName !== '~') {
+            midi = this.rootNotes[noteName];
+            if (midi === undefined && typeof noteName === 'string') {
+                // Try uppercase for notes like 'c4' -> 'C4'
+                // and lowercase for drum sounds like 'K' -> 'k' (if they are in the note map)
+                midi = this.rootNotes[noteName.toUpperCase()] || this.rootNotes[noteName.toLowerCase()] || null;
+            }
+        }
 
         return {
             midi: midi,
