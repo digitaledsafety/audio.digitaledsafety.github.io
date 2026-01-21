@@ -2919,7 +2919,6 @@ workspace_data: ${base64Data}
                 this.data = data;
                 this.started = false;
                 this.currentStep = 0;
-                this.cycleCount = 0;
                 this.sequenceEvents = [];
                 this.timeoutId = null;
                 this.nextStepTime = 0;
@@ -2946,11 +2945,6 @@ workspace_data: ${base64Data}
             onTick(tickTime, tickDuration) {
                 const noteDurationMap = { '1': 96, '1/2': 48, '1/4': 24, '1/8': 12, '1/16': 6, '1/32': 3, '1/64': 1.5, '1/128': 0.75 };
                 const baseTicks = noteDurationMap[this.data.noteDuration] || 6;
-
-                if (!this.sequenceEvents) {
-                     this.sequenceEvents = this.parseSequence();
-                }
-
                 const event = this.sequenceEvents[this.currentStep];
                 const representativeEvent = Array.isArray(event) ? event[0] : event;
 
@@ -2965,21 +2959,14 @@ workspace_data: ${base64Data}
                         } else {
                             if (event.noteName) this.scheduleNote(event.noteName, stepDuration * event.elongation);
                         }
-
-                        let nextStep = (this.currentStep + 1) % this.sequenceEvents.length;
-                        if (nextStep === 0) {
-                            this.cycleCount++;
-                            this.sequenceEvents = this.parseSequence();
-                            this.tickCount = -1;
-                        }
-                        this.currentStep = nextStep;
+                        this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
                     }
                 }
                 this.tickCount++;
             }
 
             parseSequence() {
-                return this.parser.parse(this.data.sequence || '', this.cycleCount);
+                return this.parser.parse(this.data.sequence || '');
             }
 
             // --- Sound Synthesis ---
@@ -3062,8 +3049,7 @@ workspace_data: ${base64Data}
                 if (!this.audioContext) return;
                 const now = this.audioContext.currentTime;
 
-                const normalizedNote = typeof noteName === 'string' ? noteName.toLowerCase() : noteName;
-                switch (normalizedNote) {
+                switch (noteName) {
                     case 'k':
                         this.createKick(now);
                         break;
@@ -3080,7 +3066,6 @@ workspace_data: ${base64Data}
                 if (this.started || !this.audioContext) return;
                 this.started = true;
                 this.currentStep = 0;
-                this.cycleCount = 0;
                 this.sequenceEvents = this.parseSequence();
                 this.nextStepTime = this.audioContext.currentTime;
                 this.schedule();
@@ -3100,20 +3085,11 @@ workspace_data: ${base64Data}
                 }
 
                 while (this.nextStepTime < this.audioContext.currentTime + 0.1) {
-                    if (!this.sequenceEvents) {
-                        this.sequenceEvents = this.parseSequence();
-                    }
-
                     const event = this.sequenceEvents[this.currentStep];
                     const representativeEvent = Array.isArray(event) ? event[0] : event;
 
                     if (!representativeEvent) {
-                        let nextStep = (this.currentStep + 1) % this.sequenceEvents.length;
-                        if (nextStep === 0) {
-                            this.cycleCount++;
-                            this.sequenceEvents = this.parseSequence();
-                        }
-                        this.currentStep = nextStep;
+                        this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
                         continue;
                     }
 
@@ -3132,13 +3108,7 @@ workspace_data: ${base64Data}
                     }
 
                     this.nextStepTime += stepDuration;
-
-                    let nextStep = (this.currentStep + 1) % this.sequenceEvents.length;
-                    if (nextStep === 0) {
-                        this.cycleCount++;
-                        this.sequenceEvents = this.parseSequence();
-                    }
-                    this.currentStep = nextStep;
+                    this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
                 }
 
                 this.timeoutId = setTimeout(() => this.schedule(), 25);
@@ -3195,7 +3165,6 @@ workspace_data: ${base64Data}
                 this.started = false;
                 this.timeoutId = null;
                 this.currentStep = 0;
-                this.cycleCount = 0;
                 this.nextStepTime = 0;
                 this.tickCount = 0;
                 this.sequenceEvents = null;
@@ -3238,13 +3207,7 @@ workspace_data: ${base64Data}
 
                     const event = this.sequenceEvents[this.currentStep];
                     if (!event) {
-                        let nextStep = (this.currentStep + 1) % this.sequenceEvents.length;
-                        if (nextStep === 0) {
-                            this.cycleCount++;
-                            this.sequenceEvents = this.parseSequence();
-                            this.tickCount = -1;
-                        }
-                        this.currentStep = nextStep;
+                         this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
                         return;
                     }
 
@@ -3271,13 +3234,7 @@ workspace_data: ${base64Data}
                         this.midiListeners.forEach(callback => callback(midiNotesToBroadcast));
                     }
 
-                    let nextStep = (this.currentStep + 1) % this.sequenceEvents.length;
-                    if (nextStep === 0) {
-                        this.cycleCount++;
-                        this.sequenceEvents = this.parseSequence();
-                        this.tickCount = -1;
-                    }
-                    this.currentStep = nextStep;
+                    this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
                 }
 
                 this.tickCount++;
@@ -3289,7 +3246,7 @@ workspace_data: ${base64Data}
             }
 
             parseSequence() {
-                return this.parser.parse(this.data.sequence || '', this.cycleCount);
+                return this.parser.parse(this.data.sequence || '');
             }
             scheduleNote(midiNote, durationSeconds) {
                 if (!this.audioContext) return;
@@ -3326,7 +3283,6 @@ workspace_data: ${base64Data}
                 if (this.started || !this.audioContext) return;
                 this.started = true;
                 this.currentStep = 0;
-                this.cycleCount = 0;
                 this.sequenceEvents = this.parseSequence();
                 this.nextStepTime = this.audioContext.currentTime;
                 this.schedule();
@@ -3349,20 +3305,11 @@ workspace_data: ${base64Data}
                 }
 
                 while (this.nextStepTime < this.audioContext.currentTime + 0.1) {
-                    if (!this.sequenceEvents) {
-                        this.sequenceEvents = this.parseSequence();
-                    }
-
                     const event = this.sequenceEvents[this.currentStep];
                     const representativeEvent = Array.isArray(event) ? event[0] : event;
 
                     if (!representativeEvent) {
-                        let nextStep = (this.currentStep + 1) % this.sequenceEvents.length;
-                        if (nextStep === 0) {
-                            this.cycleCount++;
-                            this.sequenceEvents = this.parseSequence();
-                        }
-                        this.currentStep = nextStep;
+                        this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
                         continue; // Skip to the next iteration of the while loop
                     }
 
@@ -3392,13 +3339,7 @@ workspace_data: ${base64Data}
                     }
 
                     this.nextStepTime += stepDuration;
-
-                    let nextStep = (this.currentStep + 1) % this.sequenceEvents.length;
-                    if (nextStep === 0) {
-                        this.cycleCount++;
-                        this.sequenceEvents = this.parseSequence();
-                    }
-                    this.currentStep = nextStep;
+                    this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
                 }
 
                 this.timeoutId = setTimeout(() => this.schedule(), 25);

@@ -3,15 +3,16 @@ class MiniNotationParser {
         this.rootNotes = rootNotes;
     }
 
-    parse(sequence, cycle = 0) {
+    parse(sequence) {
         const tokens = this.tokenize(sequence);
-        return this.buildStructure(tokens, cycle);
+        return this.buildStructure(tokens);
     }
 
     tokenize(sequence) {
-        // Updated regex to include <, >, and .
+        // Reverting to a simple space-based split and then handling grouping symbols.
+        // This is more robust than a single complex regex.
         const withSpaces = sequence
-            .replace(/([\[\]\(\)\{\}<>\.])/g, ' $1 ') // Add spaces around brackets and dots
+            .replace(/([\[\]\(\)\{\}])/g, ' $1 ') // Add spaces around brackets
             .trim();
         return withSpaces.split(/\s+/).filter(token => token.length > 0);
     }
@@ -25,22 +26,14 @@ class MiniNotationParser {
         return pattern;
     }
 
-    buildStructure(tokens, cycle = 0, opener = null) {
+    buildStructure(tokens) {
         const structure = [];
-        const segments = [];
-        const openers = ['[', '(', '{', '<'];
-        const closers = [']', ')', '}', '>'];
+        const openers = ['[', '(', '{'];
+        const closers = [']', ')', '}'];
 
         while (tokens.length > 0) {
             const token = tokens.shift();
-
-            if (token === '.') {
-                segments.push([...structure]);
-                structure.length = 0;
-                continue;
-            }
-
-            const euclideanMatch = token.match(/^([A-Ga-g#?0-9~_@]+)\*(\d+)\/(\d+)$/);
+            const euclideanMatch = token.match(/^([A-G#?0-9~_@]+)\*(\d+)\/(\d+)$/);
             if (euclideanMatch) {
                 const note = euclideanMatch[1];
                 const pulses = parseInt(euclideanMatch[2], 10);
@@ -56,80 +49,15 @@ class MiniNotationParser {
             }
 
             if (openers.includes(token)) {
-                structure.push(this.buildStructure(tokens, cycle, token));
+                structure.push(this.buildStructure(tokens));
             } else if (closers.includes(token[0])) {
-                let currentGroup = structure;
-                if (segments.length > 0) {
-                    segments.push([...structure]);
-                    currentGroup = this.processSegments(segments);
-                }
-
                 const modifierString = token.substring(1);
-
-                if (opener === '<') {
-                    // Alternation logic: pick one based on the cycle
-                    const choice = currentGroup[cycle % currentGroup.length];
-                    // Apply modifiers to the picked choice if any
-                    if (modifierString) {
-                        return this.applyModifierToChoice(choice, modifierString);
-                    }
-                    return choice;
-                }
-
-                return this.applyGroupModifiers(currentGroup, modifierString);
+                return this.applyGroupModifiers(structure, modifierString);
             } else {
-                // Check for single token repetition note*n
-                const repetitionMatch = token.match(/^([^\[\]\(\)\{\}<>.]+)\*(\d+)$/);
-                if (repetitionMatch) {
-                    const note = repetitionMatch[1];
-                    const count = parseInt(repetitionMatch[2], 10);
-                    for (let i = 0; i < count; i++) {
-                        // Expanding note*n into n separate tokens.
-                        // To preserve the original beat duration, each expanded token
-                        // should have its speed multiplied by n.
-                        structure.push(note + '*' + count);
-                    }
-                } else {
-                    structure.push(token);
-                }
+                structure.push(token);
             }
         }
-
-        // Top-level completion
-        let finalStructure = structure;
-        if (segments.length > 0) {
-            segments.push([...structure]);
-            finalStructure = this.processSegments(segments);
-        }
-
-        if (opener === null) {
-            return this.flattenAndProcess(finalStructure);
-        }
-        return finalStructure;
-    }
-
-    processSegments(segments) {
-        const result = [];
-        for (const segment of segments) {
-            const n = segment.length;
-            if (n === 0) continue;
-            for (const item of segment) {
-                // Apply speed modifier to each item in the segment so it takes 1/N of the segment's time.
-                // A segment itself takes 1 "beat" of the outer sequence.
-                const modified = this.applyModifierRecursively(Array.isArray(item) ? item : [item], `*${n}`);
-                result.push(modified);
-            }
-        }
-        return result.flat();
-    }
-
-    applyModifierToChoice(choice, modifiers) {
-        if (Array.isArray(choice)) {
-            return this.applyGroupModifiers(choice, modifiers);
-        } else {
-            // It's a single note string
-            return choice + modifiers;
-        }
+        return this.flattenAndProcess(structure);
     }
 
     applyGroupModifiers(group, modifiers) {
@@ -213,23 +141,21 @@ class MiniNotationParser {
             return eventString.map(s => this.parseNoteEvent(s));
         }
 
-        // Updated regex to include case-insensitive note names and drum notation 'k', 's', 'h'
-        let noteName = eventString.match(/[A-Ga-g]#?[0-9]|k|s|h/i)?.[0] || (eventString.includes('~') ? '~' : null);
+        // Updated regex to include drum notation 'k', 's', 'h'
+        let noteName = eventString.match(/[A-G]#?[0-9]|k|s|h/)?.[0] || (eventString.includes('~') ? '~' : null);
         let speed = 1;
         let duration = 1;
         let elongation = 1;
 
         // Speed multiplier/divider
-        const speedMatches = eventString.match(/[*\/]\d+/g);
-        if (speedMatches) {
-            for (const match of speedMatches) {
-                const operator = match[0];
-                const value = parseInt(match.substring(1), 10);
-                if (operator === '*') {
-                    speed *= value;
-                } else if (operator === '/') {
-                    speed /= value;
-                }
+        const speedMatch = eventString.match(/[*\/]\d+/);
+        if (speedMatch) {
+            const operator = speedMatch[0][0];
+            const value = parseInt(speedMatch[0].substring(1), 10);
+            if (operator === '*') {
+                speed *= value;
+            } else if (operator === '/') {
+                speed /= value;
             }
         }
 
@@ -245,15 +171,7 @@ class MiniNotationParser {
             elongation = 1.5;
         }
 
-        let midi = null;
-        if (noteName && noteName !== '~') {
-            midi = this.rootNotes[noteName];
-            if (midi === undefined && typeof noteName === 'string') {
-                // Try uppercase for notes like 'c4' -> 'C4'
-                // and lowercase for drum sounds like 'K' -> 'k' (if they are in the note map)
-                midi = this.rootNotes[noteName.toUpperCase()] || this.rootNotes[noteName.toLowerCase()] || null;
-            }
-        }
+        const midi = noteName === '~' ? null : (this.rootNotes[noteName] || null);
 
         return {
             midi: midi,
@@ -263,9 +181,4 @@ class MiniNotationParser {
             noteName: noteName
         };
     }
-}
-
-// Export for Node.js environment (for testing)
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = MiniNotationParser;
 }
