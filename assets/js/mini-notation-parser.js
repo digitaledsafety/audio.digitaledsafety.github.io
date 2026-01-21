@@ -3,16 +3,15 @@ class MiniNotationParser {
         this.rootNotes = rootNotes;
     }
 
-    parse(sequence) {
+    parse(sequence, cycle = 0) {
         const tokens = this.tokenize(sequence);
-        return this.buildStructure(tokens);
+        return this.buildStructure(tokens, cycle);
     }
 
     tokenize(sequence) {
-        // Reverting to a simple space-based split and then handling grouping symbols.
-        // This is more robust than a single complex regex.
+        // Updated regex to include <, >, and .
         const withSpaces = sequence
-            .replace(/([\[\]\(\)\{\}])/g, ' $1 ') // Add spaces around brackets
+            .replace(/([\[\]\(\)\{\}<>\.])/g, ' $1 ') // Add spaces around brackets and dots
             .trim();
         return withSpaces.split(/\s+/).filter(token => token.length > 0);
     }
@@ -26,13 +25,21 @@ class MiniNotationParser {
         return pattern;
     }
 
-    buildStructure(tokens) {
+    buildStructure(tokens, cycle = 0, opener = null) {
         const structure = [];
-        const openers = ['[', '(', '{'];
-        const closers = [']', ')', '}'];
+        const segments = [];
+        const openers = ['[', '(', '{', '<'];
+        const closers = [']', ')', '}', '>'];
 
         while (tokens.length > 0) {
             const token = tokens.shift();
+
+            if (token === '.') {
+                segments.push([...structure]);
+                structure.length = 0;
+                continue;
+            }
+
             const euclideanMatch = token.match(/^([A-G#?0-9~_@]+)\*(\d+)\/(\d+)$/);
             if (euclideanMatch) {
                 const note = euclideanMatch[1];
@@ -49,15 +56,80 @@ class MiniNotationParser {
             }
 
             if (openers.includes(token)) {
-                structure.push(this.buildStructure(tokens));
+                structure.push(this.buildStructure(tokens, cycle, token));
             } else if (closers.includes(token[0])) {
+                let currentGroup = structure;
+                if (segments.length > 0) {
+                    segments.push([...structure]);
+                    currentGroup = this.processSegments(segments);
+                }
+
                 const modifierString = token.substring(1);
-                return this.applyGroupModifiers(structure, modifierString);
+
+                if (opener === '<') {
+                    // Alternation logic: pick one based on the cycle
+                    const choice = currentGroup[cycle % currentGroup.length];
+                    // Apply modifiers to the picked choice if any
+                    if (modifierString) {
+                        return this.applyModifierToChoice(choice, modifierString);
+                    }
+                    return choice;
+                }
+
+                return this.applyGroupModifiers(currentGroup, modifierString);
             } else {
-                structure.push(token);
+                // Check for single token repetition note*n
+                const repetitionMatch = token.match(/^([^\[\]\(\)\{\}<>.]+)\*(\d+)$/);
+                if (repetitionMatch) {
+                    const note = repetitionMatch[1];
+                    const count = parseInt(repetitionMatch[2], 10);
+                    for (let i = 0; i < count; i++) {
+                        // Expanding note*n into n separate tokens.
+                        // To preserve the original beat duration, each expanded token
+                        // should have its speed multiplied by n.
+                        structure.push(note + '*' + count);
+                    }
+                } else {
+                    structure.push(token);
+                }
             }
         }
-        return this.flattenAndProcess(structure);
+
+        // Top-level completion
+        let finalStructure = structure;
+        if (segments.length > 0) {
+            segments.push([...structure]);
+            finalStructure = this.processSegments(segments);
+        }
+
+        if (opener === null) {
+            return this.flattenAndProcess(finalStructure);
+        }
+        return finalStructure;
+    }
+
+    processSegments(segments) {
+        const result = [];
+        for (const segment of segments) {
+            const n = segment.length;
+            if (n === 0) continue;
+            for (const item of segment) {
+                // Apply speed modifier to each item in the segment so it takes 1/N of the segment's time.
+                // A segment itself takes 1 "beat" of the outer sequence.
+                const modified = this.applyModifierRecursively(Array.isArray(item) ? item : [item], `*${n}`);
+                result.push(modified);
+            }
+        }
+        return result.flat();
+    }
+
+    applyModifierToChoice(choice, modifiers) {
+        if (Array.isArray(choice)) {
+            return this.applyGroupModifiers(choice, modifiers);
+        } else {
+            // It's a single note string
+            return choice + modifiers;
+        }
     }
 
     applyGroupModifiers(group, modifiers) {
@@ -148,14 +220,16 @@ class MiniNotationParser {
         let elongation = 1;
 
         // Speed multiplier/divider
-        const speedMatch = eventString.match(/[*\/]\d+/);
-        if (speedMatch) {
-            const operator = speedMatch[0][0];
-            const value = parseInt(speedMatch[0].substring(1), 10);
-            if (operator === '*') {
-                speed *= value;
-            } else if (operator === '/') {
-                speed /= value;
+        const speedMatches = eventString.match(/[*\/]\d+/g);
+        if (speedMatches) {
+            for (const match of speedMatches) {
+                const operator = match[0];
+                const value = parseInt(match.substring(1), 10);
+                if (operator === '*') {
+                    speed *= value;
+                } else if (operator === '/') {
+                    speed /= value;
+                }
             }
         }
 
@@ -181,4 +255,9 @@ class MiniNotationParser {
             noteName: noteName
         };
     }
+}
+
+// Export for Node.js environment (for testing)
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = MiniNotationParser;
 }
