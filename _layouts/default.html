@@ -2919,7 +2919,6 @@ workspace_data: ${base64Data}
                 this.data = data;
                 this.started = false;
                 this.currentStep = 0;
-                this.cycleCount = 0;
                 this.sequenceEvents = [];
                 this.timeoutId = null;
                 this.nextStepTime = 0;
@@ -2961,17 +2960,13 @@ workspace_data: ${base64Data}
                             if (event.noteName) this.scheduleNote(event.noteName, stepDuration * event.elongation);
                         }
                         this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
-                        if (this.currentStep === 0) {
-                            this.cycleCount++;
-                            this.sequenceEvents = this.parseSequence();
-                        }
                     }
                 }
                 this.tickCount++;
             }
 
             parseSequence() {
-                return this.parser.parse(this.data.sequence || '', this.cycleCount);
+                return this.parser.parse(this.data.sequence || '');
             }
 
             // --- Sound Synthesis ---
@@ -3115,10 +3110,6 @@ workspace_data: ${base64Data}
 
                     this.nextStepTime += stepDuration;
                     this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
-                    if (this.currentStep === 0) {
-                        this.cycleCount++;
-                        this.sequenceEvents = this.parseSequence();
-                    }
                 }
 
                 this.timeoutId = setTimeout(() => this.schedule(), 25);
@@ -3175,7 +3166,6 @@ workspace_data: ${base64Data}
                 this.started = false;
                 this.timeoutId = null;
                 this.currentStep = 0;
-                this.cycleCount = 0;
                 this.nextStepTime = 0;
                 this.tickCount = 0;
                 this.sequenceEvents = null;
@@ -3246,10 +3236,6 @@ workspace_data: ${base64Data}
                     }
 
                     this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
-                    if (this.currentStep === 0) {
-                        this.cycleCount++;
-                        this.sequenceEvents = this.parseSequence();
-                    }
                 }
 
                 this.tickCount++;
@@ -3261,7 +3247,7 @@ workspace_data: ${base64Data}
             }
 
             parseSequence() {
-                return this.parser.parse(this.data.sequence || '', this.cycleCount);
+                return this.parser.parse(this.data.sequence || '');
             }
             scheduleNote(midiNote, durationSeconds) {
                 if (!this.audioContext) return;
@@ -3355,10 +3341,6 @@ workspace_data: ${base64Data}
 
                     this.nextStepTime += stepDuration;
                     this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
-                    if (this.currentStep === 0) {
-                        this.cycleCount++;
-                        this.sequenceEvents = this.parseSequence();
-                    }
                 }
 
                 this.timeoutId = setTimeout(() => this.schedule(), 25);
