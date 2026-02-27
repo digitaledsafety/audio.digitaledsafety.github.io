@@ -275,10 +275,7 @@ layout: none
     </div>
     <div class="fixed top-4 right-4 z-50 bg-indigo-600/80 text-white text-xs font-bold px-2 py-1 rounded shadow-md pointer-events-none">BETA</div>
     <div class="rete-container">
-        <div id="messageBox" class="message-box hidden">
-            <span class="bg-indigo-600 text-white text-[10px] px-1.5 py-0.5 rounded-full mr-2 align-middle font-normal uppercase tracking-wider">Beta</span>
-            <span id="messageContent"></span>
-        </div>
+        <div id="messageBox" class="message-box hidden"></div>
         
         <div id="workspace-view" class="flex-grow h-full">
             {{ content }}
@@ -302,7 +299,7 @@ layout: none
                 <div class="relative inline-block text-left">
                     <button id="addNodeToggle" class="button button-primary">➕</button>
                     <div id="addNodeDropdown" class="origin-bottom-right absolute right-0 bottom-full mb-2 w-64 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-30 p-2">
-                        <h3 class="text-sm font-bold text-center mb-2">Add Node<span class="bg-indigo-600 text-white text-[10px] px-1.5 py-0.5 rounded-full ml-2 align-middle font-normal uppercase tracking-wider">Beta</span></h3>
+                        <h3 class="text-sm font-bold text-center mb-2">Add Node</h3>
                         <div class="grid grid-cols-2 gap-2" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
                             <button id="addToneGeneratorNodeBtn" class="button button-secondary w-full text-xs">🔊 Tone Gen</button>
                             <button id="addNoiseGeneratorNodeBtn" class="button button-secondary w-full text-xs">🌫️ Noise Gen</button>
@@ -337,7 +334,7 @@ layout: none
                 <div class="relative inline-block text-left">
                     <button id="settingsToggle" class="button button-secondary">⚙️</button>
                     <div id="settingsDropdown" class="origin-bottom-right absolute right-0 bottom-full mb-2 w-80 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-30 p-4 flex flex-col gap-4">
-                        <h3 class="text-lg font-bold text-center">Settings<span class="bg-indigo-600 text-white text-[10px] px-1.5 py-0.5 rounded-full ml-2 align-middle font-normal uppercase tracking-wider">Beta</span></h3>
+                        <h3 class="text-lg font-bold text-center">Settings</h3>
                         <!-- Recording Controls -->
                         <div class="flex flex-col gap-2 p-3 bg-gray-50 rounded-lg border">
                             <h4 class="font-semibold text-center">Recording</h4>
@@ -888,7 +885,7 @@ workspace_data: ${base64Data}
         }
 
         function showMessage(message, type = 'info') {
-            document.getElementById('messageContent').textContent = message;
+            messageBox.textContent = message;
             messageBox.className = `message-box ${type} block`;
             setTimeout(() => {
                 messageBox.classList.add('hidden');
