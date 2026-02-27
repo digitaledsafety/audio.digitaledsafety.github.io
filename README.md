@@ -1,6 +1,6 @@
-# AudioGrid
+# Audio
 
-**AudioGrid** is a powerful and intuitive web-based audio synthesis and processing environment. Built on the Web Audio API, it provides a node-based interface for creating complex audio routing, from simple synthesizers to intricate soundscapes.
+**Audio** is a powerful and intuitive web-based audio synthesis and processing environment. Built on the Web Audio API, it provides a node-based interface for creating complex audio routing, from simple synthesizers to intricate soundscapes.
 
 ## Features
 
@@ -15,7 +15,7 @@
 
 ## Getting Started
 
-To get started with AudioGrid, simply visit the [AudioGrid website](https://audiogrid.io) and start creating!
+To get started with AudioGrid, simply visit the [Audio website](https://audio.digitaleducationsafety.org) and start creating!
 
 ### Tutorial: Creating Your First Synthesizer
 
