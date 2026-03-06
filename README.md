@@ -1,5 +1,8 @@
 # Audio
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+![Status: Beta](https://img.shields.io/badge/status-beta-orange.svg)
+
 <div align="center">
   <video src="https://github.com/user-attachments/assets/46a131f9-5af2-4a31-b94f-40ed42ed10b9" controls width="400px">
     Your browser does not support the video tag.
