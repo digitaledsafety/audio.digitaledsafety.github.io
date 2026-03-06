@@ -584,7 +584,26 @@ layout: none
             try
             {                
                 console.log('Loading editor from JSON:', json);
-                await editor.clear();
+
+                const currentNodes = editor.getNodes();
+                const currentConnections = editor.getConnections();
+
+                const newNodeIds = new Set(json.nodes.map(n => n.id));
+                const newConnectionIds = new Set(json.connections.map(c => c.id));
+
+                // 1. Remove connections that no longer exist
+                for (const conn of currentConnections) {
+                    if (!newConnectionIds.has(conn.id)) {
+                        await editor.removeConnection(conn.id);
+                    }
+                }
+
+                // 2. Remove nodes that no longer exist
+                for (const node of currentNodes) {
+                    if (!newNodeIds.has(node.id)) {
+                        await editor.removeNode(node.id);
+                    }
+                }
 
                 // TODO: How do we avoid hardcoding any new node types here?
                 const nodeConstructors = {
@@ -615,46 +634,52 @@ layout: none
                     'Drum Machine': DrumMachineNode
                 };
 
-                // Stage 1: Create and add all nodes to the editor's data model.
+                // Stage 1: Add or update nodes
                 for (const nodeData of json.nodes) {
-                    const Constructor = nodeConstructors[nodeData.label];
-                    if (Constructor) {
-                        const node = new Constructor();
-                        node.id = nodeData.id;
+                    let node = editor.getNode(nodeData.id);
 
-                        // Overwrite default data with saved data.
-                        node.data = { ...node.data, ...nodeData.data };
+                    if (!node) {
+                        const Constructor = nodeConstructors[nodeData.label];
+                        if (Constructor) {
+                            node = new Constructor();
+                            node.id = nodeData.id;
+                            await editor.addNode(node);
+                        } else {
+                            console.warn(`Node type "${nodeData.label}" not found.`);
+                            continue;
+                        }
+                    }
 
-                        // Re-apply control values from data to the control objects.
-                        for (const key in node.controls) {
-                            if (node.data.hasOwnProperty(key)) {
-                                if(node.controls[key]) {
+                    // Update data and controls
+                    node.data = { ...node.data, ...nodeData.data };
+                    for (const key in node.controls) {
+                        if (node.data.hasOwnProperty(key)) {
+                            if (node.controls[key]) {
+                                if (node.controls[key].value !== node.data[key]) {
                                     node.controls[key].value = node.data[key];
+                                    if (node.controls[key].onValueChange) {
+                                        node.controls[key].onValueChange(node.data[key]);
+                                    }
                                 }
                             }
                         }
-                        await editor.addNode(node);
-                    } else {
-                        console.warn(`Node type "${nodeData.label}" not found.`);
                     }
                 }
 
-                // Stage 2: Create all connections now that all nodes exist in the model.
+                // Stage 2: Add new connections
                 for (const connData of json.connections) {
-                    const sourceNode = editor.getNode(connData.source);
-                    const targetNode = editor.getNode(connData.target);
+                    if (!currentConnections.find(c => c.id === connData.id)) {
+                        const sourceNode = editor.getNode(connData.source);
+                        const targetNode = editor.getNode(connData.target);
 
-                    if (sourceNode && targetNode) {
-                        const sourceOutput = connData.sourceOutput;
-                        const targetInput = connData.targetInput;
-                        
-                        if (sourceNode.outputs[sourceOutput] && targetNode.inputs[targetInput]) {
-                             await editor.addConnection(new Classic.Connection(sourceNode, sourceOutput, targetNode, targetInput));
-                        } else {
-                            console.warn(`Could not find socket for connection:`, connData, `Source sockets:`, Object.keys(sourceNode.outputs), `Target sockets:`, Object.keys(targetNode.inputs));
+                        if (sourceNode && targetNode) {
+                            const sourceOutput = connData.sourceOutput;
+                            const targetInput = connData.targetInput;
+
+                            if (sourceNode.outputs[sourceOutput] && targetNode.inputs[targetInput]) {
+                                 await editor.addConnection(new Classic.Connection(sourceNode, sourceOutput, targetNode, targetInput));
+                            }
                         }
-                    } else {
-                        console.warn(`Could not find nodes for connection:`, connData);
                     }
                 }
 
@@ -1036,6 +1061,8 @@ workspace_data: ${base64Data}
                 reteNode.start();
             }
             updateAudioGraphConnections();
+            audioState = 'playing';
+            playStopBtn.textContent = '⏹️';
         }
 
         function stopAll() {
@@ -1303,9 +1330,14 @@ workspace_data: ${base64Data}
 
         async function clearEditor() {
             await stopAudio();
+            _isLocalChange = false;
             await editor.clear();
+            _isLocalChange = true;
             clearEditorBtn.disabled = true;
             showMessage('Editor cleared.', 'info');
+            if (multiplayer && multiplayer.isConnected()) {
+                multiplayer.broadcast('workspace', editorToJSON());
+            }
         }
 
         async function stopAudio() {
@@ -4901,11 +4933,12 @@ workspace_data: ${base64Data}
                 this.emit('disconnected');
             }
 
-            broadcast(data) {
+            broadcast(type, data) {
+                const message = { type, data };
                 if (this.isHost) {
-                    this._broadcastToOthers(this.getPeerId(), data);
+                    this._broadcastToOthers(this.getPeerId(), message);
                 } else if (this.hostId && this.connections.has(this.hostId)) {
-                    this.connections.get(this.hostId).send(JSON.stringify(data));
+                    this.connections.get(this.hostId).send(JSON.stringify(message));
                 }
             }
 
@@ -4971,7 +5004,11 @@ workspace_data: ${base64Data}
 
                 if (this.isHost) {
                     const workspaceData = editorToJSON();
-                    this.sendInitialWorkspace(conn.peer, workspaceData);
+                    const initialData = {
+                        workspace: workspaceData,
+                        transport: audioState
+                    };
+                    this.sendInitialWorkspace(conn.peer, initialData);
                 }
                 this.emit('connection-opened', conn.peer);
                 this.emit('connections-updated', Array.from(this.connections.values()));
@@ -4979,11 +5016,11 @@ workspace_data: ${base64Data}
 
             _handleData(conn, data) {
                 try {
-                    const parsedData = JSON.parse(data);
+                    const message = JSON.parse(data);
                     if (this.isHost) {
-                        this._broadcastToOthers(conn.peer, parsedData);
+                        this._broadcastToOthers(conn.peer, message);
                     }
-                    this.emit('data-received', parsedData);
+                    this.emit('data-received', message);
                 } catch (e) {
                     console.error("Failed to parse incoming data:", e);
                 }
@@ -5075,6 +5112,13 @@ workspace_data: ${base64Data}
                             control.value = finalValue; // Update control's internal value
                             valueDisplay.textContent = finalValue.toFixed(2);
                             control.onValueChange(finalValue); // Trigger custom callback
+                            if (_isLocalChange) {
+                                multiplayer.broadcast('control-update', {
+                                    nodeId: this.node.id,
+                                    controlKey: key,
+                                    value: finalValue
+                                });
+                            }
                         };
 
                         valueDisplay.textContent = control.value.toFixed(2);
@@ -5091,7 +5135,13 @@ workspace_data: ${base64Data}
                             const newValue = select.value;
                             control.value = newValue;
                             control.onValueChange(newValue);
-                            // The onValueChange already calls area.update('node', this.node.id); in the node classes
+                            if (_isLocalChange) {
+                                multiplayer.broadcast('control-update', {
+                                    nodeId: this.node.id,
+                                    controlKey: key,
+                                    value: newValue
+                                });
+                            }
                         };
                     } else if (control instanceof ButtonControl) {
                         controlEl.innerHTML = `<button class="button button-secondary w-full">${control.label}</button>`;
@@ -5114,6 +5164,13 @@ workspace_data: ${base64Data}
                             const newValue = e.target.checked;
                             control.value = newValue;
                             control.onValueChange(newValue);
+                            if (_isLocalChange) {
+                                multiplayer.broadcast('control-update', {
+                                    nodeId: this.node.id,
+                                    controlKey: key,
+                                    value: newValue
+                                });
+                            }
                         };
                     } else if (control instanceof TextControl) {
                         controlEl.innerHTML = `
@@ -5125,6 +5182,13 @@ workspace_data: ${base64Data}
                             const newValue = e.target.value;
                             control.value = newValue;
                             control.onValueChange(newValue);
+                            if (_isLocalChange) {
+                                multiplayer.broadcast('control-update', {
+                                    nodeId: this.node.id,
+                                    controlKey: key,
+                                    value: newValue
+                                });
+                            }
                         };
                     }
 
@@ -5379,9 +5443,44 @@ workspace_data: ${base64Data}
                 document.getElementById('peerIdDisplay').textContent = id;
             });
             
-            multiplayer.on('data-received', async (data) => {
+            multiplayer.on('data-received', async (message) => {
                 _isLocalChange = false;
-                await editorFromJSON(data);
+
+                if (message.type === 'workspace') {
+                    await editorFromJSON(message.data);
+                } else if (message.type === 'transport') {
+                    if (message.data === 'playing' && audioState === 'stopped') {
+                        await startAudio();
+                    } else if (message.data === 'stopped' && audioState === 'playing') {
+                        await stopAudio();
+                    }
+                } else if (message.type === 'control-update') {
+                    const { nodeId, controlKey, value } = message.data;
+                    const node = editor.getNode(nodeId);
+                    if (node && node.controls[controlKey]) {
+                        const control = node.controls[controlKey];
+                        control.value = value;
+                        control.onValueChange(value);
+                        area.update('node', nodeId);
+                    }
+                } else if (message.type === 'node-move') {
+                    const { nodeId, position } = message.data;
+                    if (area.nodeViews.has(nodeId)) {
+                        area.translate(nodeId, position);
+                    }
+                } else if (!message.type) {
+                    // Handle initial workspace from host
+                    if (message.workspace) {
+                        await editorFromJSON(message.workspace);
+                        if (message.transport === 'playing' && audioState === 'stopped') {
+                            await startAudio();
+                        }
+                    } else {
+                        // Fallback for any legacy messages
+                        await editorFromJSON(message);
+                    }
+                }
+
                 _isLocalChange = true;
             });
     
@@ -5475,8 +5574,9 @@ workspace_data: ${base64Data}
             area.addPipe((context) => {
               //console.log(context);
                 if (_isLocalChange && context.type === 'nodedragged') {
-                    const workspaceData = editorToJSON();
-                    multiplayer.broadcast(workspaceData);
+                    const nodeId = context.data.payload.id;
+                    const position = area.nodeViews.get(nodeId).position;
+                    multiplayer.broadcast('node-move', { nodeId, position });
                 }                
                 if (context.type === 'rendered' && context.data.type === 'node') {
                     // Add a data-node-id attribute to the node's root element for easier DOM selection
@@ -5530,7 +5630,7 @@ workspace_data: ${base64Data}
             editor.addPipe(async (context) => {
                 if (_isLocalChange && ['nodecreated', 'noderemoved', 'connectioncreated', 'connectionremoved'].includes(context.type)) {
                     const workspaceData = editorToJSON();
-                    multiplayer.broadcast(workspaceData);
+                    multiplayer.broadcast('workspace', workspaceData);
                 }
                 if (context.type === 'nodecreate' && context.data instanceof WebAudioNode) {
                     if (context.data.label === 'Master') {
@@ -5725,10 +5825,15 @@ workspace_data: ${base64Data}
                 const wasAudioRunning = audioContext && audioContext.state === 'running';
                 await clearEditor();
                 const workspaceData = RandomWorkspaceGenerator.generate();
+                _isLocalChange = false;
                 await editorFromJSON(workspaceData);
+                _isLocalChange = true;
                 if (wasAudioRunning) await startAudio();
                 document.getElementById('settingsDropdown').classList.add('hidden');
                 showMessage('New random workspace generated!', 'success');
+                if (multiplayer && multiplayer.isConnected()) {
+                    multiplayer.broadcast('workspace', editorToJSON());
+                }
             });
 
             document.getElementById('createSessionBtn').addEventListener('click', () => {
@@ -5766,14 +5871,14 @@ workspace_data: ${base64Data}
             playStopBtn.addEventListener('click', async () => {
                 if (audioState === 'stopped') {
                     await startAudio(); // This is async, so we await its completion
-                    audioState = 'playing';
-                    playStopBtn.textContent = '⏹️';
                 } else { // 'playing'
                     if (mediaRecorder && mediaRecorder.state === 'recording') {
                         mediaRecorder.stop();
                     }
                     await stopAudio(); // stopAudio is also async
-                    // stopAudio now correctly sets the state and button text
+                }
+                if (_isLocalChange) {
+                    multiplayer.broadcast('transport', audioState);
                 }
             });
 
