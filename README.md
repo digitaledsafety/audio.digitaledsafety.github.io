@@ -1,5 +1,13 @@
 # Audio
 
+<div align="center">
+  <video src="./desf-audio-mobile-frame.mp4" controls width="400px">
+    Your browser does not support the video tag.
+  </video>
+  <p><i>Turn on sound for the full experience!</i></p>
+</div>
+
+
 **Audio** is a powerful and intuitive web-based audio synthesis and processing environment. Built on the Web Audio API, it provides a node-based interface for creating complex audio routing, from simple synthesizers to intricate soundscapes.
 
 ## Features
@@ -15,7 +23,7 @@
 
 ## Getting Started
 
-To get started with AudioGrid, simply visit the [Audio website](https://audio.digitaleducationsafety.org) and start creating!
+To get started with Audio, simply visit the [Audio website](https://audio.digitaleducationsafety.org) and start creating!
 
 ### Tutorial: Creating Your First Synthesizer
 
