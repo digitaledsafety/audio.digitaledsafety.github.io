@@ -1,7 +1,7 @@
 # Audio
 
 <div align="center">
-  <video src="https://github.com/digitaledsafety/audio.digitaledsafety.github.io/raw/refs/heads/main/desf-audio-mobile-frame.mp4" controls width="400px">
+  <video src="desf-audio-mobile-frame.mp4" controls width="400px">
     Your browser does not support the video tag.
   </video>
   <p><i>Turn on sound for the full experience!</i></p>
