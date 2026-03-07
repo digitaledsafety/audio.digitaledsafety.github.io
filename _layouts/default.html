@@ -529,6 +529,14 @@ layout: none
 
         // --- Utility Functions ---
 
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+
         function isWorkspaceOutdated(workspaceData) {
             // V1 workspaces saved the generic socket name 'voltage' instead of the specific input key.
             return workspaceData && workspaceData.connections && workspaceData.connections.some(c => c.targetInput === 'voltage');
@@ -691,19 +699,37 @@ layout: none
             }
         }
 
+        async function performSave(name, silent = false) {
+            if (!name) return;
+            const workspaces = getWorkspaces();
+            const data = editorToJSON();
+            workspaces[name] = data;
+            localStorage.setItem('rete-workspaces', JSON.stringify(workspaces));
+            populateWorkspacesDropdown();
+            if (!silent) {
+                showMessage(`Workspace "${name}" saved.`, 'success');
+            } else {
+                console.log(`Auto-saved workspace: ${name}`);
+            }
+        }
+
         async function saveWorkspace() {
             const name = document.getElementById('workspaceName').value;
             if (!name) {
                 showMessage('Please enter a name for the workspace.', 'error');
                 return;
             }
-            const workspaces = getWorkspaces();
-            const data = editorToJSON();
-            workspaces[name] = data;
-            localStorage.setItem('rete-workspaces', JSON.stringify(workspaces));
-            populateWorkspacesDropdown();
-            showMessage(`Workspace "${name}" saved.`, 'success');
+            await performSave(name);
         }
+
+        const autoSave = debounce(async () => {
+            let name = document.getElementById('workspaceName').value;
+            if (!name) {
+                name = 'Workspace-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+                document.getElementById('workspaceName').value = name;
+            }
+            await performSave(name, true);
+        }, 2000);
 
         async function loadWorkspace() {
             const name = document.getElementById('workspaceSelector').value;
@@ -5075,6 +5101,8 @@ workspace_data: ${base64Data}
                             control.value = finalValue; // Update control's internal value
                             valueDisplay.textContent = finalValue.toFixed(2);
                             control.onValueChange(finalValue); // Trigger custom callback
+                            autoSave();
+                            multiplayer.broadcast(editorToJSON());
                         };
 
                         valueDisplay.textContent = control.value.toFixed(2);
@@ -5092,11 +5120,17 @@ workspace_data: ${base64Data}
                             control.value = newValue;
                             control.onValueChange(newValue);
                             // The onValueChange already calls area.update('node', this.node.id); in the node classes
+                            autoSave();
+                            multiplayer.broadcast(editorToJSON());
                         };
                     } else if (control instanceof ButtonControl) {
                         controlEl.innerHTML = `<button class="button button-secondary w-full">${control.label}</button>`;
                         const button = controlEl.querySelector('button');
-                        button.onclick = control.onClick;
+                        button.onclick = () => {
+                            control.onClick();
+                            autoSave();
+                            multiplayer.broadcast(editorToJSON());
+                        };
                     } else if (control instanceof IndicatorControl) {
                         controlEl.innerHTML = `<div class="clock-indicator" title="${control.label}"></div>`;
                     } else if (control instanceof ToggleControl) {
@@ -5114,6 +5148,8 @@ workspace_data: ${base64Data}
                             const newValue = e.target.checked;
                             control.value = newValue;
                             control.onValueChange(newValue);
+                            autoSave();
+                            multiplayer.broadcast(editorToJSON());
                         };
                     } else if (control instanceof TextControl) {
                         controlEl.innerHTML = `
@@ -5125,6 +5161,8 @@ workspace_data: ${base64Data}
                             const newValue = e.target.value;
                             control.value = newValue;
                             control.onValueChange(newValue);
+                            autoSave();
+                            multiplayer.broadcast(editorToJSON());
                         };
                     }
 
@@ -5383,6 +5421,7 @@ workspace_data: ${base64Data}
                 _isLocalChange = false;
                 await editorFromJSON(data);
                 _isLocalChange = true;
+                autoSave();
             });
     
             multiplayer.on('connections-updated', (connections) => {
@@ -5477,6 +5516,7 @@ workspace_data: ${base64Data}
                 if (_isLocalChange && context.type === 'nodedragged') {
                     const workspaceData = editorToJSON();
                     multiplayer.broadcast(workspaceData);
+                    autoSave();
                 }                
                 if (context.type === 'rendered' && context.data.type === 'node') {
                     // Add a data-node-id attribute to the node's root element for easier DOM selection
@@ -5531,6 +5571,7 @@ workspace_data: ${base64Data}
                 if (_isLocalChange && ['nodecreated', 'noderemoved', 'connectioncreated', 'connectionremoved'].includes(context.type)) {
                     const workspaceData = editorToJSON();
                     multiplayer.broadcast(workspaceData);
+                    autoSave();
                 }
                 if (context.type === 'nodecreate' && context.data instanceof WebAudioNode) {
                     if (context.data.label === 'Master') {
