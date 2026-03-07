@@ -40,8 +40,9 @@ class QuantizerProcessor extends AudioWorkletProcessor {
             const rootNoteMidi = rootNote;
 
             // 3. Determine the target semitone based on the scale intervals relative to the root note.
-            const octaveOffset = Math.floor((totalSemitonesFromC - rootNoteMidi) / 12);
-            const semitoneInOctave = (totalSemitonesFromC - rootNoteMidi) % 12;
+            const diff = totalSemitonesFromC - rootNoteMidi;
+            const octaveOffset = Math.floor(diff / 12);
+            const semitoneInOctave = ((diff % 12) + 12) % 12;
 
             let closestInterval = this.scaleIntervals[0];
             let minDistance = Infinity;

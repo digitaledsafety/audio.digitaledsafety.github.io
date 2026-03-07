@@ -903,8 +903,8 @@ workspace_data: ${base64Data}
             return 440 * Math.pow(2, (midiNote - 69) / 12);
         }
 
-        function applyADSR(gainNode, adsrData, durationSeconds, audioContext, maxGain = 1.0) {
-            const now = audioContext.currentTime;
+        function applyADSR(gainNode, adsrData, durationSeconds, audioContext, maxGain = 1.0, startTime = null) {
+            const now = startTime !== null ? startTime : audioContext.currentTime;
             const gainParam = gainNode.gain;
 
             const attackDuration = Math.max(0.001, adsrData.attack || 0.01);
@@ -1128,7 +1128,7 @@ workspace_data: ${base64Data}
                     if (notes.length > 0) {
                         const currentStep = notes[this.currentNoteIndex];
                         const stepDuration = tickDuration * ticksPerStep;
-                        this.scheduleNote(currentStep, stepDuration * 0.9);
+                        this.scheduleNote(currentStep, stepDuration * 0.9, tickTime);
 
                         const midiNotesToBroadcast = Array.isArray(currentStep) ? currentStep : [currentStep];
                         if (this.midiListeners.length > 0) {
@@ -1186,15 +1186,16 @@ workspace_data: ${base64Data}
                 return patternResult;
             }
 
-            scheduleNote(midiNotes, durationSeconds) {
+            scheduleNote(midiNotes, durationSeconds, time = null) {
                 if (!this.audioContext) return;
+                const now = time !== null ? time : this.audioContext.currentTime;
                 const notesToPlay = Array.isArray(midiNotes) ? midiNotes : [midiNotes];
                 notesToPlay.forEach(midiNote => {
                     const frequency = midiToFrequency(midiNote);
                     const osc = this.audioContext.createOscillator();
                     const gainNode = this.audioContext.createGain();
                     osc.type = this.data.waveform || 'sine';
-                    osc.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+                    osc.frequency.setValueAtTime(frequency, now);
                     this.transposeControl.connect(osc.detune);
 
                     const adsrData = {
@@ -1203,12 +1204,12 @@ workspace_data: ${base64Data}
                         sustain: this.data.sustain || 0.5,
                         release: this.data.release || 0.1
                     };
-                    applyADSR(gainNode, adsrData, durationSeconds, this.audioContext, 0.3 / notesToPlay.length);
+                    applyADSR(gainNode, adsrData, durationSeconds, this.audioContext, 0.3 / notesToPlay.length, now);
 
                     osc.connect(gainNode);
                     gainNode.connect(this.mainOutput);
-                    osc.start(this.audioContext.currentTime);
-                    osc.stop(this.audioContext.currentTime + durationSeconds);
+                    osc.start(now);
+                    osc.stop(now + durationSeconds);
                     osc.onended = () => {
                         osc.disconnect();
                         gainNode.disconnect();
@@ -1249,7 +1250,7 @@ workspace_data: ${base64Data}
 
                 while (this.nextStepTime < this.audioContext.currentTime + 0.1) {
                     const midiNote = notes[this.currentNoteIndex];
-                    this.scheduleNote(midiNote, stepDuration);
+                    this.scheduleNote(midiNote, stepDuration, this.nextStepTime);
 
                     if (this.midiListeners.length > 0) {
                         const midiNotesToBroadcast = Array.isArray(midiNote) ? midiNote : [midiNote];
@@ -2711,7 +2712,7 @@ workspace_data: ${base64Data}
                         const stepDuration = tickDuration * ticksPerStep;
 
                         // Schedule the note to play. Play it slightly shorter than the full step duration for a staccato effect.
-                        this.scheduleNote(currentStep, stepDuration * 0.9);
+                        this.scheduleNote(currentStep, stepDuration * 0.9, tickTime);
 
                         const midiNotesToBroadcast = Array.isArray(currentStep) ? currentStep : [currentStep];
                         if (this.midiListeners.length > 0) {
@@ -2857,8 +2858,9 @@ workspace_data: ${base64Data}
                 return patternResult;
             }
 
-            scheduleNote(midiNotes, durationSeconds) {
+            scheduleNote(midiNotes, durationSeconds, time = null) {
                 if (!this.audioContext) return;
+                const now = time !== null ? time : this.audioContext.currentTime;
 
                 const notesToPlay = Array.isArray(midiNotes) ? midiNotes : [midiNotes];
                 notesToPlay.forEach(midiNote => {
@@ -2867,7 +2869,7 @@ workspace_data: ${base64Data}
                     const gainNode = this.audioContext.createGain();
 
                     osc.type = this.data.waveform || 'sine';
-                    osc.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+                    osc.frequency.setValueAtTime(frequency, now);
                     this.transposeControl.connect(osc.detune);
 
                     const adsrData = {
@@ -2876,12 +2878,12 @@ workspace_data: ${base64Data}
                         sustain: this.data.sustain,
                         release: this.data.release
                     };
-                    applyADSR(gainNode, adsrData, durationSeconds, this.audioContext, 0.3 / notesToPlay.length);
+                    applyADSR(gainNode, adsrData, durationSeconds, this.audioContext, 0.3 / notesToPlay.length, now);
 
                     osc.connect(gainNode);
                     gainNode.connect(this.mainOutput);
-                    osc.start(this.audioContext.currentTime);
-                    osc.stop(this.audioContext.currentTime + durationSeconds);
+                    osc.start(now);
+                    osc.stop(now + durationSeconds);
 
                     osc.onended = () => {
                         osc.disconnect();
@@ -2923,7 +2925,7 @@ workspace_data: ${base64Data}
 
                 while (this.nextStepTime < this.audioContext.currentTime + 0.1) {
                     const midiNote = notes[this.currentNoteIndex];
-                    this.scheduleNote(midiNote, stepDuration);
+                    this.scheduleNote(midiNote, stepDuration, this.nextStepTime);
 
                     if (this.midiListeners.length > 0) {
                         const midiNotesToBroadcast = Array.isArray(midiNote) ? midiNote : [midiNote];
@@ -3091,7 +3093,7 @@ workspace_data: ${base64Data}
 
                 // Note map for drum sounds
                 const drumNoteMap = { 'k': 60, 's': 62, 'h': 64 }; // Using midi numbers as placeholders
-                this.parser = new MiniNotationParser({ 'noteMap': drumNoteMap });
+                this.parser = new MiniNotationParser(drumNoteMap);
                 this.sequenceEvents = this.parseSequence();
             }
 
@@ -3115,10 +3117,10 @@ workspace_data: ${base64Data}
                         const stepDuration = tickDuration * ticksForThisStep;
                         if (Array.isArray(event)) {
                             for (const note of event) {
-                                if (note.noteName) this.scheduleNote(note.noteName, stepDuration * note.elongation);
+                                if (note.noteName) this.scheduleNote(note.noteName, stepDuration * note.elongation, tickTime);
                             }
                         } else {
-                            if (event.noteName) this.scheduleNote(event.noteName, stepDuration * event.elongation);
+                            if (event.noteName) this.scheduleNote(event.noteName, stepDuration * event.elongation, tickTime);
                         }
                         this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
                     }
@@ -3131,7 +3133,8 @@ workspace_data: ${base64Data}
             }
 
             // --- Sound Synthesis ---
-            createKick(now) {
+            createKick(time) {
+                const now = time !== null ? time : this.audioContext.currentTime;
                 const osc = this.audioContext.createOscillator();
                 const gain = this.audioContext.createGain();
                 osc.connect(gain);
@@ -3146,7 +3149,8 @@ workspace_data: ${base64Data}
                 osc.stop(now + 0.5);
             }
 
-            createSnare(now) {
+            createSnare(time) {
+                const now = time !== null ? time : this.audioContext.currentTime;
                 const noise = this.audioContext.createBufferSource();
                 const noiseBuffer = this.audioContext.createBuffer(1, this.audioContext.sampleRate * 0.2, this.audioContext.sampleRate);
                 const output = noiseBuffer.getChannelData(0);
@@ -3182,7 +3186,8 @@ workspace_data: ${base64Data}
                 osc.stop(now + 0.08);
             }
 
-            createHiHat(now) {
+            createHiHat(time) {
+                const now = time !== null ? time : this.audioContext.currentTime;
                 const noise = this.audioContext.createBufferSource();
                 const noiseBuffer = this.audioContext.createBuffer(1, this.audioContext.sampleRate * 0.1, this.audioContext.sampleRate);
                 const output = noiseBuffer.getChannelData(0);
@@ -3206,9 +3211,9 @@ workspace_data: ${base64Data}
             }
 
 
-            scheduleNote(noteName, durationSeconds) {
+            scheduleNote(noteName, durationSeconds, time = null) {
                 if (!this.audioContext) return;
-                const now = this.audioContext.currentTime;
+                const now = time !== null ? time : this.audioContext.currentTime;
 
                 const normalizedNote = typeof noteName === 'string' ? noteName.toLowerCase() : noteName;
                 switch (normalizedNote) {
@@ -3263,10 +3268,10 @@ workspace_data: ${base64Data}
 
                     if (Array.isArray(event)) {
                         for (const note of event) {
-                            if (note.noteName) this.scheduleNote(note.noteName, stepDuration * note.elongation);
+                            if (note.noteName) this.scheduleNote(note.noteName, stepDuration * note.elongation, this.nextStepTime);
                         }
                     } else {
-                        if (event.noteName) this.scheduleNote(event.noteName, stepDuration * event.elongation);
+                        if (event.noteName) this.scheduleNote(event.noteName, stepDuration * event.elongation, this.nextStepTime);
                     }
 
                     this.nextStepTime += stepDuration;
@@ -3381,13 +3386,13 @@ workspace_data: ${base64Data}
                      if (Array.isArray(event)) {
                         for (const note of event) {
                             if (note.midi !== null) {
-                                this.scheduleNote(note.midi, stepDuration * 0.9);
+                                this.scheduleNote(note.midi, stepDuration * 0.9, tickTime);
                                 midiNotesToBroadcast.push(note.midi);
                             }
                         }
                     } else {
                         if (event.midi !== null) {
-                            this.scheduleNote(event.midi, stepDuration * 0.9);
+                            this.scheduleNote(event.midi, stepDuration * 0.9, tickTime);
                             midiNotesToBroadcast.push(event.midi);
                         }
                     }
@@ -3410,15 +3415,16 @@ workspace_data: ${base64Data}
             parseSequence() {
                 return this.parser.parse(this.data.sequence || '');
             }
-            scheduleNote(midiNote, durationSeconds) {
+            scheduleNote(midiNote, durationSeconds, time = null) {
                 if (!this.audioContext) return;
+                const now = time !== null ? time : this.audioContext.currentTime;
 
                 const frequency = midiToFrequency(midiNote);
                 const osc = this.audioContext.createOscillator();
                 const gainNode = this.audioContext.createGain();
 
                 osc.type = this.data.waveform || 'sine';
-                osc.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+                osc.frequency.setValueAtTime(frequency, now);
                 this.transposeControl.connect(osc.detune);
 
                 const adsrData = {
@@ -3427,13 +3433,13 @@ workspace_data: ${base64Data}
                     sustain: this.data.sustain,
                     release: this.data.release
                 };
-                applyADSR(gainNode, adsrData, durationSeconds, this.audioContext, 0.3);
+                applyADSR(gainNode, adsrData, durationSeconds, this.audioContext, 0.3, now);
 
                 osc.connect(gainNode);
                 gainNode.connect(this.mainOutput);
 
-                osc.start(this.audioContext.currentTime);
-                osc.stop(this.audioContext.currentTime + durationSeconds);
+                    osc.start(now);
+                    osc.stop(now + durationSeconds);
 
                 osc.onended = () => {
                     osc.disconnect();
@@ -3485,13 +3491,13 @@ workspace_data: ${base64Data}
                     if (Array.isArray(event)) {
                         for (const note of event) {
                             if (note.midi !== null) {
-                                this.scheduleNote(note.midi, stepDuration * note.elongation);
+                                this.scheduleNote(note.midi, stepDuration * note.elongation, this.nextStepTime);
                                 midiNotesToBroadcast.push(note.midi);
                             }
                         }
                     } else {
                         if (event.midi !== null) {
-                             this.scheduleNote(event.midi, stepDuration * event.elongation);
+                             this.scheduleNote(event.midi, stepDuration * event.elongation, this.nextStepTime);
                              midiNotesToBroadcast.push(event.midi);
                         }
                     }
