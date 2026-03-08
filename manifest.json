@@ -1,6 +1,6 @@
 {
-  "name": "Web Audio Playground",
-  "short_name": "Audio Playground",
+  "name": "Audio",
+  "short_name": "Audio",
   "start_url": "/audio/",
   "display": "standalone",
   "background_color": "#ffffff",
