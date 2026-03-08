@@ -1,4 +1,4 @@
-const CACHE_NAME = 'web-audio-playground-cache-v1';
+const CACHE_NAME = 'audio-cache-v1';
 const urlsToCache = [
   '/audio/',
   '/audio/manifest.json',

@@ -22,7 +22,7 @@
 *   **Save-and-Share-Workspaces**: Save your creations and share them with others.
 *   **Workspace-Versioning**: Includes a data migration path to automatically update older workspace files to the latest format, ensuring backward compatibility.
 *   **Cross-Platform**: Runs in any modern web browser.
-*   **Progressive-Web-App**: Install AudioGrid on your device for a native-app experience, and use it offline thanks to service worker caching.
+*   **Progressive-Web-App**: Install Audio on your device for a native-app experience, and use it offline thanks to service worker caching.
 
 ## Getting Started
 
@@ -34,6 +34,15 @@ To get started with Audio, simply visit the [Audio website](https://audio.digita
 2.  **Add-a-Master-Output-Node**: This will be the final output for your audio. Click the "Add Node" button and select "Master".
 3.  **Connect-the-Nodes**: Click and drag from the output of the Tone Generator Node to the input of the Master Output Node.
 4.  **Play-Your-Synthesizer**: You should now hear a sine wave playing. You can change the frequency and waveform of the Tone Generator Node to create different sounds.
+
+### Tutorial: Real-Time Collaboration (Multiplayer)
+
+Audio supports real-time multiplayer, allowing you to collaborate with others on the same workspace.
+
+1.  **Open Settings**: Click the gear icon (⚙️) in the bottom navigation bar to open the Settings menu.
+2.  **Create a Session**: In the "Multiplayer" section, click the **🤝 Create** button.
+3.  **Share the Link**: Once the session is created, a unique link will appear in the "Share Link" box. Click the clipboard icon (📋) to copy the link and share it with your collaborators.
+4.  **Collaborate**: Any changes made by you or your collaborators (adding nodes, moving them, changing parameters, or making connections) will be synchronized across all connected devices in real-time.
 
 ## Available Nodes
 
