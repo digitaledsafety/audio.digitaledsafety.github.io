@@ -326,6 +326,7 @@ layout: none
                             <button id="addManualGateNodeBtn" class="button button-secondary w-full text-xs">🔳 Manual Gate</button>
                             <button id="addQuantizerNodeBtn" class="button button-secondary w-full text-xs">🎹 Quantizer</button>
                             <button id="addDrumMachineNodeBtn" class="button button-secondary w-full text-xs">🥁 Drum Machine</button>
+                            <button id="addMixerNodeBtn" class="button button-secondary w-full text-xs">🎛️ Mixer</button>
                         </div>
                     </div>
                 </div>
@@ -504,6 +505,7 @@ layout: none
         const addManualGateNodeBtn = document.getElementById('addManualGateNodeBtn');
         const addQuantizerNodeBtn = document.getElementById('addQuantizerNodeBtn');
         const addDrumMachineNodeBtn = document.getElementById('addDrumMachineNodeBtn');
+        const addMixerNodeBtn = document.getElementById('addMixerNodeBtn');
         const clearEditorBtn = document.getElementById('clearEditorBtn');
         const reteContainer = document.getElementById('rete-container');
         const messageBox = document.getElementById('messageBox');
@@ -2540,6 +2542,59 @@ workspace_data: ${base64Data}
         }
 
 
+        class Mixer {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+
+                this.mainOutput = this.audioContext.createGain();
+                this.inputs = [];
+                this.gains = [];
+
+                for (let i = 1; i <= 4; i++) {
+                    const input = this.audioContext.createGain();
+                    const gain = this.audioContext.createGain();
+                    gain.gain.value = this.data[`gain${i}`] !== undefined ? this.data[`gain${i}`] : 0.5;
+                    input.connect(gain);
+                    gain.connect(this.mainOutput);
+                    this[`in${i}`] = input; // Required for VoltageConnectionStrategy
+                    this.inputs.push(input);
+                    this.gains.push(gain);
+                }
+            }
+
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+                const match = paramName.match(/^gain(\d)$/);
+                if (match) {
+                    const index = parseInt(match[1]) - 1;
+                    this.gains[index].gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
+                }
+            }
+        }
+
+        class MixerNode extends WebAudioNode {
+            constructor() {
+                super('Mixer');
+
+                for (let i = 1; i <= 4; i++) {
+                    this.addInput(`in${i}`, new Classic.Input(voltageSocket, `In ${i}`));
+                    this.data[`gain${i}`] = 0.5;
+                    this.addControl(`gain${i}`, new SliderControl(`gainSlider${i}`, `Gain ${i}`, 0, 1, 0.01, this.data[`gain${i}`], (val) => {
+                        this.data[`gain${i}`] = val;
+                        const audioNode = reteAudioNodes.get(this.id);
+                        if (audioNode) audioNode.updateParameter(`gain${i}`, val);
+                    }));
+                }
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
+            }
+
+            build() {
+                return new Mixer(audioContext, this.id, this.data);
+            }
+        }
+
         class VCANode extends WebAudioNode {
             constructor() {
                 super('VCA');
@@ -3119,6 +3174,19 @@ workspace_data: ${base64Data}
                 const drumNoteMap = { 'k': 60, 's': 62, 'h': 64 }; // Using midi numbers as placeholders
                 this.parser = new MiniNotationParser({ 'noteMap': drumNoteMap });
                 this.sequenceEvents = this.parseSequence();
+
+                this.snareNoiseBuffer = this.createNoiseBuffer(0.2);
+                this.hiHatNoiseBuffer = this.createNoiseBuffer(0.1);
+            }
+
+            createNoiseBuffer(duration) {
+                const bufferSize = this.audioContext.sampleRate * duration;
+                const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+                const output = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    output[i] = Math.random() * 2 - 1;
+                }
+                return buffer;
             }
 
             addMidiListener(callback) {
@@ -3174,12 +3242,7 @@ workspace_data: ${base64Data}
 
             createSnare(now) {
                 const noise = this.audioContext.createBufferSource();
-                const noiseBuffer = this.audioContext.createBuffer(1, this.audioContext.sampleRate * 0.2, this.audioContext.sampleRate);
-                const output = noiseBuffer.getChannelData(0);
-                for (let i = 0; i < noiseBuffer.length; i++) {
-                    output[i] = Math.random() * 2 - 1;
-                }
-                noise.buffer = noiseBuffer;
+                noise.buffer = this.snareNoiseBuffer;
 
                 const noiseFilter = this.audioContext.createBiquadFilter();
                 noiseFilter.type = 'highpass';
@@ -3210,12 +3273,7 @@ workspace_data: ${base64Data}
 
             createHiHat(now) {
                 const noise = this.audioContext.createBufferSource();
-                const noiseBuffer = this.audioContext.createBuffer(1, this.audioContext.sampleRate * 0.1, this.audioContext.sampleRate);
-                const output = noiseBuffer.getChannelData(0);
-                for (let i = 0; i < noiseBuffer.length; i++) {
-                    output[i] = Math.random() * 2 - 1;
-                }
-                noise.buffer = noiseBuffer;
+                noise.buffer = this.hiHatNoiseBuffer;
 
                 const noiseFilter = this.audioContext.createBiquadFilter();
                 noiseFilter.type = 'highpass';
@@ -5377,6 +5435,11 @@ workspace_data: ${base64Data}
 
         addDrumMachineNodeBtn.addEventListener('click', async () => {
             await editor.addNode(new DrumMachineNode());
+            clearEditorBtn.disabled = false;
+        });
+
+        addMixerNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new MixerNode());
             clearEditorBtn.disabled = false;
         });
 
