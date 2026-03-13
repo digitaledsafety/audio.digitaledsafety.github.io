@@ -3417,17 +3417,11 @@ workspace_data: ${base64Data}
                             midiNotesToBroadcast.push(event.midi);
                         }
                     }
-
-                    if (this.midiListeners.length > 0 && midiNotesToBroadcast.length > 0) {
-                        this.midiListeners.forEach(callback => callback(midiNotesToBroadcast));
-                    }
-
                     this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
                 }
-
                 this.tickCount++;
             }
-
+            
             setupNotes() {
                 // Root note MIDI numbers
                 this.rootNotes = ROOT_NOTES;
@@ -3436,7 +3430,8 @@ workspace_data: ${base64Data}
             parseSequence() {
                 return this.parser.parse(this.data.sequence || '');
             }
-            scheduleNote(midiNote, durationSeconds) {
+
+            scheduleNote(midiNote, durationSeconds, time = this.audioContext.currentTime) {
                 if (!this.audioContext) return;
 
                 const frequency = midiToFrequency(midiNote);
