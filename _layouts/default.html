@@ -3475,7 +3475,6 @@ workspace_data: ${base64Data}
                         if (this.midiListeners.length > 0 && midiNotesToBroadcast.length > 0) {
                             this.midiListeners.forEach(callback => callback(midiNotesToBroadcast));
                         }
-                    }
 
                     this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
                 }
