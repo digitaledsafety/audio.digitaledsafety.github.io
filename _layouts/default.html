@@ -1393,6 +1393,64 @@ workspace_data: ${base64Data}
         }
 
 
+                const SubCircuitLibrary = {
+            subtractiveVoice: (idPrefix, x, y, options = {}) => {
+                const { waveform = 'sawtooth', frequency = 440, filterFreq = 1000, q = 1, env = { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.1 } } = options;
+                return {
+                    nodes: [
+                        { id: `${idPrefix}-osc`, label: 'Tone Generator', data: { waveform, frequency }, position: { x, y } },
+                        { id: `${idPrefix}-filter`, label: 'Filter', data: { frequency: filterFreq, q }, position: { x: x + 250, y } },
+                        { id: `${idPrefix}-env`, label: 'ADSR Envelope', data: { ...env, mode: 'EG' }, position: { x, y: y + 250 } }
+                    ],
+                    connections: [
+                        { id: `${idPrefix}-c1`, source: `${idPrefix}-osc`, sourceOutput: 'audio', target: `${idPrefix}-filter`, targetInput: 'audio' },
+                        { id: `${idPrefix}-c2`, source: `${idPrefix}-env`, sourceOutput: "audio", target: `${idPrefix}-filter`, targetInput: 'freq' }
+                    ],
+                    input: `${idPrefix}-osc`,
+                    output: `${idPrefix}-filter`,
+                    gateInput: `${idPrefix}-env`
+                };
+            },
+            fmPair: (idPrefix, x, y, options = {}) => {
+                const { carrierFreq = 440, modulatorFreq = 2, amount = 1000 } = options;
+                return {
+                    nodes: [
+                        { id: `${idPrefix}-mod`, label: 'LFO', data: { frequency: modulatorFreq, amount, waveform: 'sine' }, position: { x, y } },
+                        { id: `${idPrefix}-car`, label: 'Tone Generator', data: { frequency: carrierFreq, waveform: 'sine' }, position: { x: x + 250, y } }
+                    ],
+                    connections: [
+                        { id: `${idPrefix}-c1`, source: `${idPrefix}-mod`, sourceOutput: "audio", target: `${idPrefix}-car`, targetInput: 'fm' }
+                    ],
+                    output: `${idPrefix}-car`
+                };
+            },
+            fxChain: (idPrefix, x, y, options = {}) => {
+                const { delayTime = 0.3, feedback = 0.4, reverbMix = 0.4 } = options;
+                return {
+                    nodes: [
+                        { id: `${idPrefix}-delay`, label: 'Delay', data: { delayTime, feedback }, position: { x, y } },
+                        { id: `${idPrefix}-reverb`, label: 'Reverb', data: { mix: reverbMix }, position: { x: x + 250, y } }
+                    ],
+                    connections: [
+                        { id: `${idPrefix}-c1`, source: `${idPrefix}-delay`, sourceOutput: 'audio', target: `${idPrefix}-reverb`, targetInput: 'audio' }
+                    ],
+                    input: `${idPrefix}-delay`,
+                    output: `${idPrefix}-reverb`
+                };
+            },
+            masterSection: (x, y, bpm = 120, gain = 0.5) => {
+                return {
+                    nodes: [
+                        { id: 'master-clock', label: 'Master Clock', data: { bpm }, position: { x, y } },
+                        { id: 'master-out', label: 'Master', data: { gain }, position: { x: x + 1000, y } }
+                    ],
+                    connections: [],
+                    clock: 'master-clock',
+                    output: 'master-out'
+                };
+            }
+        };
+
         const RandomWorkspaceGenerator = {
             getRandomElement(arr) {
                 return arr[Math.floor(Math.random() * arr.length)];
@@ -1432,111 +1490,70 @@ workspace_data: ${base64Data}
                 ambient: () => {
                     const rootNote = RandomWorkspaceGenerator.getRandomElement(['C2', 'G2', 'D2', 'A2', 'E2']);
                     const scale = RandomWorkspaceGenerator.getRandomElement(['Major (Ionian)', 'Natural Minor (Aeolian)', 'Dorian Mode', 'Lydian Mode']);
+                    const master = SubCircuitLibrary.masterSection(50, 300, RandomWorkspaceGenerator.getRandomInt(60, 90), 0.4);
+                    const fx = SubCircuitLibrary.fxChain('fx', 800, 100, { delayTime: 0.5, feedback: 0.6, reverbMix: 0.7 });
+
                     return {
                         nodes: [
-                            { id: '1', label: 'Master Clock', data: { bpm: RandomWorkspaceGenerator.getRandomInt(60, 90) }, position: { x: 50, y: 300 } },
-                            { id: '2', label: 'Scale Arpeggiator', data: { rootNote, scaleType: scale, arpeggioPattern: 'Random', octaveRange: 3, noteDuration: '1/4', waveform: 'sine' }, position: { x: 300, y: 100 } },
-                            { id: '3', label: 'LFO', data: { frequency: RandomWorkspaceGenerator.getRandomFloat(0.1, 0.5), amount: 1000, waveform: 'sine' }, position: { x: 50, y: 500 } },
-                            { id: '4', label: 'Filter', data: { frequency: 1000, q: 1 }, position: { x: 550, y: 100 } },
-                            { id: '5', label: 'Reverb', data: { mix: 0.7, duration: 4, decay: 4 }, position: { x: 800, y: 100 } },
-                            { id: '6', label: 'Master', data: { gain: 0.4 }, position: { x: 1050, y: 100 } }
+                            ...master.nodes,
+                            { id: 'arp', label: 'Scale Arpeggiator', data: { rootNote, scaleType: scale, arpeggioPattern: 'Random', octaveRange: 3, noteDuration: '1/4', waveform: 'sine' }, position: { x: 300, y: 100 } },
+                            { id: 'lfo', label: 'LFO', data: { frequency: RandomWorkspaceGenerator.getRandomFloat(0.1, 0.5), amount: 1000, waveform: 'sine' }, position: { x: 50, y: 500 } },
+                            { id: 'filter', label: 'Filter', data: { frequency: 1000, q: 1 }, position: { x: 550, y: 100 } },
+                            ...fx.nodes
                         ],
                         connections: [
-                            { id: 'c1', source: '1', sourceOutput: 'clock', target: '2', targetInput: 'clock' },
-                            { id: 'c2', source: '2', sourceOutput: 'audio', target: '4', targetInput: 'audio' },
-                            { id: 'c3', source: '3', sourceOutput: 'cv', target: '4', targetInput: 'freq' },
-                            { id: 'c4', source: '4', sourceOutput: 'audio', target: '5', targetInput: 'audio' },
-                            { id: 'c5', source: '5', sourceOutput: 'audio', target: '6', targetInput: 'audio' }
+                            { id: 'c1', source: master.clock, sourceOutput: 'clock', target: 'arp', targetInput: 'clock' },
+                            { id: 'c2', source: 'arp', sourceOutput: 'audio', target: 'filter', targetInput: 'audio' },
+                            { id: 'c3', source: 'lfo', sourceOutput: "audio", target: 'filter', targetInput: 'freq' },
+                            { id: 'c4', source: 'filter', sourceOutput: 'audio', target: fx.input, targetInput: 'audio' },
+                            ...fx.connections,
+                            { id: 'c5', source: fx.output, sourceOutput: 'audio', target: master.output, targetInput: 'audio' }
                         ]
                     };
                 },
                 acid: () => {
+                    const master = SubCircuitLibrary.masterSection(50, 300, RandomWorkspaceGenerator.getRandomInt(120, 140), 0.3);
                     const sequence = RandomWorkspaceGenerator.generateRandomMelody('Pentatonic Minor', 'C2', 1, 16);
+
                     return {
                         nodes: [
-                            { id: '1', label: 'Master Clock', data: { bpm: RandomWorkspaceGenerator.getRandomInt(120, 140) }, position: { x: 50, y: 300 } },
-                            { id: '2', label: 'Sequencer', data: { sequence, waveform: 'sawtooth', noteDuration: '1/16' }, position: { x: 300, y: 100 } },
-                            { id: '3', label: 'Filter', data: { frequency: 400, q: 15, filterType: 'lowpass' }, position: { x: 550, y: 100 } },
-                            { id: '4', label: 'ADSR Envelope', data: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.1, mode: 'EG' }, position: { x: 300, y: 400 } },
-                            { id: '5', label: 'Distortion', data: { drive: 70, amount: 50 }, position: { x: 800, y: 100 } },
-                            { id: '6', label: 'Master', data: { gain: 0.3 }, position: { x: 1050, y: 100 } }
+                            ...master.nodes,
+                            { id: 'seq', label: 'Sequencer', data: { sequence, waveform: 'sawtooth', noteDuration: '1/16' }, position: { x: 300, y: 100 } },
+                            { id: 'filter', label: 'Filter', data: { frequency: 400, q: 15, filterType: 'lowpass' }, position: { x: 550, y: 100 } },
+                            { id: 'env', label: 'ADSR Envelope', data: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.1, mode: 'EG' }, position: { x: 300, y: 400 } },
+                            { id: 'dist', label: 'Distortion', data: { drive: 70, amount: 50 }, position: { x: 800, y: 100 } }
                         ],
                         connections: [
-                            { id: 'c1', source: '1', sourceOutput: 'clock', target: '2', targetInput: 'clock' },
-                            { id: 'c2', source: '2', sourceOutput: 'audio', target: '3', targetInput: 'audio' },
-                            { id: 'c3', source: '4', sourceOutput: 'cv', target: '3', targetInput: 'freq' },
-                            { id: 'c4', source: '3', sourceOutput: 'audio', target: '5', targetInput: 'audio' },
-                            { id: 'c5', source: '5', sourceOutput: 'audio', target: '6', targetInput: 'audio' }
+                            { id: 'c1', source: master.clock, sourceOutput: 'clock', target: 'seq', targetInput: 'clock' },
+                            { id: 'c2', source: 'seq', sourceOutput: 'audio', target: 'filter', targetInput: 'audio' },
+                            { id: 'c3', source: 'env', sourceOutput: "audio", target: 'filter', targetInput: 'freq' },
+                            { id: 'c4', source: 'filter', sourceOutput: 'audio', target: 'dist', targetInput: 'audio' },
+                            { id: 'c5', source: 'dist', sourceOutput: 'audio', target: master.output, targetInput: 'audio' }
                         ]
                     };
                 },
-                techno: () => {
+                generativeDrone: () => {
+                    const master = SubCircuitLibrary.masterSection(50, 300, 60, 0.5);
+                    const fm1 = SubCircuitLibrary.fmPair('fm1', 300, 100, { carrierFreq: 110, modulatorFreq: 0.1, amount: 200 });
+                    const fm2 = SubCircuitLibrary.fmPair('fm2', 300, 400, { carrierFreq: 164.81, modulatorFreq: 0.07, amount: 300 });
+
                     return {
                         nodes: [
-                            { id: '1', label: 'Master Clock', data: { bpm: RandomWorkspaceGenerator.getRandomInt(125, 135) }, position: { x: 50, y: 300 } },
-                            { id: '2', label: 'Drum Machine', data: { sequence: 'k ~ h ~ k ~ h s', bpm: 130 }, position: { x: 300, y: 100 } },
-                            { id: '3', label: 'Sequencer', data: { sequence: 'C1 ~ C1 ~ C2 ~ C1 G1', waveform: 'square', noteDuration: '1/16' }, position: { x: 300, y: 400 } },
-                            { id: '4', label: 'Filter', data: { frequency: 500, q: 5 }, position: { x: 550, y: 400 } },
-                            { id: '5', label: 'Master', data: { gain: 0.5 }, position: { x: 850, y: 250 } }
+                            ...master.nodes,
+                            ...fm1.nodes,
+                            ...fm2.nodes,
+                            { id: 'vca1', label: 'VCA', data: { gain: 0.5 }, position: { x: 600, y: 100 } },
+                            { id: 'vca2', label: 'VCA', data: { gain: 0.5 }, position: { x: 750, y: 250 } },
+                            { id: 'reverb', label: 'Reverb', data: { mix: 0.8 }, position: { x: 900, y: 250 } }
                         ],
                         connections: [
-                            { id: 'c1', source: '1', sourceOutput: 'clock', target: '2', targetInput: 'clock' },
-                            { id: 'c2', source: '1', sourceOutput: 'clock', target: '3', targetInput: 'clock' },
-                            { id: 'c3', source: '2', sourceOutput: 'audio', target: '5', targetInput: 'audio' },
-                            { id: 'c4', source: '3', sourceOutput: 'audio', target: '4', targetInput: 'audio' },
-                            { id: 'c5', source: '4', sourceOutput: 'audio', target: '5', targetInput: 'audio' }
-                        ]
-                    };
-                },
-                anime: () => {
-                    const rootNote = RandomWorkspaceGenerator.getRandomElement(['G3', 'C4', 'F3', 'D4']);
-                    const scale = RandomWorkspaceGenerator.getRandomElement(['Major (Ionian)', 'Lydian Mode', 'Pentatonic Major']);
-                    return {
-                        nodes: [
-                            { id: '1', label: 'Master Clock', data: { bpm: RandomWorkspaceGenerator.getRandomInt(140, 160) }, position: { x: 50, y: 300 } },
-                            { id: '2', label: 'Scale Arpeggiator', data: { rootNote, scaleType: scale, arpeggioPattern: 'Up-Down', octaveRange: 2, noteDuration: '1/8', waveform: 'sine' }, position: { x: 300, y: 100 } },
-                            { id: '3', label: 'Delay', data: { delayTime: 0.3, feedback: 0.4 }, position: { x: 550, y: 100 } },
-                            { id: '4', label: 'Reverb', data: { mix: 0.4 }, position: { x: 800, y: 100 } },
-                            { id: '5', label: 'Master', data: { gain: 0.4 }, position: { x: 1050, y: 100 } }
-                        ],
-                        connections: [
-                            { id: 'c1', source: '1', sourceOutput: 'clock', target: '2', targetInput: 'clock' },
-                            { id: 'c2', source: '2', sourceOutput: 'audio', target: '3', targetInput: 'audio' },
-                            { id: 'c3', source: '3', sourceOutput: 'audio', target: '4', targetInput: 'audio' },
-                            { id: 'c4', source: '4', sourceOutput: 'audio', target: '5', targetInput: 'audio' }
-                        ]
-                    };
-                },
-                drumAndBass: () => {
-                    return {
-                        nodes: [
-                            { id: '1', label: 'Master Clock', data: { bpm: RandomWorkspaceGenerator.getRandomInt(170, 175) }, position: { x: 50, y: 300 } },
-                            { id: '2', label: 'Drum Machine', data: { sequence: 'k ~ ~ h s ~ k h', noteDuration: '1/16' }, position: { x: 300, y: 100 } },
-                            { id: '3', label: 'Sequencer', data: { sequence: 'C1 ~ ~ ~ ~ ~ ~ ~', waveform: 'sine', noteDuration: '1/4' }, position: { x: 300, y: 400 } },
-                            { id: '4', label: 'Distortion', data: { drive: 30, amount: 20 }, position: { x: 550, y: 400 } },
-                            { id: '5', label: 'Master', data: { gain: 0.6 }, position: { x: 850, y: 250 } }
-                        ],
-                        connections: [
-                            { id: 'c1', source: '1', sourceOutput: 'clock', target: '2', targetInput: 'clock' },
-                            { id: 'c2', source: '1', sourceOutput: 'clock', target: '3', targetInput: 'clock' },
-                            { id: 'c3', source: '2', sourceOutput: 'audio', target: '5', targetInput: 'audio' },
-                            { id: 'c4', source: '3', sourceOutput: 'audio', target: '4', targetInput: 'audio' },
-                            { id: 'c5', source: '4', sourceOutput: 'audio', target: '5', targetInput: 'audio' }
-                        ]
-                    };
-                },
-                chiptune: () => {
-                    return {
-                        nodes: [
-                            { id: '1', label: 'Master Clock', data: { bpm: RandomWorkspaceGenerator.getRandomInt(120, 150) }, position: { x: 50, y: 300 } },
-                            { id: '2', label: 'Arpeggiator', data: { chordType: 'Major Triad', rootNote: 'C4', arpeggioPattern: 'Random', octaveRange: 2, noteDuration: '1/16', waveform: 'square' }, position: { x: 300, y: 100 } },
-                            { id: '3', label: 'Bitcrusher', data: { bits: 4, sampleRateReduction: 4 }, position: { x: 550, y: 100 } },
-                            { id: '4', label: 'Master', data: { gain: 0.3 }, position: { x: 800, y: 100 } }
-                        ],
-                        connections: [
-                            { id: 'c1', source: '1', sourceOutput: 'clock', target: '2', targetInput: 'clock' },
-                            { id: 'c2', source: '2', sourceOutput: 'audio', target: '3', targetInput: 'audio' },
-                            { id: 'c3', source: '3', sourceOutput: 'audio', target: '4', targetInput: 'audio' }
+                            ...fm1.connections,
+                            ...fm2.connections,
+                            { id: 'c1', source: fm1.output, sourceOutput: 'audio', target: 'vca1', targetInput: 'audio' },
+                            { id: 'c2', source: fm2.output, sourceOutput: 'audio', target: 'vca2', targetInput: 'audio' },
+                            { id: 'c3', source: 'vca1', sourceOutput: 'audio', target: 'vca2', targetInput: 'audio' },
+                            { id: 'c4', source: 'vca2', sourceOutput: 'audio', target: 'reverb', targetInput: 'audio' },
+                            { id: 'c5', source: 'reverb', sourceOutput: 'audio', target: master.output, targetInput: 'audio' }
                         ]
                     };
                 }
@@ -1551,7 +1568,8 @@ workspace_data: ${base64Data}
             }
         };
 
-        async function updateAudioGraphConnections() {
+
+                async function updateAudioGraphConnections() {
             if (!audioContext || !editor) return;
 
             const connectionStrategies = {
