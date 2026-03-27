@@ -1,9 +1,12 @@
+---
+layout: none
+---
 const CACHE_NAME = 'audio-cache-v1';
 const urlsToCache = [
-  '/audio/',
-  '/audio/manifest.json',
-  '/audio/icons/icon-192x192.png',
-  '/audio/icons/icon-512x512.png',
+  '{{ site.baseurl }}/',
+  '{{ site.baseurl }}/manifest.json',
+  '{{ site.baseurl }}/icons/icon-192x192.png',
+  '{{ site.baseurl }}/icons/icon-512x512.png',
   'https://cdn.digitaleducationsafety.org/packages/tailwindcss@3.4.17/tailwindcss.js',
   'https://cdn.jsdelivr.net/npm/rete@2.0.0-beta.6/rete.min.js',
   'https://unpkg.com/react-is@17.0.2/umd/react-is.production.min.js',
