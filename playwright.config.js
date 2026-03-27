@@ -17,4 +17,11 @@ module.exports = defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
+  webServer: {
+    command: 'python3 -m http.server 8000 --directory _site',
+    url: 'http://localhost:8000',
+    reuseExistingServer: !process.env.CI,
+    stdout: 'ignore',
+    stderr: 'pipe',
+  },
 });
