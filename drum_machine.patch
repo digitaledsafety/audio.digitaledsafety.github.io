@@ -1,0 +1,101 @@
+<<<<<<< SEARCH
+            onTick(tickTime, tickDuration) {
+                const noteDurationMap = { '1': 96, '1/2': 48, '1/4': 24, '1/8': 12, '1/16': 6, '1/32': 3, '1/64': 1.5, '1/128': 0.75 };
+                const baseTicks = noteDurationMap[this.data.noteDuration] || 6;
+                const event = this.sequenceEvents[this.currentStep];
+                const representativeEvent = Array.isArray(event) ? event[0] : event;
+
+                if (representativeEvent) {
+                    const ticksForThisStep = baseTicks * (1 / representativeEvent.speed) * representativeEvent.duration;
+                    if (this.tickCount % ticksForThisStep === 0) {
+                        const stepDuration = tickDuration * ticksPerStep;
+                        if (Array.isArray(event)) {
+                            for (const note of event) {
+                                if (note.noteName) this.scheduleNote(note.noteName, stepDuration * note.elongation);
+                            }
+                        } else {
+                            if (event.noteName) this.scheduleNote(event.noteName, stepDuration * event.elongation);
+                        }
+                        this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
+                    }
+                }
+                this.tickCount++;
+            }
+=======
+            onTick(tickTime, tickDuration) {
+                const noteDurationMap = { '1': 96, '1/2': 48, '1/4': 24, '1/8': 12, '1/16': 6, '1/32': 3, '1/64': 1.5, '1/128': 0.75 };
+                const baseTicks = noteDurationMap[this.data.noteDuration] || 6;
+                const event = this.sequenceEvents[this.currentStep];
+                const representativeEvent = Array.isArray(event) ? event[0] : event;
+
+                if (representativeEvent) {
+                    const ticksForThisStep = baseTicks * (1 / representativeEvent.speed) * representativeEvent.duration;
+                    if (this.tickCount % ticksForThisStep === 0) {
+                        const stepDuration = tickDuration * ticksForThisStep;
+                        if (Array.isArray(event)) {
+                            for (const note of event) {
+                                if (note.noteName) this.scheduleNote(note.noteName, stepDuration * note.elongation, tickTime);
+                            }
+                        } else {
+                            if (event.noteName) this.scheduleNote(event.noteName, stepDuration * event.elongation, tickTime);
+                        }
+                        this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
+                    }
+                }
+                this.tickCount++;
+            }
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+            scheduleNote(noteName, durationSeconds) {
+                if (!this.audioContext) return;
+                const now = this.audioContext.currentTime;
+
+                const normalizedNote = typeof noteName === 'string' ? noteName.toLowerCase() : noteName;
+                switch (normalizedNote) {
+                    case 'k':
+                        this.createKick(now);
+                        break;
+                    case 's':
+                        this.createSnare(now);
+                        break;
+                    case 'h':
+                        this.createHiHat(now);
+                        break;
+                }
+            }
+=======
+            scheduleNote(noteName, durationSeconds, startTime) {
+                if (!this.audioContext) return;
+                const now = startTime || this.audioContext.currentTime;
+
+                const normalizedNote = typeof noteName === 'string' ? noteName.toLowerCase() : noteName;
+                switch (normalizedNote) {
+                    case 'k':
+                        this.createKick(now);
+                        break;
+                    case 's':
+                        this.createSnare(now);
+                        break;
+                    case 'h':
+                        this.createHiHat(now);
+                        break;
+                }
+            }
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+                    if (Array.isArray(event)) {
+                        for (const note of event) {
+                            if (note.noteName) this.scheduleNote(note.noteName, stepDuration * note.elongation);
+                        }
+                    } else {
+                        if (event.noteName) this.scheduleNote(event.noteName, stepDuration * event.elongation);
+                    }
+=======
+                    if (Array.isArray(event)) {
+                        for (const note of event) {
+                            if (note.noteName) this.scheduleNote(note.noteName, stepDuration * note.elongation, this.nextStepTime);
+                        }
+                    } else {
+                        if (event.noteName) this.scheduleNote(event.noteName, stepDuration * event.elongation, this.nextStepTime);
+                    }
+>>>>>>> REPLACE
