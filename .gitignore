@@ -3,5 +3,4 @@ _site/
 .jekyll-cache/
 test-results/
 *.png
-tests/*.spec.ts
 server.log
