@@ -6119,107 +6119,97 @@ workspace_data: ${base64Data}
             });
         };
     </script>
-    <script id="vertex-shader" type="x-shader/x-vertex">
-        attribute vec4 a_position;
-        uniform float u_time;
-        uniform float u_glitch_seed;
+<script id="vertex-shader" type="x-shader/x-vertex">
+    // Set precision for the vertex shader to match the fragment shader
+    precision mediump float;
+
+    attribute vec4 a_position;
+    uniform float u_time;
+    uniform float u_glitch_seed;
+    
+    float randV(float n){ return fract(sin(n) * 43758.5453123); }
+
+    void main() {
+        vec4 pos = a_position;
         
-        // Low-fi random for vertex jitter
-        float randV(float n){ return fract(sin(n) * 43758.5453123); }
-    
-        void main() {
-            vec4 pos = a_position;
-            
-            // Occasional full-screen "jump" or shake
-            if(randV(u_time * u_glitch_seed) > 0.98) {
-                pos.x += (randV(u_time) - 0.5) * 0.1;
-                pos.y += (randV(u_time + 1.0) - 0.5) * 0.1;
-            }
-            
-            gl_Position = pos;
+        // Occasional full-screen "jump"
+        if(randV(u_time * u_glitch_seed) > 0.98) {
+            pos.x += (randV(u_time) - 0.5) * 0.1;
+            pos.y += (randV(u_time + 1.0) - 0.5) * 0.1;
         }
-    </script>
+        
+        gl_Position = pos;
+    }
+</script>
+
+<script id="fragment-shader" type="x-shader/x-fragment">
+    precision mediump float;
     
-    <script id="fragment-shader" type="x-shader/x-fragment">
-        precision mediump float;
-        uniform float u_time;
-        uniform float u_glitch_seed;
-        uniform sampler2D u_frequency_data;
-        uniform vec2 u_resolution;
-    
-        float rand(vec2 co){
-            return fract(sin(dot(co.xy + u_glitch_seed, vec2(12.9898, 78.233))) * 43758.5453);
+    uniform float u_time;
+    uniform float u_glitch_seed;
+    uniform sampler2D u_frequency_data;
+    uniform vec2 u_resolution;
+
+    float rand(vec2 co){
+        return fract(sin(dot(co.xy + u_glitch_seed, vec2(12.9898, 78.233))) * 43758.5453);
+    }
+
+    void main() {
+        // --- 1. COORDINATE CRUSH ---
+        // Quantize UVs based on bass to create a "bit-crushed" pixel look
+        float bass_raw = texture2D(u_frequency_data, vec2(0.05, 0.0)).r;
+        float quantize = 512.0 - (bass_raw * 480.0);
+        vec2 uv = floor(gl_FragCoord.xy / u_resolution.xy * quantize) / quantize;
+
+        // Audio analysis
+        float mid = texture2D(u_frequency_data, vec2(0.3, 0.0)).r;
+        float high = texture2D(u_frequency_data, vec2(0.7, 0.0)).r;
+        float vol = (bass_raw + mid + high) / 3.0;
+
+        // --- 2. MULTI-LAYER DATA CORRUPTION ---
+        vec2 block_uv = uv;
+        
+        // Large scale displacement
+        vec2 l_block = floor(uv * 6.0) / 6.0;
+        if (rand(l_block + floor(u_time * 12.0)) < 0.2 * bass_raw) {
+            block_uv += (rand(l_block) - 0.5) * 0.3;
         }
-    
-        void main() {
-            // 1. Bit-Crush / Quantization
-            // Lowering resolution of UVs creates a "blocky" digital feel
-            float quantize = 256.0 - (texture2D(u_frequency_data, vec2(0.1, 0.0)).r * 128.0);
-            vec2 uv = floor(gl_FragCoord.xy / u_resolution.xy * quantize) / quantize;
-    
-            // Audio analysis
-            float bass = texture2D(u_frequency_data, vec2(0.05, 0.0)).r;
-            float mid = texture2D(u_frequency_data, vec2(0.3, 0.0)).r;
-            float high = texture2D(u_frequency_data, vec2(0.7, 0.0)).r;
-            float vol = (bass + mid + high) / 3.0;
-    
-            // --- Multi-Layer Block Displacement ---
-            vec2 block_uv = uv;
-            
-            // Large Layer
-            float large_block_size = 4.0 + bass * 5.0;
-            vec2 l_block = floor(uv * large_block_size) / large_block_size;
-            if (rand(l_block + floor(u_time * 8.0)) < 0.1 * bass) {
-                block_uv += (rand(l_block) - 0.5) * 0.2;
-            }
-    
-            // Micro Layer (Digital noise strips)
-            float micro_block_size = 50.0;
-            vec2 m_block = floor(uv * vec2(1.0, micro_block_size)) / micro_block_size;
-            if (rand(m_block + u_time) > 0.95 - (high * 0.2)) {
-                block_uv.x += (rand(vec2(u_time)) - 0.5) * 0.3 * vol;
-            }
-    
-            // --- Color & Chromatic Aberration ---
-            float shift = 0.05 * mid * rand(vec2(floor(u_time * 10.0)));
-            
-            // Sample frequency data with shifted UVs for RGB split
-            float r = texture2D(u_frequency_data, vec2(fract(block_uv.x + shift), 0.0)).r;
-            float g = texture2D(u_frequency_data, vec2(block_uv.x, 0.0)).r;
-            float b = texture2D(u_frequency_data, vec2(fract(block_uv.x - shift), 0.0)).r;
-            
-            vec3 color = vec3(r, g, b);
-    
-            // --- Visual Patterns ---
-            // Vertical "Data Streams"
-            float bar_idx = floor(block_uv.x * 64.0);
-            float bar_freq = texture2D(u_frequency_data, vec2(bar_idx / 64.0, 0.0)).r;
-            float bar = step(1.0 - bar_freq, block_uv.y);
-            color += vec3(0.1, 0.4, 1.0) * bar * mid;
-    
-            // "Ghosting" Frames
-            if(rand(vec2(u_time)) > 0.98) {
-                color = color.brg; // Random channel swap
-            }
-    
-            // --- Noise & Signal Interference ---
-            // Static
-            float static_noise = rand(block_uv + fract(u_time));
-            color += (static_noise - 0.5) * (0.2 + bass);
-    
-            // Broken Scanlines
-            float scanline = sin(block_uv.y * 400.0 + u_time * 10.0) * 0.15;
-            if(rand(vec2(u_time)) > 0.5) color -= scanline;
-    
-            // Sharp Inversion (Transients)
-            if (high > 0.9 && rand(vec2(u_time)) > 0.4) {
-                color = 1.0 - color;
-                color *= vec3(1.0, 0.5, 0.5); // Warm "overloaded" tint
-            }
-    
-            gl_FragColor = vec4(color, 1.0);
+
+        // Horizontal "Analog Tearing" strips
+        float strip_y = floor(uv.y * 40.0);
+        if (rand(vec2(strip_y, floor(u_time * 20.0))) > 0.9) {
+            block_uv.x += (rand(vec2(u_time)) - 0.5) * 0.4 * high;
         }
-    </script>
+
+        // --- 3. COLOR & CHROMATIC ABERRATION ---
+        // Intense RGB splitting on transients
+        float shift = 0.08 * mid * rand(vec2(floor(u_time * 15.0)));
+        
+        float r = texture2D(u_frequency_data, vec2(fract(block_uv.x + shift), 0.0)).r;
+        float g = texture2D(u_frequency_data, vec2(block_uv.x, 0.0)).r;
+        float b = texture2D(u_frequency_data, vec2(fract(block_uv.x - shift), 0.0)).r;
+        
+        vec3 color = vec3(r, g, b);
+
+        // --- 4. ARTIFACTING & NOISE ---
+        // Data-moshing bars
+        float bar_idx = floor(block_uv.x * 32.0);
+        float bar_freq = texture2D(u_frequency_data, vec2(bar_idx / 32.0, 0.0)).r;
+        if (block_uv.y < bar_freq) {
+            color += vec3(0.0, 0.5, 1.0) * mid;
+        }
+
+        // Digital grain (static)
+        color += (rand(block_uv + fract(u_time)) - 0.5) * (0.3 + high);
+
+        // Inversion Flash
+        if (high > 0.93 && rand(vec2(u_time)) > 0.5) {
+            color = 1.0 - color;
+        }
+
+        gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+    }
+</script>
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
