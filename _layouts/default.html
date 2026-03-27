@@ -6155,35 +6155,50 @@ workspace_data: ${base64Data}
     }
 
     void main() {
-        // --- 1. COORDINATE CRUSH ---
-        // Quantize UVs based on bass to create a "bit-crushed" pixel look
+        // --- 1. COORDINATE SETUP & RADIAL BULGE ---
+        vec2 uv = gl_FragCoord.xy / u_resolution.xy;
         float bass_raw = texture2D(u_frequency_data, vec2(0.05, 0.0)).r;
-        float quantize = 512.0 - (bass_raw * 480.0);
-        vec2 uv = floor(gl_FragCoord.xy / u_resolution.xy * quantize) / quantize;
+        
+        // Center-relative coordinates for the bulge (-0.5 to 0.5)
+        vec2 center_uv = uv - 0.5;
+        float dist = length(center_uv);
+        
+        // The "Pulse" - pushes UVs out based on distance from center and bass intensity
+        // Power of 1.0 is linear; > 1.0 creates the fish-eye "bulge"
+        float bulge_power = 1.0 + (bass_raw * 1.5); 
+        center_uv *= pow(dist, bulge_power) / dist;
+        
+        // Move back to 0.0 - 1.0 range
+        uv = center_uv + 0.5;
 
-        // Audio analysis
+        // --- 2. BIT-CRUSH (Quantization) ---
+        float quantize = 512.0 - (bass_raw * 490.0);
+        uv = floor(uv * quantize) / quantize;
+
+        // Audio analysis for other bands
         float mid = texture2D(u_frequency_data, vec2(0.3, 0.0)).r;
         float high = texture2D(u_frequency_data, vec2(0.7, 0.0)).r;
         float vol = (bass_raw + mid + high) / 3.0;
 
-        // --- 2. MULTI-LAYER DATA CORRUPTION ---
+        // --- 3. MULTI-LAYER DATA CORRUPTION ---
         vec2 block_uv = uv;
         
-        // Large scale displacement
-        vec2 l_block = floor(uv * 6.0) / 6.0;
-        if (rand(l_block + floor(u_time * 12.0)) < 0.2 * bass_raw) {
-            block_uv += (rand(l_block) - 0.5) * 0.3;
+        // Large scale displacement (Macro)
+        vec2 l_block = floor(uv * 8.0) / 8.0;
+        if (rand(l_block + floor(u_time * 10.0)) < 0.15 * bass_raw) {
+            block_uv += (rand(l_block) - 0.5) * 0.25;
         }
 
-        // Horizontal "Analog Tearing" strips
-        float strip_y = floor(uv.y * 40.0);
-        if (rand(vec2(strip_y, floor(u_time * 20.0))) > 0.9) {
-            block_uv.x += (rand(vec2(u_time)) - 0.5) * 0.4 * high;
+        // Horizontal "Digital Tearing" (Micro)
+        float strip_count = 50.0 + (high * 100.0);
+        float strip_y = floor(uv.y * strip_count);
+        if (rand(vec2(strip_y, floor(u_time * 24.0))) > 0.92) {
+            block_uv.x += (rand(vec2(u_time)) - 0.5) * 0.5 * vol;
         }
 
-        // --- 3. COLOR & CHROMATIC ABERRATION ---
-        // Intense RGB splitting on transients
-        float shift = 0.08 * mid * rand(vec2(floor(u_time * 15.0)));
+        // --- 4. COLOR & CHROMATIC ABERRATION ---
+        // Extreme RGB split tied to mid-range
+        float shift = 0.1 * mid * rand(vec2(floor(u_time * 20.0)));
         
         float r = texture2D(u_frequency_data, vec2(fract(block_uv.x + shift), 0.0)).r;
         float g = texture2D(u_frequency_data, vec2(block_uv.x, 0.0)).r;
@@ -6191,20 +6206,21 @@ workspace_data: ${base64Data}
         
         vec3 color = vec3(r, g, b);
 
-        // --- 4. ARTIFACTING & NOISE ---
-        // Data-moshing bars
-        float bar_idx = floor(block_uv.x * 32.0);
-        float bar_freq = texture2D(u_frequency_data, vec2(bar_idx / 32.0, 0.0)).r;
-        if (block_uv.y < bar_freq) {
-            color += vec3(0.0, 0.5, 1.0) * mid;
+        // --- 5. DATA VISUALIZATION ---
+        // Blue "Power" bars that flicker
+        float bar_idx = floor(block_uv.x * 40.0);
+        float bar_freq = texture2D(u_frequency_data, vec2(bar_idx / 40.0, 0.0)).r;
+        if (block_uv.y < bar_freq && rand(vec2(bar_idx, u_time)) > 0.2) {
+            color += vec3(0.0, 0.6, 1.0) * mid;
         }
 
-        // Digital grain (static)
-        color += (rand(block_uv + fract(u_time)) - 0.5) * (0.3 + high);
+        // Digital Static
+        color += (rand(block_uv + fract(u_time)) - 0.5) * (0.2 + bass_raw);
 
-        // Inversion Flash
-        if (high > 0.93 && rand(vec2(u_time)) > 0.5) {
+        // Transients Inversion
+        if (high > 0.9 && rand(vec2(u_time)) > 0.5) {
             color = 1.0 - color;
+            color.g *= 0.5; // Tint the inversion for a "sickly" look
         }
 
         gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
