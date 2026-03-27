@@ -1,0 +1,13 @@
+<<<<<<< SEARCH
+                while (this.nextStepTime < this.audioContext.currentTime + 0.1) {
+                    const midiNote = notes[this.currentNoteIndex];
+                    this.scheduleNote(midiNote, stepDuration);
+
+                    if (this.midiListeners.length > 0) {
+=======
+                while (this.nextStepTime < this.audioContext.currentTime + 0.1) {
+                    const midiNote = notes[this.currentNoteIndex];
+                    this.scheduleNote(midiNote, stepDuration, this.nextStepTime);
+
+                    if (this.midiListeners.length > 0) {
+>>>>>>> REPLACE
