@@ -2,9 +2,11 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: ["main"]
-
-  # Allows you to run this workflow manually from the Actions tab
+    branches: 
+      - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
