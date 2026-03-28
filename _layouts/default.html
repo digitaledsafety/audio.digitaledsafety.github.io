@@ -326,6 +326,7 @@ layout: none
                             <button id="addManualGateNodeBtn" class="button button-secondary w-full text-xs">🔳 Manual Gate</button>
                             <button id="addQuantizerNodeBtn" class="button button-secondary w-full text-xs">🎹 Quantizer</button>
                             <button id="addDrumMachineNodeBtn" class="button button-secondary w-full text-xs">🥁 Drum Machine</button>
+                            <button id="addMixerNodeBtn" class="button button-secondary w-full text-xs">🎛️ Mixer</button>
                         </div>
                     </div>
                 </div>
@@ -416,6 +417,23 @@ layout: none
         var audioContext;
         const reteAudioNodes = new Map(); // Maps Rete.js node IDs to Web Audio API nodes
 
+        const NodeRegistry = {
+            _nodes: new Map(),
+            register(name, constructor) {
+                this._nodes.set(name, constructor);
+            },
+            getConstructor(name) {
+                return this._nodes.get(name);
+            },
+            getConstructors() {
+                const constructors = {};
+                for (const [name, constructor] of this._nodes.entries()) {
+                    constructors[name] = constructor;
+                }
+                return constructors;
+            }
+        };
+
         const legacyNameMap = {
             nodes: {
                 'LFO': 'VCA'
@@ -504,6 +522,7 @@ layout: none
         const addManualGateNodeBtn = document.getElementById('addManualGateNodeBtn');
         const addQuantizerNodeBtn = document.getElementById('addQuantizerNodeBtn');
         const addDrumMachineNodeBtn = document.getElementById('addDrumMachineNodeBtn');
+        const addMixerNodeBtn = document.getElementById('addMixerNodeBtn');
         const clearEditorBtn = document.getElementById('clearEditorBtn');
         const reteContainer = document.getElementById('rete-container');
         const messageBox = document.getElementById('messageBox');
@@ -594,38 +613,9 @@ layout: none
                 console.log('Loading editor from JSON:', json);
                 await editor.clear();
 
-                // TODO: How do we avoid hardcoding any new node types here?
-                const nodeConstructors = {
-                    'Tone Generator': ToneGeneratorNode,
-                    'Noise Generator': NoiseGeneratorNode,
-                    'Wave Player': WavePlayerNode,
-                    'Chord Generator': ChordGeneratorNode,
-                    'VCA': VCANode,
-                    'Master': MasterGainOutputNode,
-                    'Filter': FilterNode,
-                    'Delay': DelayNode,
-                    'Distortion': DistortionNode,
-                    'Compressor': CompressorNode,
-                    'Reverb': ReverbNode,
-                    'Scale Arpeggiator': ScaleArpeggiatorNode,
-                    'Arpeggiator': ArpeggiatorNode,
-                    'LFO': LFONode,
-                    'ADSR Envelope': ADSREnvelopeNode,
-                    'Bitcrusher': BitcrusherNode,
-                    'Sequencer': SequencerNode,
-                    'Attenuverter': AttenuverterNode,
-                    'Master Clock': MasterClockNode,
-                    'Vocoder': VocoderNode,
-                    '🎤 Mic Input': MicrophoneInputNode,
-                    'Granular Synthesizer': GranularSynthesizerNode,
-                    'Manual Gate': ManualGateNode,
-                    'Quantizer': QuantizerNode,
-                    'Drum Machine': DrumMachineNode
-                };
-
                 // Stage 1: Create and add all nodes to the editor's data model.
                 for (const nodeData of json.nodes) {
-                    const Constructor = nodeConstructors[nodeData.label];
+                    const Constructor = NodeRegistry.getConstructor(nodeData.label);
                     if (Constructor) {
                         const node = new Constructor();
                         node.id = nodeData.id;
@@ -860,15 +850,7 @@ layout: none
 
         async function updateAndPublishWorkspace() {
             const currentData = editorToJSON();
-            const nodeConstructors = {
-                'Tone Generator': ToneGeneratorNode, 'Noise Generator': NoiseGeneratorNode, 'Wave Player': WavePlayerNode,
-                'Chord Generator': ChordGeneratorNode, 'VCA': VCANode, 'Mixer': MixerNode, 'Master': MasterGainOutputNode,
-                'Filter': FilterNode, 'Delay': DelayNode, 'Distortion': DistortionNode, 'Compressor': CompressorNode,
-                'Reverb': ReverbNode, 'Arpeggiator': ArpeggiatorNode, 'LFO': LFONode, 'ADSR Envelope': ADSREnvelopeNode,
-                'Bitcrusher': BitcrusherNode, 'Sequencer': SequencerNode, 'Attenuverter': AttenuverterNode,
-                'Master Clock': MasterClockNode, 'Vocoder': VocoderNode, '🎤 Mic Input': MicrophoneInputNode,
-                'Granular Synthesizer': GranularSynthesizerNode, 'Manual Gate': ManualGateNode
-            };
+            const nodeConstructors = NodeRegistry.getConstructors();
             const migratedData = migrateV1ToV2(currentData, nodeConstructors);
 
             await editorFromJSON(migratedData);
@@ -1685,15 +1667,11 @@ workspace_data: ${base64Data}
 
                 const sourceToConnect = sourceAudioNode.mainOutput || sourceAudioNode;
 
-                // Specific handling for Vocoder inputs
-                if (targetReteNode.label === 'Vocoder') {
-                    if (targetInputKey === 'carrier') {
-                        sourceToConnect.connect(targetAudioNode.carrierInput);
-                        return;
-                    } else if (targetInputKey === 'modulator') {
-                        sourceToConnect.connect(targetAudioNode.modulatorInput);
-                        return;
-                    }
+                // Check for specifically named inputs (e.g., carrierInput, in1Input)
+                const namedInput = targetAudioNode[targetInputKey + 'Input'];
+                if (namedInput) {
+                    sourceToConnect.connect(namedInput);
+                    return;
                 }
 
                 if (targetInputKey === 'clock' && typeof targetAudioNode.onTick === 'function') {
@@ -1758,15 +1736,12 @@ workspace_data: ${base64Data}
                 }
 
                 const sourceToDisconnect = sourceAudioNode.mainOutput || sourceAudioNode;
-                 // Specific handling for Vocoder inputs
-                if (targetReteNode.label === 'Vocoder') {
-                    if (targetInputKey === 'carrier') {
-                        sourceToDisconnect.disconnect(targetAudioNode.carrierInput);
-                        return;
-                    } else if (targetInputKey === 'modulator') {
-                        sourceToDisconnect.disconnect(targetAudioNode.modulatorInput);
-                        return;
-                    }
+
+                // Check for specifically named inputs
+                const namedInput = targetAudioNode[targetInputKey + 'Input'];
+                if (namedInput) {
+                    sourceToDisconnect.disconnect(namedInput);
+                    return;
                 }
                 const key = `${sourceReteNode.id}-${targetReteNode.id}-${targetInputKey}`;
 
@@ -2573,10 +2548,90 @@ workspace_data: ${base64Data}
             }
         }
 
+        class Mixer {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+
+                this.mainOutput = this.audioContext.createGain();
+
+                this.in1Input = this.audioContext.createGain();
+                this.in2Input = this.audioContext.createGain();
+                this.in3Input = this.audioContext.createGain();
+                this.in4Input = this.audioContext.createGain();
+
+                this.in1Input.connect(this.mainOutput);
+                this.in2Input.connect(this.mainOutput);
+                this.in3Input.connect(this.mainOutput);
+                this.in4Input.connect(this.mainOutput);
+
+                this.updateParameter('gain1', this.data.gain1 !== undefined ? this.data.gain1 : 0.8);
+                this.updateParameter('gain2', this.data.gain2 !== undefined ? this.data.gain2 : 0.8);
+                this.updateParameter('gain3', this.data.gain3 !== undefined ? this.data.gain3 : 0.8);
+                this.updateParameter('gain4', this.data.gain4 !== undefined ? this.data.gain4 : 0.8);
+            }
+
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+                if (paramName === 'gain1') this.in1Input.gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
+                if (paramName === 'gain2') this.in2Input.gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
+                if (paramName === 'gain3') this.in3Input.gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
+                if (paramName === 'gain4') this.in4Input.gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
+            }
+
+            start() {}
+            stop() {}
+        }
+
+        class MixerNode extends WebAudioNode {
+            constructor() {
+                super('Mixer');
+                this.addInput('in1', new Classic.Input(voltageSocket, 'In 1'));
+                this.addInput('in2', new Classic.Input(voltageSocket, 'In 2'));
+                this.addInput('in3', new Classic.Input(voltageSocket, 'In 3'));
+                this.addInput('in4', new Classic.Input(voltageSocket, 'In 4'));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
+
+                this.data.gain1 = 0.8;
+                this.addControl('gain1', new SliderControl('gain1', 'Gain 1', 0, 1, 0.01, this.data.gain1, (val) => {
+                    this.data.gain1 = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('gain1', val);
+                }));
+
+                this.data.gain2 = 0.8;
+                this.addControl('gain2', new SliderControl('gain2', 'Gain 2', 0, 1, 0.01, this.data.gain2, (val) => {
+                    this.data.gain2 = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('gain2', val);
+                }));
+
+                this.data.gain3 = 0.8;
+                this.addControl('gain3', new SliderControl('gain3', 'Gain 3', 0, 1, 0.01, this.data.gain3, (val) => {
+                    this.data.gain3 = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('gain3', val);
+                }));
+
+                this.data.gain4 = 0.8;
+                this.addControl('gain4', new SliderControl('gain4', 'Gain 4', 0, 1, 0.01, this.data.gain4, (val) => {
+                    this.data.gain4 = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('gain4', val);
+                }));
+            }
+
+            build() {
+                return new Mixer(audioContext, this.id, this.data);
+            }
+        }
+
         class MasterGainOutputNode extends WebAudioNode {
             constructor() {
                 super('Master');
                 this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addInput('gain_cv', new Classic.Input(voltageSocket, 'Gain CV'));
 
                 this.data.gain = 0.5;
                 this.addControl('gain', new SliderControl('gainSlider', 'Gain', 0, 1, 0.01, this.data.gain, (val) => {
@@ -3126,7 +3181,7 @@ workspace_data: ${base64Data}
 
                 // Note map for drum sounds
                 const drumNoteMap = { 'k': 60, 's': 62, 'h': 64 }; // Using midi numbers as placeholders
-                this.parser = new MiniNotationParser({ 'noteMap': drumNoteMap });
+                this.parser = new MiniNotationParser(drumNoteMap);
                 this.sequenceEvents = this.parseSequence();
             }
 
@@ -3330,21 +3385,29 @@ workspace_data: ${base64Data}
                 const steps = 16;
                 let sequence = new Array(steps).fill('~');
 
-                // Four on the floor kick
+                // Kick: 4-on-the-floor
                 for (let i = 0; i < steps; i += 4) {
                     sequence[i] = 'k';
                 }
 
-                // Snare on 2 and 4
-                sequence[4] = 's';
-                sequence[12] = 's';
+                // Snare: steps 4 and 12
+                if (sequence[4] === '~') sequence[4] = 's';
+                else sequence[4] = '[' + sequence[4] + ' s]';
 
-                // Hi-hats
+                if (sequence[12] === '~') sequence[12] = 's';
+                else sequence[12] = '[' + sequence[12] + ' s]';
+
+                // Random Hi-hats and occasional extra kicks/snares
                 for (let i = 0; i < steps; i++) {
-                    if (Math.random() < 0.7) { // 70% chance of a hi-hat
+                    if (Math.random() < 0.5) { // 50% chance for hi-hats
                         if (sequence[i] === '~') {
                             sequence[i] = 'h';
+                        } else {
+                            sequence[i] = '[' + sequence[i] + ' h]';
                         }
+                    }
+                    if (Math.random() < 0.1 && sequence[i] === '~') {
+                        sequence[i] = Math.random() < 0.5 ? 'k' : 's';
                     }
                 }
                 return sequence.join(' ');
@@ -5411,7 +5474,39 @@ workspace_data: ${base64Data}
             clearEditorBtn.disabled = false;
         });
 
+        addMixerNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new MixerNode());
+            clearEditorBtn.disabled = false;
+        });
+
         // Initialize editor on window load
+        NodeRegistry.register('Tone Generator', ToneGeneratorNode);
+        NodeRegistry.register('Noise Generator', NoiseGeneratorNode);
+        NodeRegistry.register('Wave Player', WavePlayerNode);
+        NodeRegistry.register('Chord Generator', ChordGeneratorNode);
+        NodeRegistry.register('VCA', VCANode);
+        NodeRegistry.register('Master', MasterGainOutputNode);
+        NodeRegistry.register('Filter', FilterNode);
+        NodeRegistry.register('Delay', DelayNode);
+        NodeRegistry.register('Distortion', DistortionNode);
+        NodeRegistry.register('Compressor', CompressorNode);
+        NodeRegistry.register('Reverb', ReverbNode);
+        NodeRegistry.register('Arpeggiator', ArpeggiatorNode);
+        NodeRegistry.register('Scale Arpeggiator', ScaleArpeggiatorNode);
+        NodeRegistry.register('LFO', LFONode);
+        NodeRegistry.register('ADSR Envelope', ADSREnvelopeNode);
+        NodeRegistry.register('Bitcrusher', BitcrusherNode);
+        NodeRegistry.register('Sequencer', SequencerNode);
+        NodeRegistry.register('Attenuverter', AttenuverterNode);
+        NodeRegistry.register('Master Clock', MasterClockNode);
+        NodeRegistry.register('Vocoder', VocoderNode);
+        NodeRegistry.register('🎤 Mic Input', MicrophoneInputNode);
+        NodeRegistry.register('Granular Synthesizer', GranularSynthesizerNode);
+        NodeRegistry.register('Manual Gate', ManualGateNode);
+        NodeRegistry.register('Quantizer', QuantizerNode);
+        NodeRegistry.register('Drum Machine', DrumMachineNode);
+        NodeRegistry.register('Mixer', MixerNode);
+
         window.onload = async () => {
 
 
@@ -5508,6 +5603,7 @@ workspace_data: ${base64Data}
                     ['Master Clock', () => new MasterClockNode()],
                     ['Vocoder', () => new VocoderNode()],
                     ['Granular Synthesizer', () => new GranularSynthesizerNode()],
+                    ['Mixer', () => new MixerNode()],
 
                 ])
             });
