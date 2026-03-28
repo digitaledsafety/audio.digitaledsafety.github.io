@@ -1,0 +1,5 @@
+feat: Make all controls updateable through CV signals
+
+Refactors the application to allow all audio node parameters to be controllable via CV signals by default, without maintaining a large, centralized `switch` statement.
+
+BREAKING CHANGE: This change renames several CV input keys to standardize them (e.g., `freq` to `frequency_cv`). This will invalidate any user-saved workspaces or patches that use the old input names.
