@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  call-deploy:
+  call-gh-pages-deploy:
     uses: digitaledsafety/workflows/.github/workflows/reusable-deploy.yml@main
     with:
       ruby-version: '3.2' # Example of overriding a default
