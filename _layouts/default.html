@@ -665,6 +665,11 @@ layout: none
                     // Manually trigger a render update for each node.
                     area.update('node', nodeData.id);
                 }
+                
+                // Stage 4: Zoom to fit all nodes.
+                requestAnimationFrame(async () => {
+                    await AreaExtensions.zoomAt(area, editor.getNodes());
+                });   
             }
             catch (error) {
                 showMessage('Error syncing workspace: ' + error.message, 'error');
