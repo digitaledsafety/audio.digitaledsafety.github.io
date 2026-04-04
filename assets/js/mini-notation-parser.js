@@ -122,23 +122,12 @@ class MiniNotationParser {
     }
 
     flattenAndProcess(structure) {
-        const flatList = [];
-        for (const item of structure) {
-            if (Array.isArray(item)) {
-                // It's a chord/group, process each note inside
-                const chord = item.map(noteString => this.parseNoteEvent(noteString));
-                flatList.push(chord);
-            } else {
-                // It's a single note
-                flatList.push(this.parseNoteEvent(item));
-            }
-        }
-        return flatList;
+        return structure.map(item => this.parseNoteEvent(item));
     }
 
     parseNoteEvent(eventString) {
         if (Array.isArray(eventString)) {
-            return eventString.map(s => this.parseNoteEvent(s));
+            return eventString.flatMap(s => this.parseNoteEvent(s));
         }
 
         // Updated regex to include drum notation 'k', 's', 'h'
