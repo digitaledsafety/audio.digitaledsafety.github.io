@@ -1528,6 +1528,63 @@ workspace_data: ${base64Data}
                             { id: 'c3', source: '3', sourceOutput: 'audio', target: '4', targetInput: 'audio' }
                         ]
                     };
+                },
+                evolvingDrone: () => {
+                    return {
+                        nodes: [
+                            { id: '1', label: 'Noise Generator', data: { gainValue: 0.5 }, position: { x: 50, y: 100 } },
+                            { id: '2', label: 'Filter', data: { frequency: 400, q: 8, filterType: 'bandpass' }, position: { x: 300, y: 100 } },
+                            { id: '3', label: 'LFO', data: { frequency: 0.05, amount: 200, waveform: 'sine' }, position: { x: 50, y: 300 } },
+                            { id: '4', label: 'Reverb', data: { mix: 0.6, duration: 5 }, position: { x: 550, y: 100 } },
+                            { id: '5', label: 'Master', data: { gain: 0.4 }, position: { x: 800, y: 100 } }
+                        ],
+                        connections: [
+                            { id: 'c1', source: '1', sourceOutput: 'audio', target: '2', targetInput: 'audio' },
+                            { id: 'c2', source: '3', sourceOutput: 'cv', target: '2', targetInput: 'freq' },
+                            { id: 'c3', source: '2', sourceOutput: 'audio', target: '4', targetInput: 'audio' },
+                            { id: 'c4', source: '4', sourceOutput: 'audio', target: '5', targetInput: 'audio' }
+                        ]
+                    };
+                },
+                granularClouds: () => {
+                    return {
+                        nodes: [
+                            { id: '1', label: 'Tone Generator', data: { waveform: 'sine', frequency: 220 }, position: { x: 50, y: 100 } },
+                            { id: '2', label: 'Granular Synthesizer', data: { grainSize: 0.2, grainDensity: 40, pitchShift: 0 }, position: { x: 300, y: 100 } },
+                            { id: '3', label: 'LFO', data: { frequency: 0.1, amount: 0.3, waveform: 'triangle' }, position: { x: 50, y: 400 } },
+                            { id: '4', label: 'Delay', data: { delayTime: 0.4, feedback: 0.6 }, position: { x: 550, y: 100 } },
+                            { id: '5', label: 'Reverb', data: { mix: 0.5, duration: 3 }, position: { x: 800, y: 100 } },
+                            { id: '6', label: 'Master', data: { gain: 0.3 }, position: { x: 1050, y: 100 } }
+                        ],
+                        connections: [
+                            { id: 'c1', source: '1', sourceOutput: 'audio', target: '2', targetInput: 'audio' },
+                            { id: 'c2', source: '3', sourceOutput: 'cv', target: '2', targetInput: 'grainSizeCV' },
+                            { id: 'c3', source: '2', sourceOutput: 'audio', target: '4', targetInput: 'audio' },
+                            { id: 'c4', source: '4', sourceOutput: 'audio', target: '5', targetInput: 'audio' },
+                            { id: 'c5', source: '5', sourceOutput: 'audio', target: '6', targetInput: 'audio' }
+                        ]
+                    };
+                },
+                deepSpace: () => {
+                    return {
+                        nodes: [
+                            { id: '1', label: 'Chord Generator', data: { chordType: 'Minor 9th', rootNote: 'C2', waveform: 'sawtooth' }, position: { x: 50, y: 100 } },
+                            { id: '2', label: 'VCA', data: { gain: 1 }, position: { x: 300, y: 100 } },
+                            { id: '3', label: 'Filter', data: { frequency: 300, q: 4, filterType: 'lowpass' }, position: { x: 550, y: 100 } },
+                            { id: '4', label: 'LFO', data: { frequency: 0.03, amount: 0.5, waveform: 'sine' }, position: { x: 50, y: 400 } },
+                            { id: '5', label: 'LFO', data: { frequency: 0.07, amount: 500, waveform: 'sine' }, position: { x: 300, y: 400 } },
+                            { id: '6', label: 'Reverb', data: { mix: 0.8, duration: 8 }, position: { x: 800, y: 100 } },
+                            { id: '7', label: 'Master', data: { gain: 0.3 }, position: { x: 1050, y: 100 } }
+                        ],
+                        connections: [
+                            { id: 'c1', source: '1', sourceOutput: 'audio', target: '2', targetInput: 'audio' },
+                            { id: 'c2', source: '4', sourceOutput: 'cv', target: '2', targetInput: 'gain_cv' },
+                            { id: 'c3', source: '2', sourceOutput: 'audio', target: '3', targetInput: 'audio' },
+                            { id: 'c4', source: '5', sourceOutput: 'cv', target: '3', targetInput: 'freq' },
+                            { id: 'c5', source: '3', sourceOutput: 'audio', target: '6', targetInput: 'audio' },
+                            { id: 'c6', source: '6', sourceOutput: 'audio', target: '7', targetInput: 'audio' }
+                        ]
+                    };
                 }
             },
 
