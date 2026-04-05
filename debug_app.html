@@ -7,7 +7,7 @@ layout: none
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Audio</title>
-    <link rel="manifest" href="{{ "/manifest.json" | relative_url }}">
+    <link rel="manifest" href="manifest.json">
     <script src="https://cdn.digitaleducationsafety.org/packages/tailwindcss@3.4.17/tailwindcss.js"></script>
     <base target="_top">
     <style>
@@ -268,20 +268,16 @@ layout: none
     </style>
 </head>
 <body>
-    <div id="hero-overlay">
-        <h1>Audio<span class="bg-indigo-600 text-white text-sm px-2 py-1 rounded-full ml-4 align-middle font-normal">Beta</span></h1>
-        <p>Create, experiment, and share your sound with a powerful node-based synthesizer, right here in your browser.</p>
-        <button id="cta-button">Enter the Studio</button>
-    </div>
+
     <div class="fixed top-4 right-4 z-50 bg-indigo-600/80 text-white text-xs font-bold px-2 py-1 rounded shadow-md pointer-events-none">BETA</div>
     <div class="rete-container">
         <div id="messageBox" class="message-box hidden"></div>
-        
+
         <div id="workspace-view" class="flex-grow h-full">
-            {{ content }}
+
             <div id="rete-container" class="relative h-full"></div>
         </div>
-        
+
         <div id="visualizer-view" class="hidden h-full">
             <canvas id="visualizer" class="w-full h-full border-none"></canvas>
         </div>
@@ -399,7 +395,7 @@ layout: none
     <script type="text/javascript" src="https://cdn.digitaleducationsafety.org/packages/rete-context-menu-plugin@2.0.6/rete-context-menu-plugin.min.js"></script>
     <script type="text/javascript" src="https://cdn.digitaleducationsafety.org/packages/rete-engine@2.1.1/rete-engine.min.js"></script>
     <script type="text/javascript" src="https://cdn.digitaleducationsafety.org/packages/peerjs@1.5.5/peerjs.min.js"></script>
-    <script src="{{ "assets/js/mini-notation-parser.js" | relative_url }}"></script>
+    <script src="assets/js/mini-notation-parser.js"></script>
 
     <script>
         // Capture global Rete.js objects into local constants after all CDN scripts have loaded
@@ -410,7 +406,7 @@ layout: none
         const { ConnectionPlugin, Presets: ConnectionPresets } = window.ReteConnectionPlugin;
         const { DataflowEngine } = window.ReteEngine;
         const { ReactRenderPlugin, Presets: ReactPresets } = window.ReteReactRenderPlugin
-        const { ContextMenuPlugin, Presets: ContextMenuPresets } = window.ReteContextMenuPlugin;        
+        const { ContextMenuPlugin, Presets: ContextMenuPresets } = window.ReteContextMenuPlugin;
 
         // Global variables for Web Audio API
         var audioContext;
@@ -488,7 +484,7 @@ layout: none
             'Diminished (Half-Whole)': [0, 1, 3, 4, 6, 7, 9, 10],
             'Chromatic Scale': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
         };
-        
+
         const ROOT_NOTES = {
             'C1': 24, 'C#1': 25, 'D1': 26, 'D#1': 27, 'E1': 28, 'F1': 29, 'F#1': 30, 'G1': 31, 'G#1': 32, 'A1': 33, 'A#1': 34, 'B1': 35,
             'C2': 36, 'C#2': 37, 'D2': 38, 'D#2': 39, 'E2': 40, 'F2': 41, 'F#2': 42, 'G2': 43, 'G#2': 44, 'A2': 45, 'A#2': 46, 'B2': 47,
@@ -542,7 +538,7 @@ layout: none
         let multiplayer;
         let _isLocalChange = true;
         // --- Main Controls Logic ---
-        let audioState = 'stopped'; // 'stopped', 'playing'        
+        let audioState = 'stopped'; // 'stopped', 'playing'
 
         // --- Utility Functions ---
 
@@ -607,7 +603,7 @@ layout: none
 
         async function editorFromJSON(json) {
             try
-            {                
+            {
                 console.log('Loading editor from JSON:', json);
                 await editor.clear();
 
@@ -643,7 +639,7 @@ layout: none
                     if (sourceNode && targetNode) {
                         const sourceOutput = connData.sourceOutput;
                         const targetInput = connData.targetInput;
-                        
+
                         if (sourceNode.outputs[sourceOutput] && targetNode.inputs[targetInput]) {
                              await editor.addConnection(new Classic.Connection(sourceNode, sourceOutput, targetNode, targetInput));
                         } else {
@@ -663,17 +659,17 @@ layout: none
                     // Manually trigger a render update for each node.
                     area.update('node', nodeData.id);
                 }
-                
+
                 // Stage 4: Zoom to fit all nodes.
                 requestAnimationFrame(async () => {
                     await AreaExtensions.zoomAt(area, editor.getNodes());
-                });   
+                });
             }
             catch (error) {
                 showMessage('Error syncing workspace: ' + error.message, 'error');
             }
 
-        }          
+        }
 
         function getWorkspaces() {
             const workspaces = localStorage.getItem('rete-workspaces');
@@ -801,7 +797,7 @@ layout: none
 
                     const wasAudioRunning = audioContext && audioContext.state === 'running';
                     if (wasAudioRunning) await stopAudio();
-                    
+
                     await editorFromJSON(data);
 
                     if (wasAudioRunning) await startAudio();
@@ -965,7 +961,7 @@ workspace_data: ${base64Data}
             }
             return impulse;
         }
-        
+
         // --- Web Audio API Management ---
 
         /**
@@ -1020,9 +1016,9 @@ workspace_data: ${base64Data}
 
             mediaStreamDestination = audioContext.createMediaStreamDestination();
             masterGain.connect(mediaStreamDestination);
-         
+
             clearEditorBtn.disabled = false;
-        
+
             //showMessage('Audio context started! Nodes in the editor are now active.', 'success');
 
             // Initialize/start audio nodes that are already in the editor
@@ -1159,7 +1155,7 @@ workspace_data: ${base64Data}
                         console.warn(`Master Clock for node ${id} could not be stopped.`, e);
                     }
                 }
-                
+
                 // Disconnect each main audio node from the graph (for Arpeggiator, this would be its master gain)
                 try {
                     // For Arpeggiator, we disconnect its master output. Other nodes are direct Web Audio nodes.
@@ -1178,7 +1174,7 @@ workspace_data: ${base64Data}
             //    await audioContext.suspend();
             //    console.log('AudioContext suspended.');
             //}
-            
+
             audioState = 'stopped';
             playStopBtn.textContent = '▶️';
             recordBtn.textContent = '⏺️ Record';
@@ -1425,7 +1421,7 @@ workspace_data: ${base64Data}
                 }
                 return connectionStrategies['default'];
             }
-            
+
             // 1. Disconnect everything to rebuild connections from scratch.
             reteAudioNodes.forEach(audioNode => {
                 try {
@@ -1488,7 +1484,7 @@ workspace_data: ${base64Data}
             }
         }
 
-        
+
         class MidiConnectionStrategy extends ConnectionStrategy {
             connect(sourceReteNode, targetReteNode) {
                 const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
@@ -2079,7 +2075,7 @@ workspace_data: ${base64Data}
                 return new MicrophoneInput(audioContext, this.id, this.data);
             }
         }
-        
+
         class ToneGeneratorNode extends WebAudioNode {
             constructor() {
                 super('Tone Generator');
@@ -2913,7 +2909,7 @@ workspace_data: ${base64Data}
         }
 
 
-        class ArpeggiatorNode extends WebAudioNode {
+        window.ArpeggiatorNode = class ArpeggiatorNode extends WebAudioNode {
             constructor() {
                 super('Arpeggiator');
                 this.addInput('clock', new Classic.Input(voltageSocket, 'Clock In'));
@@ -2932,7 +2928,7 @@ workspace_data: ${base64Data}
                 this.data.noteDuration = '1/16';
                 this.addControl('noteDuration', new SelectControl('arpNoteDuration', 'Note Duration', ['1', '1/2', '1/4', '1/8', '1/16', '1/32', '1/64', '1/128'], this.data.noteDuration, (val) => {
                     this.data.noteDuration = val;
-                    const audioNode = reteAudioNodes.get(this.id); 
+                    const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.updateParameter) audioNode.updateParameter('noteDuration', val);
                 }));
 
@@ -3273,7 +3269,7 @@ workspace_data: ${base64Data}
                 clearTimeout(this.timeoutId);
                 this.timeoutId = null;
                 this.started = false;
-            }            
+            }
 
             updateParameter(param, value) {
                 this.data[param] = value;
@@ -3313,7 +3309,7 @@ workspace_data: ${base64Data}
                     }
                 }
                 return sequence.join(' ');
-            }            
+            }
         }
 
 
@@ -3586,7 +3582,7 @@ workspace_data: ${base64Data}
             }
         }
 
-        class SequencerNode extends WebAudioNode {
+        window.SequencerNode = class SequencerNode extends WebAudioNode {
             constructor() {
                 super('Sequencer');
                 this.addInput('clock', new Classic.Input(voltageSocket, 'Clock In'));
@@ -4093,7 +4089,7 @@ workspace_data: ${base64Data}
                 super('Reverb');
                 this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
-                
+
                 this.data.duration = 2;
                 this.addControl('duration', new SliderControl('reverbDuration', 'Duration (s)', 0.1, 10, 0.1, this.data.duration, (val) => {
                     this.data.duration = val;
@@ -4102,7 +4098,7 @@ workspace_data: ${base64Data}
                         audioNode.convolver.buffer = generateImpulseResponse(audioContext, this.data.duration, this.data.decay);
                     }
                 }));
-                
+
                 this.data.decay = 2;
                 this.addControl('decay', new SliderControl('reverbDecay', 'Decay', 0.1, 10, 0.1, this.data.decay, (val) => {
                     this.data.decay = val;
@@ -4111,7 +4107,7 @@ workspace_data: ${base64Data}
                         audioNode.convolver.buffer = generateImpulseResponse(audioContext, this.data.duration, this.data.decay);
                     }
                 }));
-                
+
                 this.data.mix = 0.5;
                 this.addControl('mix', new SliderControl('reverbMix', 'Mix', 0, 1, 0.01, this.data.mix, (val) => {
                     this.data.mix = val;
@@ -4160,7 +4156,7 @@ workspace_data: ${base64Data}
                 mainInput.disconnect = function(destination) {
                     this.mainOutput.disconnect(destination);
                 };
-                
+
                 return mainInput;
             }
         }
@@ -4208,7 +4204,7 @@ workspace_data: ${base64Data}
                     this.oscillator.connect(this.mainOutput);
                     this.oscillator.type = this.data.waveform;
                     this.oscillator.frequency.value = this.data.frequency;
-                    
+
                     this.started = false;
                     console.log(`LFO ${this.reteNodeId} stopped.`);
                 } catch (e) {
@@ -5128,7 +5124,7 @@ workspace_data: ${base64Data}
                 */
 
 
-                
+
                 // Prevent dragging when clicking on sockets
                 const sockets = this.el.querySelectorAll('.socket');
                 sockets.forEach(socket => {
@@ -5144,7 +5140,7 @@ workspace_data: ${base64Data}
                         e.stopPropagation();
                     });
                 });
-                
+
 
             }
 
@@ -5280,7 +5276,7 @@ workspace_data: ${base64Data}
             await editor.addNode(new AttenuverterNode());
             clearEditorBtn.disabled = false;
         });
-          
+
         addMasterClockNodeBtn.addEventListener('click', async () => {
             await editor.addNode(new MasterClockNode());
             clearEditorBtn.disabled = false;
@@ -5359,15 +5355,15 @@ workspace_data: ${base64Data}
             };
 
             // NodeEditor is correctly destructured from window.Rete
-            editor = new NodeEditor(schemes);
+            window.editor = editor = new NodeEditor(schemes);
             // DataflowEngine is correctly destructured from window.ReteEngine
-            engine = new DataflowEngine(schemes); 
+            engine = new DataflowEngine(schemes);
 
             // Rete.js v2: AreaPlugin is instantiated and then other plugins are added to it
-            area = new AreaPlugin(reteContainer);
+            window.area = area = new AreaPlugin(reteContainer);
 
             /*
-            area = new AreaPlugin(reteContainer, { // Pass the config object here
+            window.area = area = new AreaPlugin(reteContainer, { // Pass the config object here
                 pointerdown: (context) => {
                     console.log(context);
                     // Allow dragging ONLY if the click was NOT on a socket
@@ -5378,46 +5374,46 @@ workspace_data: ${base64Data}
 
             // --- Multiplayer Logic ---
             multiplayer = new Multiplayer();
-            multiplayer.initialize();            
+            multiplayer.initialize();
 
             multiplayer.on('peer-id-ready', (id) => {
                 document.getElementById('peerIdDisplay').textContent = id;
             });
-            
+
             multiplayer.on('data-received', async (data) => {
                 _isLocalChange = false;
                 await editorFromJSON(data);
                 _isLocalChange = true;
                 autoSave();
             });
-    
+
             multiplayer.on('connections-updated', (connections) => {
                 const usersList = document.getElementById('connectedUsersList');
                 usersList.innerHTML = ''; // Clear the list
-    
+
                 // Add the current user (self)
                 const selfLi = document.createElement('li');
                 selfLi.textContent = `${multiplayer.getPeerId()} (You)`;
                 selfLi.classList.add('font-semibold');
                 usersList.appendChild(selfLi);
-    
+
                 // Add other connected peers
                 connections.forEach(conn => {
                     const userLi = document.createElement('li');
                     userLi.textContent = conn.peer;
                     usersList.appendChild(userLi);
                 });
-    
+
                 // Show disconnect button when connected to a session
                 if (multiplayer.isConnected()) {
                     document.getElementById('createSessionBtn').classList.add('hidden');
                     document.getElementById('disconnectBtn').classList.remove('hidden');
                 }
-            });               
+            });
 
             const connection = new ConnectionPlugin();
             // Corrected: ContextMenuPlugin is instantiated with the editor instance, and then its preset is added
-            //const contextMenu = new ContextMenuPlugin(editor); 
+            //const contextMenu = new ContextMenuPlugin(editor);
 
             const reactRender = new ReactRenderPlugin({ createRoot });
 
@@ -5447,10 +5443,10 @@ workspace_data: ${base64Data}
 
                 ])
             });
-            
+
             // Rete.js v2: Add presets to connection and contextMenu plugins
             connection.addPreset(ConnectionPresets.classic.setup());
-            
+
             // Corrected: ContextMenuPresets.classic.setup expects an object with an 'items' property.
             /*contextMenu.addPreset(ContextMenuPresets.classic.setup({
                 items: [
@@ -5460,7 +5456,7 @@ workspace_data: ${base64Data}
                 ]
             }));*/
 
-            // Rete.js v2: Register plugins with the AreaPlugin          
+            // Rete.js v2: Register plugins with the AreaPlugin
             editor.use(area);
 
             area.use(connection);
@@ -5484,7 +5480,7 @@ workspace_data: ${base64Data}
                     const workspaceData = editorToJSON();
                     multiplayer.broadcast(workspaceData);
                     autoSave();
-                }                
+                }
                 if (context.type === 'rendered' && context.data.type === 'node') {
                     // Add a data-node-id attribute to the node's root element for easier DOM selection
                     context.data.element.setAttribute('data-node-id', context.data.payload.id);
@@ -5645,8 +5641,8 @@ workspace_data: ${base64Data}
                 } else if (context.type === 'nodeeditorrendered') {
                      // This event fires after the initial editor rendering
                     AreaExtensions.zoomAt(area, editor.getNodes());
-                }      
-                       
+                }
+
                 return context;
             });
 
@@ -5804,7 +5800,7 @@ workspace_data: ${base64Data}
                         if (visualizerView.classList.contains('hidden')) {
                             visualizerTab.click();
                         }
-                        
+
                         const videoStream = visualizerCanvas.captureStream(30); // 30 FPS
                         const audioStream = mediaStreamDestination.stream;
                         const combinedStream = new MediaStream([
@@ -5870,7 +5866,7 @@ workspace_data: ${base64Data}
                     const touchEndTime = new Date().getTime();
                     const touchEndX = e.changedTouches[0] ? e.changedTouches[0].screenX : touchStartCoords.x;
                     const touchEndY = e.changedTouches[0] ? e.changedTouches[0].screenY : touchStartCoords.y;
-                    
+
                     const duration = touchEndTime - touchStartTime;
                     const distance = Math.sqrt(Math.pow(touchEndX - touchStartCoords.x, 2) + Math.pow(touchEndY - touchStartCoords.y, 2));
 
@@ -5880,7 +5876,7 @@ workspace_data: ${base64Data}
                     }
                 }
             }, { passive: false });
-            
+
             // --- Initial State ---
             clearEditorBtn.disabled = false; // Initially enabled to allow clearing default workspace
 
@@ -5892,22 +5888,22 @@ workspace_data: ${base64Data}
                     audioContext.resume();
                 }
 
-                await audioContext.audioWorklet.addModule('{{ "assets/js/audio-worklets/bitcrusher-processor.js" | relative_url }}');
-                await audioContext.audioWorklet.addModule('{{ "assets/js/audio-worklets/granular-processor.js" | relative_url }}');
-                await audioContext.audioWorklet.addModule('{{ "assets/js/audio-worklets/vocoder-processor.js" | relative_url }}');
-                await audioContext.audioWorklet.addModule('{{ "assets/js/audio-worklets/quantizer-processor.js" | relative_url }}');
-                
+                await audioContext.audioWorklet.addModule('assets/js/audio-worklets/bitcrusher-processor.js');
+                await audioContext.audioWorklet.addModule('assets/js/audio-worklets/granular-processor.js');
+                await audioContext.audioWorklet.addModule('assets/js/audio-worklets/vocoder-processor.js');
+                await audioContext.audioWorklet.addModule('assets/js/audio-worklets/quantizer-processor.js');
+
                 const urlParams = new URLSearchParams(window.location.search);
                 const sessionId = urlParams.get('session');
 
                 let workspaceData = {};
-                
+
                 if (sessionId) {
                     multiplayer.connectTo(sessionId);
                 } else {
-                
+
                     workspaceData = RandomWorkspaceGenerator.generate();
-                
+
                     {% if page.workspace_data %}
                     try {
                         workspaceData = JSON.parse(atob('{{ page.workspace_data }}'));
@@ -5922,13 +5918,13 @@ workspace_data: ${base64Data}
                         showMessage('Error loading workspace data.', 'error');
                     }
                     {% endif %}
-            
+
                     await editorFromJSON(workspaceData);
                 }
 
                 document.getElementById('hero-overlay').remove();
             });
-            
+
             // --- Visualizer Toggle ---
             const visualizerCanvas = document.getElementById('visualizer');
             const workspaceTab = document.getElementById('workspace-tab');
@@ -6062,25 +6058,25 @@ workspace_data: ${base64Data}
     attribute vec4 a_position;
     uniform float u_time;
     uniform float u_glitch_seed;
-    
+
     float randV(float n){ return fract(sin(n) * 43758.5453123); }
 
     void main() {
         vec4 pos = a_position;
-        
+
         // Occasional full-screen "jump"
         if(randV(u_time * u_glitch_seed) > 0.98) {
             pos.x += (randV(u_time) - 0.5) * 0.1;
             pos.y += (randV(u_time + 1.0) - 0.5) * 0.1;
         }
-        
+
         gl_Position = pos;
     }
 </script>
 
 <script id="fragment-shader" type="x-shader/x-fragment">
     precision mediump float;
-    
+
     uniform float u_time;
     uniform float u_glitch_seed;
     uniform sampler2D u_frequency_data;
@@ -6104,7 +6100,7 @@ workspace_data: ${base64Data}
 
         // --- 2. MULTI-LAYER DATA CORRUPTION ---
         vec2 block_uv = uv;
-        
+
         // Large scale displacement
         vec2 l_block = floor(uv * 6.0) / 6.0;
         if (rand(l_block + floor(u_time * 12.0)) < 0.2 * bass_raw) {
@@ -6120,11 +6116,11 @@ workspace_data: ${base64Data}
         // --- 3. COLOR & CHROMATIC ABERRATION ---
         // Intense RGB splitting on transients
         float shift = 0.08 * mid * rand(vec2(floor(u_time * 15.0)));
-        
+
         float r = texture2D(u_frequency_data, vec2(fract(block_uv.x + shift), 0.0)).r;
         float g = texture2D(u_frequency_data, vec2(block_uv.x, 0.0)).r;
         float b = texture2D(u_frequency_data, vec2(fract(block_uv.x - shift), 0.0)).r;
-        
+
         vec3 color = vec3(r, g, b);
 
         // --- 4. ARTIFACTING & NOISE ---
@@ -6149,7 +6145,7 @@ workspace_data: ${base64Data}
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('{{ "/sw.js" | relative_url }}').then(registration => {
+          navigator.serviceWorker.register('sw.js').then(registration => {
             console.log('ServiceWorker registration successful with scope: ', registration.scope);
           }, err => {
             console.log('ServiceWorker registration failed: ', err);
