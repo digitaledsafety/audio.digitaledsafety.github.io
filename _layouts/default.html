@@ -3018,6 +3018,11 @@ workspace_data: ${base64Data}
                     this.data.sustain = val;
                 }));
                 this.controls.sustain.hidden = true;
+
+                this.addControl('release', new SliderControl('arpRelease', 'Release (s)', 0.01, 5, 0.01, this.data.release, (val) => {
+                    this.data.release = val;
+                }));
+                this.controls.release.hidden = true;
             }
 
             randomize() {
@@ -3037,12 +3042,6 @@ workspace_data: ${base64Data}
                     audioNode.updateParameter('pattern', newPattern);
                     area.update('node', this.id);
                 }
-            }
-
-            this.addControl('release', new SliderControl('arpRelease', 'Release (s)', 0.01, 5, 0.01, this.data.release, (val) => {
-                    this.data.release = val;
-                }));
-                this.controls.release.hidden = true;
             }
 
             build() {
