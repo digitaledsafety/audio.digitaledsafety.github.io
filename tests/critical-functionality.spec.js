@@ -46,10 +46,10 @@ test.describe('Critical Functionality', () => {
     await visualizerTab.click();
 
     const visualizerView = page.locator('#visualizer-view');
-    await expect(visualizerView).not.toHaveClass(/hidden/);
+    await expect(visualizerView).toHaveClass(/active/);
 
     const workspaceTab = page.locator('#workspace-tab');
     await workspaceTab.click();
-    await expect(visualizerView).toHaveClass(/hidden/);
+    await expect(visualizerView).not.toHaveClass(/active/);
   });
 });
