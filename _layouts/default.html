@@ -31,6 +31,32 @@ layout: none
             height: 100vh;
             width: 100%;
             box-sizing: border-box;
+            position: relative;
+        }
+        #visualizer-view {
+            height: 100%;
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+        #visualizer-view.active {
+            z-index: 10;
+            visibility: visible;
+            pointer-events: auto;
+        }
+        #workspace-view {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+        #workspace-view.active {
+            z-index: 10;
+            visibility: visible;
+            pointer-events: auto;
         }
         .button {
             padding: 0.5rem 1rem;
@@ -277,12 +303,12 @@ layout: none
     <div class="rete-container">
         <div id="messageBox" class="message-box hidden"></div>
         
-        <div id="workspace-view" class="flex-grow h-full">
+        <div id="workspace-view" class="flex-grow h-full active">
             {{ content }}
             <div id="rete-container" class="relative h-full"></div>
         </div>
         
-        <div id="visualizer-view" class="hidden h-full">
+        <div id="visualizer-view" class="h-full">
             <canvas id="visualizer" class="w-full h-full border-none"></canvas>
         </div>
 
@@ -5799,8 +5825,8 @@ workspace_data: ${base64Data}
                     // --- Start Recording ---
                     if (mediaStreamDestination) {
 
-                        // Ensure the visualizer is visible before recording
-                        if (visualizerView.classList.contains('hidden')) {
+                        // Ensure the visualizer is active before recording
+                        if (!visualizerView.classList.contains('active')) {
                             visualizerTab.click();
                         }
                         
@@ -5943,6 +5969,24 @@ workspace_data: ${base64Data}
             let uFrequencyData;
             let frequencyDataTexture;
             let glitchSeed = Math.random();
+            let isAnimating = false;
+
+            function resizeCanvas() {
+                const displayWidth  = visualizerCanvas.clientWidth;
+                const displayHeight = visualizerCanvas.clientHeight;
+                const dpr = window.devicePixelRatio || 1;
+
+                if (visualizerCanvas.width !== Math.floor(displayWidth * dpr) ||
+                    visualizerCanvas.height !== Math.floor(displayHeight * dpr)) {
+                    visualizerCanvas.width  = Math.floor(displayWidth * dpr);
+                    visualizerCanvas.height = Math.floor(displayHeight * dpr);
+                    if (gl) {
+                        gl.viewport(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+                    }
+                }
+            }
+
+            window.addEventListener('resize', resizeCanvas);
 
             function initWebGL() {
                 gl = visualizerCanvas.getContext('webgl');
@@ -5950,6 +5994,8 @@ workspace_data: ${base64Data}
                     console.error('WebGL not supported');
                     return;
                 }
+
+                resizeCanvas();
 
                 const vertexShaderSource = document.getElementById('vertex-shader').text;
                 const fragmentShaderSource = document.getElementById('fragment-shader').text;
@@ -6013,7 +6059,11 @@ workspace_data: ${base64Data}
             }
 
             function visualize() {
-                if (visualizerView.classList.contains('hidden')) {
+                const isRecording = mediaRecorder && mediaRecorder.state === 'recording';
+                const isActive = visualizerView.classList.contains('active');
+
+                if (!isActive && !isRecording) {
+                    isAnimating = false;
                     return;
                 }
 
@@ -6035,22 +6085,25 @@ workspace_data: ${base64Data}
             }
 
             workspaceTab.addEventListener('click', () => {
-                workspaceView.classList.remove('hidden');
-                visualizerView.classList.add('hidden');
+                workspaceView.classList.add('active');
+                visualizerView.classList.remove('active');
                 workspaceTab.classList.replace('button-secondary', 'button-primary');
                 visualizerTab.classList.replace('button-primary', 'button-secondary');
             });
 
             visualizerTab.addEventListener('click', () => {
-                workspaceView.classList.add('hidden');
-                visualizerView.classList.remove('hidden');
+                workspaceView.classList.remove('active');
+                visualizerView.classList.add('active');
                 visualizerTab.classList.replace('button-secondary', 'button-primary');
                 workspaceTab.classList.replace('button-primary', 'button-secondary');
 
                 if (!gl) {
                     initWebGL();
                 }
-                visualize();
+                if (!isAnimating) {
+                    isAnimating = true;
+                    visualize();
+                }
             });
         };
     </script>
