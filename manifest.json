@@ -5,7 +5,7 @@ layout: none
   "name": "Audio",
   "short_name": "Audio",
   "start_url": "{{ site.baseurl }}/",
-  "display": "standalone",
+  "display": "fullscreen",
   "background_color": "#ffffff",
   "theme_color": "#4f46e5",
   "icons": [
