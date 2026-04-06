@@ -3642,7 +3642,7 @@ workspace_data: ${base64Data}
 
                 // Randomization settings
                 this.data.showRandomSettings = false;
-                this.addControl('randomSettingsToggle', new ButtonControl('randSettingsBtn', '🎲 Settings', () => {
+                this.addControl('randomSettingsToggle', new ButtonControl('randSettingsBtn', 'Randomize Settings', () => {
                     this.data.showRandomSettings = !this.data.showRandomSettings;
                     const show = this.data.showRandomSettings;
                     this.controls.randomizeMode.hidden = !show;
@@ -3651,6 +3651,7 @@ workspace_data: ${base64Data}
                     this.controls.rootNote.hidden = !show;
                     this.controls.octaveRange.hidden = !show;
                     this.controls.arpeggioPattern.hidden = !show;
+                    this.controls.randomize.hidden = !show;
                     area.update('node', this.id);
                 }));
 
@@ -3702,6 +3703,7 @@ workspace_data: ${base64Data}
                 this.addControl('randomize', new ButtonControl('randomizeSeq', '🎲', () => {
                     this.randomize();
                 }));
+                this.controls.randomize.hidden = true;
 
                 this.data.waveform = 'sine';
                 this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveform, (val) => {
