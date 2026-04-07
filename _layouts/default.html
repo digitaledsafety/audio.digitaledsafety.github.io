@@ -2060,10 +2060,6 @@ workspace_data: ${base64Data}
                 }));
             }
 
-            onDataLoaded() {
-                this.controls.value.label = this.data.value ? 'High' : 'Low';
-            }
-
             build() {
                 return new ManualGate(audioContext, this.id, this.data);
             }
@@ -3767,23 +3763,6 @@ workspace_data: ${base64Data}
                 this.controls.release.hidden = true;
             }
 
-            onDataLoaded() {
-                const showRandom = !!this.data.showRandomSettings;
-                this.controls.randomizeMode.hidden = !showRandom;
-                this.controls.chordType.hidden = !showRandom || (this.data.randomizeMode === 'Scale');
-                this.controls.scaleType.hidden = !showRandom || (this.data.randomizeMode === 'Chord');
-                this.controls.rootNote.hidden = !showRandom;
-                this.controls.octaveRange.hidden = !showRandom;
-                this.controls.arpeggioPattern.hidden = !showRandom;
-                this.controls.randomize.hidden = !showRandom;
-
-                const showEnv = !!this.data.showEnvelope;
-                this.controls.attack.hidden = !showEnv;
-                this.controls.decay.hidden = !showEnv;
-                this.controls.sustain.hidden = !showEnv;
-                this.controls.release.hidden = !showEnv;
-            }
-
             randomize() {
                 const audioNode = reteAudioNodes.get(this.id);
                 if (audioNode) {
@@ -3990,10 +3969,6 @@ workspace_data: ${base64Data}
                     }
                     area.update('node', this.id);
                 }));
-            }
-
-            onDataLoaded() {
-                this.controls.running.label = this.data.running ? 'Stop' : 'Start';
             }
 
             build() {
