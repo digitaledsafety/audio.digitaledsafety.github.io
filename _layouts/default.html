@@ -655,6 +655,11 @@ layout: none
                                 }
                             }
                         }
+
+                        if (typeof node.onDataLoaded === 'function') {
+                            node.onDataLoaded();
+                        }
+
                         await editor.addNode(node);
                     } else {
                         console.warn(`Node type "${nodeData.label}" not found.`);
@@ -3049,6 +3054,15 @@ workspace_data: ${base64Data}
                     this.data.release = val;
                 }));
                 this.controls.release.hidden = true;
+            }
+
+            onDataLoaded() {
+                this.controls.pattern.hidden = (this.data.arpeggioPattern !== 'Custom');
+                const show = !!this.data.showEnvelope;
+                this.controls.attack.hidden = !show;
+                this.controls.decay.hidden = !show;
+                this.controls.sustain.hidden = !show;
+                this.controls.release.hidden = !show;
             }
 
             randomize() {
