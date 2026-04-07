@@ -2633,6 +2633,7 @@ workspace_data: ${base64Data}
                 this.midiListeners = [];
                 this.tickListeners = [];
                 this.tickCount = 0;
+                this.nextTriggerTick = 0;
 
                 // Master gain for the Arpeggiator output
                 this.mainOutput = this.audioContext.createGain();
@@ -2684,10 +2685,10 @@ workspace_data: ${base64Data}
             }
 
             onTick(tickTime, tickDuration) {
-                const noteDurationMap = { '1': 96, '1/2': 48, '1/4': 24, '1/8': 12, '1/16': 6, '1/32': 3, '1/64': 1.5, '1/128': 0.75 };
-                const ticksPerStep = noteDurationMap[this.data.noteDuration] || 6;
+                const noteDurationMap = { '1': 384, '1/2': 192, '1/4': 96, '1/8': 48, '1/16': 24, '1/32': 12, '1/64': 6, '1/128': 3 };
+                const ticksPerStep = noteDurationMap[this.data.noteDuration] || 24;
 
-                if (this.tickCount % ticksPerStep === 0) {
+                while (this.tickCount >= this.nextTriggerTick) {
                     const notes = this.getArpeggioNotes();
                     if (notes.length > 0) {
                         const currentStep = notes[this.currentNoteIndex];
@@ -2703,6 +2704,7 @@ workspace_data: ${base64Data}
 
                         this.currentNoteIndex = (this.currentNoteIndex + 1) % notes.length;
                     }
+                    this.nextTriggerTick += ticksPerStep;
                 }
                 this.tickCount++;
             }
@@ -3102,43 +3104,75 @@ workspace_data: ${base64Data}
                 this.nextStepTime = 0;
                 this.midiListeners = []; // Kept for consistency, might not be used
                 this.tickCount = 0;
+                this.nextTriggerTick = 0;
 
                 this.mainOutput = this.audioContext.createGain();
                 this.mainOutput.gain.value = 0.8; // Drums can be loud
 
                 // Note map for drum sounds
-                const drumNoteMap = { 'k': 60, 's': 62, 'h': 64 }; // Using midi numbers as placeholders
+                const drumNoteMap = { 'k': 36, 's': 38, 'h': 42, 'o': 46, 'c': 39 }; // General MIDI drum notes
                 this.parser = new MiniNotationParser(drumNoteMap);
                 this.sequenceEvents = this.parseSequence();
+
+                // Pre-generate noise buffers
+                const sampleRate = this.audioContext.sampleRate;
+                this.snareNoiseBuffer = this.audioContext.createBuffer(1, sampleRate * 0.2, sampleRate);
+                const snareData = this.snareNoiseBuffer.getChannelData(0);
+                for (let i = 0; i < snareData.length; i++) snareData[i] = Math.random() * 2 - 1;
+
+                this.hiHatNoiseBuffer = this.audioContext.createBuffer(1, sampleRate * 0.1, sampleRate);
+                const hiHatData = this.hiHatNoiseBuffer.getChannelData(0);
+                for (let i = 0; i < hiHatData.length; i++) hiHatData[i] = Math.random() * 2 - 1;
             }
 
             addMidiListener(callback) {
-                // Not typically used for a drum machine, but here for API consistency
+                if (typeof callback === 'function' && !this.midiListeners.includes(callback)) {
+                    this.midiListeners.push(callback);
+                }
             }
 
             removeMidiListener(callback) {
-                // Not typically used for a drum machine
+                const index = this.midiListeners.indexOf(callback);
+                if (index > -1) {
+                    this.midiListeners.splice(index, 1);
+                }
             }
 
             onTick(tickTime, tickDuration) {
-                const noteDurationMap = { '1': 96, '1/2': 48, '1/4': 24, '1/8': 12, '1/16': 6, '1/32': 3, '1/64': 1.5, '1/128': 0.75 };
-                const baseTicks = noteDurationMap[this.data.noteDuration] || 6;
-                const event = this.sequenceEvents[this.currentStep];
-                const representativeEvent = Array.isArray(event) ? event[0] : event;
+                const noteDurationMap = { '1': 384, '1/2': 192, '1/4': 96, '1/8': 48, '1/16': 24, '1/32': 12, '1/64': 6, '1/128': 3 };
+                const baseTicks = noteDurationMap[this.data.noteDuration] || 24;
 
-                if (representativeEvent) {
+                let event = this.sequenceEvents[this.currentStep];
+                let representativeEvent = Array.isArray(event) ? event[0] : event;
+
+                while (representativeEvent && this.tickCount >= this.nextTriggerTick) {
                     const ticksForThisStep = baseTicks * (1 / representativeEvent.speed) * representativeEvent.duration;
-                    if (this.tickCount % ticksForThisStep === 0) {
-                        const stepDuration = tickDuration * ticksForThisStep;
-                        if (Array.isArray(event)) {
-                            for (const note of event) {
-                                if (note.noteName) this.scheduleNote(note.noteName, stepDuration * note.elongation, tickTime);
+                    const stepDuration = tickDuration * ticksForThisStep;
+                    const midiNotesToBroadcast = [];
+
+                    if (Array.isArray(event)) {
+                        for (const note of event) {
+                            if (note.noteName) {
+                                this.scheduleNote(note.noteName, stepDuration * note.elongation, tickTime);
+                                if (note.midi !== null) midiNotesToBroadcast.push(note.midi);
                             }
-                        } else {
-                            if (event.noteName) this.scheduleNote(event.noteName, stepDuration * event.elongation, tickTime);
                         }
-                        this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
+                    } else {
+                        if (event.noteName) {
+                            this.scheduleNote(event.noteName, stepDuration * event.elongation, tickTime);
+                            if (event.midi !== null) midiNotesToBroadcast.push(event.midi);
+                        }
                     }
+
+                    if (this.midiListeners.length > 0 && midiNotesToBroadcast.length > 0) {
+                        this.midiListeners.forEach(callback => callback(midiNotesToBroadcast));
+                    }
+
+                    this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
+                    this.nextTriggerTick += ticksForThisStep;
+
+                    event = this.sequenceEvents[this.currentStep];
+                    representativeEvent = Array.isArray(event) ? event[0] : event;
                 }
                 this.tickCount++;
             }
@@ -3159,18 +3193,18 @@ workspace_data: ${base64Data}
                 gain.gain.setValueAtTime(1, now);
                 gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
 
+                osc.onended = () => {
+                    osc.disconnect();
+                    gain.disconnect();
+                };
+
                 osc.start(now);
                 osc.stop(now + 0.5);
             }
 
             createSnare(now) {
                 const noise = this.audioContext.createBufferSource();
-                const noiseBuffer = this.audioContext.createBuffer(1, this.audioContext.sampleRate * 0.2, this.audioContext.sampleRate);
-                const output = noiseBuffer.getChannelData(0);
-                for (let i = 0; i < noiseBuffer.length; i++) {
-                    output[i] = Math.random() * 2 - 1;
-                }
-                noise.buffer = noiseBuffer;
+                noise.buffer = this.snareNoiseBuffer;
 
                 const noiseFilter = this.audioContext.createBiquadFilter();
                 noiseFilter.type = 'highpass';
@@ -3183,6 +3217,13 @@ workspace_data: ${base64Data}
 
                 noiseEnvelope.gain.setValueAtTime(1, now);
                 noiseEnvelope.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+
+                noise.onended = () => {
+                    noise.disconnect();
+                    noiseFilter.disconnect();
+                    noiseEnvelope.disconnect();
+                };
+
                 noise.start(now);
                 noise.stop(now + 0.1);
 
@@ -3195,18 +3236,19 @@ workspace_data: ${base64Data}
                 oscEnvelope.connect(this.mainOutput);
                 oscEnvelope.gain.setValueAtTime(0.5, now);
                 oscEnvelope.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+
+                osc.onended = () => {
+                    osc.disconnect();
+                    oscEnvelope.disconnect();
+                };
+
                 osc.start(now);
                 osc.stop(now + 0.08);
             }
 
             createHiHat(now) {
                 const noise = this.audioContext.createBufferSource();
-                const noiseBuffer = this.audioContext.createBuffer(1, this.audioContext.sampleRate * 0.1, this.audioContext.sampleRate);
-                const output = noiseBuffer.getChannelData(0);
-                for (let i = 0; i < noiseBuffer.length; i++) {
-                    output[i] = Math.random() * 2 - 1;
-                }
-                noise.buffer = noiseBuffer;
+                noise.buffer = this.hiHatNoiseBuffer;
 
                 const noiseFilter = this.audioContext.createBiquadFilter();
                 noiseFilter.type = 'highpass';
@@ -3218,8 +3260,73 @@ workspace_data: ${base64Data}
                 noiseEnvelope.connect(this.mainOutput);
                 noiseEnvelope.gain.setValueAtTime(1, now);
                 noiseEnvelope.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+
+                noise.onended = () => {
+                    noise.disconnect();
+                    noiseFilter.disconnect();
+                    noiseEnvelope.disconnect();
+                };
+
                 noise.start(now);
                 noise.stop(now + 0.05);
+            }
+
+            createOpenHiHat(now) {
+                const noise = this.audioContext.createBufferSource();
+                noise.buffer = this.hiHatNoiseBuffer;
+
+                const noiseFilter = this.audioContext.createBiquadFilter();
+                noiseFilter.type = 'highpass';
+                noiseFilter.frequency.value = 8000;
+                noise.connect(noiseFilter);
+
+                const noiseEnvelope = this.audioContext.createGain();
+                noiseFilter.connect(noiseEnvelope);
+                noiseEnvelope.connect(this.mainOutput);
+                noiseEnvelope.gain.setValueAtTime(1, now);
+                noiseEnvelope.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+
+                noise.onended = () => {
+                    noise.disconnect();
+                    noiseFilter.disconnect();
+                    noiseEnvelope.disconnect();
+                };
+
+                noise.start(now);
+                noise.stop(now + 0.3);
+            }
+
+            createClap(now) {
+                const noise = this.audioContext.createBufferSource();
+                noise.buffer = this.snareNoiseBuffer;
+
+                const noiseFilter = this.audioContext.createBiquadFilter();
+                noiseFilter.type = 'bandpass';
+                noiseFilter.frequency.value = 1000;
+                noise.connect(noiseFilter);
+
+                const noiseEnvelope = this.audioContext.createGain();
+                noiseFilter.connect(noiseEnvelope);
+                noiseEnvelope.connect(this.mainOutput);
+
+                // Clap is usually a series of rapid impulses
+                for (let i = 0; i < 3; i++) {
+                    const impulseTime = now + (i * 0.01);
+                    noiseEnvelope.gain.setValueAtTime(1, impulseTime);
+                    noiseEnvelope.gain.exponentialRampToValueAtTime(0.01, impulseTime + 0.01);
+                }
+
+                noiseEnvelope.gain.setValueAtTime(1, now + 0.03);
+                noiseEnvelope.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+
+                noise.onended = () => {
+                    noise.disconnect();
+                    noiseFilter.disconnect();
+                    noiseEnvelope.disconnect();
+                };
+
+                noise.start(now);
+                noise.stop(now + 0.2);
             }
 
 
@@ -3237,6 +3344,12 @@ workspace_data: ${base64Data}
                         break;
                     case 'h':
                         this.createHiHat(now);
+                        break;
+                    case 'o':
+                        this.createOpenHiHat(now);
+                        break;
+                    case 'c':
+                        this.createClap(now);
                         break;
                 }
             }
@@ -3383,36 +3496,32 @@ workspace_data: ${base64Data}
 
             onTick(tickTime, tickDuration) {
                 // The note duration control on the UI will determine how many ticks pass before the next step is triggered.
-                const noteDurationMap = { '1': 96, '1/2': 48, '1/4': 24, '1/8': 12, '1/16': 6, '1/32': 3, '1/64': 1.5, '1/128': 0.75 };
-                const ticksPerStep = noteDurationMap[this.data.noteDuration] || 6;
+                const noteDurationMap = { '1': 384, '1/2': 192, '1/4': 96, '1/8': 48, '1/16': 24, '1/32': 12, '1/64': 6, '1/128': 3 };
+                const baseTicks = noteDurationMap[this.data.noteDuration] || 24;
 
-                if (this.tickCount % ticksPerStep === 0) {
-                    if (!this.sequenceEvents) {
-                         this.sequenceEvents = this.parseSequence();
-                    }
-                    if (!this.sequenceEvents || this.sequenceEvents.length === 0) return;
+                if (!this.sequenceEvents) {
+                     this.sequenceEvents = this.parseSequence();
+                }
+                if (!this.sequenceEvents || this.sequenceEvents.length === 0) return;
 
-                    const event = this.sequenceEvents[this.currentStep];
-                    if (!event) {
-                         this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
-                        return;
-                    }
+                let event = this.sequenceEvents[this.currentStep];
+                let representativeEvent = Array.isArray(event) ? event[0] : event;
 
-                    // For external clock, we ignore the sequence's own timing modifiers and just use the UI control.
-                    // The note duration is one step long.
-                    const stepDuration = tickDuration * ticksPerStep;
+                while (representativeEvent && this.tickCount >= this.nextTriggerTick) {
+                    const ticksForThisStep = baseTicks * (1 / representativeEvent.speed) * representativeEvent.duration;
+                    const stepDuration = tickDuration * ticksForThisStep;
 
                     const midiNotesToBroadcast = [];
                      if (Array.isArray(event)) {
                         for (const note of event) {
                             if (note.midi !== null) {
-                                this.scheduleNote(note.midi, stepDuration * 0.9, tickTime);
+                                this.scheduleNote(note.midi, stepDuration * note.elongation, tickTime);
                                 midiNotesToBroadcast.push(note.midi);
                             }
                         }
                     } else {
                         if (event.midi !== null) {
-                            this.scheduleNote(event.midi, stepDuration * 0.9, tickTime);
+                            this.scheduleNote(event.midi, stepDuration * event.elongation, tickTime);
                             midiNotesToBroadcast.push(event.midi);
                         }
                     }
@@ -3422,6 +3531,10 @@ workspace_data: ${base64Data}
                     }
 
                     this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
+                    this.nextTriggerTick += ticksForThisStep;
+
+                    event = this.sequenceEvents[this.currentStep];
+                    representativeEvent = Array.isArray(event) ? event[0] : event;
                 }
 
                 this.tickCount++;
@@ -3896,7 +4009,7 @@ workspace_data: ${base64Data}
                 if (!this.started) return;
 
                 const bpm = this.data.bpm || 120;
-                const ppqn = 24; // Pulses per quarter note
+                const ppqn = 96; // Pulses per quarter note
                 const ticksPerMeasure = ppqn * 4; // Assuming 4/4 time
                 const secondsPerBeat = 60.0 / bpm;
                 const tickDuration = secondsPerBeat / ppqn;
@@ -4229,7 +4342,6 @@ workspace_data: ${base64Data}
                 try {
                     this.oscillator.stop(0);
                     this.oscillator.disconnect();
-                    this.mainOutput.disconnect();
                     // Recreate oscillator if it needs to be started again later
                     this.oscillator = this.audioContext.createOscillator();
                     this.oscillator.connect(this.mainOutput);
