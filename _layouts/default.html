@@ -557,6 +557,7 @@ layout: none
         // Rete.js Editor and Engine
         let editor;
         let area; // AreaPlugin instance
+        let activePicking = null; // Track connection dragging for magnetic snapping
         let engine;
         let mediaRecorder;
         let recordedChunks = [];
@@ -5042,22 +5043,17 @@ workspace_data: ${base64Data}
                 this.el = document.createElement('div');
                 this.el.className = 'custom-controls';
                 //this.el.innerHTML = `<div class="title">${node.label}</div>`;
-
-                /*
                 // Add inputs
                 for (const key in node.inputs) {
                     const input = node.inputs[key];
-                    const inputEl = document.createElement('div');
-                    inputEl.className = 'input';
+                    const inputEl = document.createElement("div");
+                    inputEl.className = "input";
                     inputEl.innerHTML = `
                         <div class="socket input" data-socket-key="${key}" data-type="input"></div>
                         <div class="input-title">${input.label}</div>
                     `;
                     this.el.appendChild(inputEl);
                 }
-                */
-
-                // Add controls
                 for (const key in node.controls) {
                     const control = node.controls[key];
                     if (control.hidden) continue; // Skip rendering if hidden
@@ -5154,22 +5150,17 @@ workspace_data: ${base64Data}
                     this.el.appendChild(controlEl);
                 }
 
-                /*
                 // Add outputs
                 for (const key in node.outputs) {
                     const output = node.outputs[key];
-                    const outputEl = document.createElement('div');
-                    outputEl.className = 'output';
+                    const outputEl = document.createElement("div");
+                    outputEl.className = "output";
                     outputEl.innerHTML = `
                         <div class="output-title">${output.label}</div>
                         <div class="socket output" data-socket-key="${key}" data-type="output"></div>
                     `;
                     this.el.appendChild(outputEl);
                 }
-                */
-
-
-                
                 // Prevent dragging when clicking on sockets
                 const sockets = this.el.querySelectorAll('.socket');
                 sockets.forEach(socket => {
@@ -5401,6 +5392,14 @@ workspace_data: ${base64Data}
 
             // NodeEditor is correctly destructured from window.Rete
             editor = new NodeEditor(schemes);
+            editor.addPipe(context => {
+                if (context.type === "connectionpick") {
+                    activePicking = context.data;
+                } else if (context.type === "connectiondrop") {
+                    activePicking = null;
+                }
+                return context;
+            });
             // DataflowEngine is correctly destructured from window.ReteEngine
             engine = new DataflowEngine(schemes); 
 
@@ -5521,6 +5520,47 @@ workspace_data: ${base64Data}
             // Rete.js v2: Register custom node rendering (plain JS DOM manipulation)
             area.addPipe((context) => {
               //console.log(context);
+                if (context.type === "pointermove" && activePicking) {
+                    const { x, y } = context.data;
+                    const snapDistance = 40;
+                    let nearestSocket = null;
+                    let minDistance = snapDistance;
+
+                    const sockets = Array.from(document.querySelectorAll(".socket"));
+                    for (const socket of sockets) {
+                        const isInput = socket.classList.contains("input");
+                        const isOutput = socket.classList.contains("output");
+                        const side = isInput ? "input" : "output";
+
+                        // Only snap to compatible sockets
+                        if (side === activePicking.side) continue;
+
+                        const rect = socket.getBoundingClientRect();
+                        const containerRect = reteContainer.getBoundingClientRect();
+
+                        const centerX = rect.left + rect.width / 2 - containerRect.left;
+                        const centerY = rect.top + rect.height / 2 - containerRect.top;
+
+                        // Convert screen center to editor coordinates
+                        const { k, x: tx, y: ty } = area.area.transform;
+                        const editorCenterX = (centerX - tx) / k;
+                        const editorCenterY = (centerY - ty) / k;
+
+                        const dx = x - editorCenterX;
+                        const dy = y - editorCenterY;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance < minDistance) {
+                            minDistance = distance;
+                            nearestSocket = { x: editorCenterX, y: editorCenterY };
+                        }
+                    }
+
+                    if (nearestSocket) {
+                        context.data.x = nearestSocket.x;
+                        context.data.y = nearestSocket.y;
+                    }
+                }
                 if (_isLocalChange && context.type === 'nodedragged') {
                     const workspaceData = editorToJSON();
                     multiplayer.broadcast(workspaceData);
