@@ -326,32 +326,59 @@ layout: none
                     <button id="addNodeToggle" class="button button-primary">➕</button>
                     <div id="addNodeDropdown" class="max-h-[85vh] overflow-y-auto origin-bottom-right absolute right-0 bottom-full mb-2 w-64 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-30 p-2">
                         <h3 class="text-sm font-bold text-center mb-2">Add Node</h3>
-                        <div class="grid grid-cols-2 gap-2" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
-                            <button id="addToneGeneratorNodeBtn" class="button button-secondary w-full text-xs">🔊 Tone Gen</button>
-                            <button id="addNoiseGeneratorNodeBtn" class="button button-secondary w-full text-xs">🌫️ Noise Gen</button>
-                            <button id="addWavePlayerNodeBtn" class="button button-secondary w-full text-xs">🎵 Wave Player</button>
-                            <button id="addChordGeneratorNodeBtn" class="button button-secondary w-full text-xs">🎼 Chord Gen</button>
-                            <button id="addVCANodeBtn" class="button button-secondary w-full text-xs">🎚️ VCA</button>
-                            <button id="addMasterGainOutputNodeBtn" class="button button-secondary w-full text-xs">🔊 Master</button>
-                            <button id="addFilterNodeBtn" class="button button-secondary w-full text-xs">📉 Filter</button>
-                            <button id="addDelayNodeBtn" class="button button-secondary w-full text-xs">⏳ Delay</button>
-                            <button id="addDistortionNodeBtn" class="button button-secondary w-full text-xs">🎸 Distortion</button>
-                            <button id="addCompressorNodeBtn" class="button button-secondary w-full text-xs">📊 Compressor</button>
-                            <button id="addReverbNodeBtn" class="button button-secondary w-full text-xs">🏞️ Reverb</button>
-                            <button id="addArpeggiatorNodeBtn" class="button button-secondary w-full text-xs">🎹 Arpeggiator</button>
-                            <button id="addLFONodeBtn" class="button button-secondary w-full text-xs">🌊 LFO</button>
-                            <button id="addADSREnvelopeNodeBtn" class="button button-secondary w-full text-xs">✉️ ADSR</button>
-                            <button id="addBitcrusherNodeBtn" class="button button-secondary w-full text-xs">👾 Bitcrusher</button>
-                            <button id="addSequencerNodeBtn" class="button button-secondary w-full text-xs">🎶 Sequencer</button>
-                            <button id="addAttenuverterNodeBtn" class="button button-secondary w-full text-xs">🔄 Attenuverter</button>
-                            <button id="addMasterClockNodeBtn" class="button button-secondary w-full text-xs">⏱️ Master Clock</button>
-                            <button id="addVocoderNodeBtn" class="button button-secondary w-full text-xs">🗣️ Vocoder</button>
-                            <button id="addMicrophoneInputNodeBtn" class="button button-secondary w-full text-xs">🎤 Mic Input</button>
-                            <button id="addGranularSynthesizerNodeBtn" class="button button-secondary w-full text-xs">✨ Granular</button>
-                            <button id="addManualGateNodeBtn" class="button button-secondary w-full text-xs">🔳 Manual Gate</button>
-                            <button id="addQuantizerNodeBtn" class="button button-secondary w-full text-xs">🎹 Quantizer</button>
-                            <button id="addDrumMachineNodeBtn" class="button button-secondary w-full text-xs">🥁 Drum Machine</button>
-                            <button id="addMixerNodeBtn" class="button button-secondary w-full text-xs">🎛️ Mixer</button>
+
+                        <!-- Sources -->
+                        <div class="mb-4">
+                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">Sources</h4>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button id="addToneGeneratorNodeBtn" class="button button-secondary w-full text-xs">🔊 Tone Gen</button>
+                                <button id="addNoiseGeneratorNodeBtn" class="button button-secondary w-full text-xs">🌫️ Noise Gen</button>
+                                <button id="addWavePlayerNodeBtn" class="button button-secondary w-full text-xs">🎵 Wave Player</button>
+                                <button id="addMicrophoneInputNodeBtn" class="button button-secondary w-full text-xs">🎤 Mic Input</button>
+                                <button id="addChordGeneratorNodeBtn" class="button button-secondary w-full text-xs">🎼 Chord Gen</button>
+                            </div>
+                        </div>
+
+                        <!-- Effects -->
+                        <div class="mb-4">
+                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">Effects</h4>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button id="addFilterNodeBtn" class="button button-secondary w-full text-xs">📉 Filter</button>
+                                <button id="addDelayNodeBtn" class="button button-secondary w-full text-xs">⏳ Delay</button>
+                                <button id="addDistortionNodeBtn" class="button button-secondary w-full text-xs">🎸 Distortion</button>
+                                <button id="addCompressorNodeBtn" class="button button-secondary w-full text-xs">📊 Compressor</button>
+                                <button id="addReverbNodeBtn" class="button button-secondary w-full text-xs">🏞️ Reverb</button>
+                                <button id="addBitcrusherNodeBtn" class="button button-secondary w-full text-xs">👾 Bitcrusher</button>
+                                <button id="addVocoderNodeBtn" class="button button-secondary w-full text-xs">🗣️ Vocoder</button>
+                                <button id="addGranularSynthesizerNodeBtn" class="button button-secondary w-full text-xs">✨ Granular</button>
+                                <button id="addStereoPannerNodeBtn" class="button button-secondary w-full text-xs">↔️ Stereo Panner</button>
+                            </div>
+                        </div>
+
+                        <!-- Modulation & Sequencing -->
+                        <div class="mb-4">
+                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">Modulation & Sequencing</h4>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button id="addSequencerNodeBtn" class="button button-secondary w-full text-xs">🎶 Sequencer</button>
+                                <button id="addDrumMachineNodeBtn" class="button button-secondary w-full text-xs">🥁 Drum Machine</button>
+                                <button id="addArpeggiatorNodeBtn" class="button button-secondary w-full text-xs">🎹 Arpeggiator</button>
+                                <button id="addLFONodeBtn" class="button button-secondary w-full text-xs">🌊 LFO</button>
+                                <button id="addADSREnvelopeNodeBtn" class="button button-secondary w-full text-xs">✉️ ADSR</button>
+                                <button id="addManualGateNodeBtn" class="button button-secondary w-full text-xs">🔳 Manual Gate</button>
+                                <button id="addQuantizerNodeBtn" class="button button-secondary w-full text-xs">🎹 Quantizer</button>
+                            </div>
+                        </div>
+
+                        <!-- Utilities -->
+                        <div class="mb-2">
+                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">Utilities</h4>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button id="addVCANodeBtn" class="button button-secondary w-full text-xs">🎚️ VCA</button>
+                                <button id="addMixerNodeBtn" class="button button-secondary w-full text-xs">🎛️ Mixer</button>
+                                <button id="addAttenuverterNodeBtn" class="button button-secondary w-full text-xs">🔄 Attenuverter</button>
+                                <button id="addMasterClockNodeBtn" class="button button-secondary w-full text-xs">⏱️ Master Clock</button>
+                                <button id="addMasterGainOutputNodeBtn" class="button button-secondary w-full text-xs">🔊 Master</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1172,13 +1199,23 @@ workspace_data: ${base64Data}
                         console.warn(`Oscillator for node ${id} already stopped or could not be stopped.`, e);
                     }
                 }
-                // Stop arpeggiator
-                if (reteNode && reteNode.label === 'Arpeggiator' && audioNode.stop && audioNode.started) {
+                // Stop arpeggiator, sequencer, drum machine
+                if (reteNode && ['Arpeggiator', 'Sequencer', 'Drum Machine'].includes(reteNode.label) && audioNode.stop && audioNode.started) {
                     try {
                         audioNode.stop();
                         audioNode.started = false;
                     } catch (e) {
-                        console.warn(`Arpeggiator for node ${id} could not be stopped.`, e);
+                        console.warn(`${reteNode.label} for node ${id} could not be stopped.`, e);
+                    }
+                }
+
+                // Stop Chord Generator
+                if (reteNode && reteNode.label === 'Chord Generator' && audioNode.stop && audioNode.started) {
+                    try {
+                        audioNode.stop();
+                        audioNode.started = false;
+                    } catch (e) {
+                        console.warn(`Chord Generator for node ${id} could not be stopped.`, e);
                     }
                 }
 
@@ -1717,6 +1754,8 @@ workspace_data: ${base64Data}
                 switch (targetInputKey) {
                     case 'freq':
                         return targetNode.frequency;
+                    case 'pan_cv':
+                        return targetNode.pan;
                     case 'q_cv':
                         return targetNode.Q;
                     case 'delay_cv':
@@ -4024,6 +4063,30 @@ workspace_data: ${base64Data}
 
         // --- New Effects Nodes ---
 
+        class StereoPannerNode extends WebAudioNode {
+            constructor() {
+                super('Stereo Panner');
+                this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addInput('pan_cv', new Classic.Input(voltageSocket, 'Pan CV'));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
+
+                this.data.pan = 0;
+                this.addControl('pan', new SliderControl('panSlider', 'Pan', -1, 1, 0.01, this.data.pan, (val) => {
+                    this.data.pan = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.pan) {
+                        audioNode.pan.setTargetAtTime(val, audioContext.currentTime, 0.01);
+                    }
+                }));
+            }
+
+            build() {
+                const audioNode = audioContext.createStereoPanner();
+                audioNode.pan.value = this.data.pan !== undefined ? this.data.pan : 0;
+                return audioNode;
+            }
+        }
+
         class DistortionNode extends WebAudioNode {
             constructor() {
                 super('Distortion');
@@ -5264,6 +5327,14 @@ workspace_data: ${base64Data}
         });
 
         // New Effects Node Buttons
+        addStereoPannerNodeBtn.addEventListener('click', async () => {
+            const node = new StereoPannerNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false;
+        });
+
         addDistortionNodeBtn.addEventListener('click', async () => {
             const node = new DistortionNode();
             const existingNodesCount = editor.getNodes().length;
@@ -5388,6 +5459,7 @@ workspace_data: ${base64Data}
         NodeRegistry.register('Quantizer', QuantizerNode);
         NodeRegistry.register('Drum Machine', DrumMachineNode);
         NodeRegistry.register('Mixer', MixerNode);
+        NodeRegistry.register('Stereo Panner', StereoPannerNode);
 
         window.onload = async () => {
 
