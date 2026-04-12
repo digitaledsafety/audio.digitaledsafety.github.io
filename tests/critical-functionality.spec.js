@@ -14,9 +14,9 @@ test.describe('Critical Functionality', () => {
     // Verify hero overlay is removed
     await expect(page.locator('#hero-overlay')).not.toBeAttached();
 
-    // Verify Rete container is visible
-    const reteContainer = page.locator('.rete-container');
-    await expect(reteContainer).toBeVisible();
+    // Verify editor container is visible
+    const editorContainer = page.locator('.audio-editor-container');
+    await expect(editorContainer).toBeVisible();
   });
 
   test('should add a Tone Generator node', async ({ page }) => {
@@ -33,8 +33,6 @@ test.describe('Critical Functionality', () => {
     await addToneGenBtn.click();
 
     // Verify Tone Generator node exists in the DOM
-    // Rete.js v2 nodes typically have a label or specific class
-    // Based on CustomNodeComponent, we can look for the text "Tone Generator"
     await expect(page.locator('text=Tone Generator').first()).toBeVisible();
   });
 
