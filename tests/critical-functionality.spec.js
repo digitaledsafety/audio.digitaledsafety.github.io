@@ -33,8 +33,6 @@ test.describe('Critical Functionality', () => {
     await addToneGenBtn.click();
 
     // Verify Tone Generator node exists in the DOM
-    // Rete.js v2 nodes typically have a label or specific class
-    // Based on CustomNodeComponent, we can look for the text "Tone Generator"
     await expect(page.locator('text=Tone Generator').first()).toBeVisible();
   });
 

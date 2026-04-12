@@ -1377,3 +1377,30 @@ window.GranularSynthesizerNode = GranularSynthesizerNode;
 window.DrumMachineNode = DrumMachineNode;
 window.VocoderNode = VocoderNode;
 window.ChordGeneratorNode = ChordGeneratorNode;
+
+class StereoPannerNode extends AudioNode {
+    constructor() {
+        super('Stereo Panner');
+        this.addInput('audio', new AudioPort(voltageSocket, 'Audio In'));
+        this.addInput('pan_cv', new AudioPort(voltageSocket, 'Pan CV'));
+        this.addOutput('audio', new AudioPort(voltageSocket, 'Audio Out'));
+
+        this.data.pan = 0;
+        this.addControl('pan', new SliderControl('panSlider', 'Pan', -1, 1, 0.01, this.data.pan, (val) => {
+            this.data.pan = val;
+            const audioNode = audioNodes.get(this.id);
+            if (audioNode && audioNode.pan) {
+                audioNode.pan.setTargetAtTime(val, window.audioContext.currentTime, 0.01);
+            }
+        }));
+    }
+
+    build() {
+        const audioNode = window.audioContext.createStereoPanner();
+        audioNode.pan.value = this.data.pan !== undefined ? this.data.pan : 0;
+        return audioNode;
+    }
+}
+
+NodeRegistry.register('Stereo Panner', StereoPannerNode);
+window.StereoPannerNode = StereoPannerNode;

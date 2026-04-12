@@ -326,59 +326,33 @@ layout: none
                     <button id="addNodeToggle" class="button button-primary">➕</button>
                     <div id="addNodeDropdown" class="max-h-[85vh] overflow-y-auto origin-bottom-right absolute right-0 bottom-full mb-2 w-64 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-30 p-2">
                         <h3 class="text-sm font-bold text-center mb-2">Add Node</h3>
-
-                        <!-- Sources -->
-                        <div class="mb-4">
-                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">Sources</h4>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button id="addToneGeneratorNodeBtn" class="button button-secondary w-full text-xs">🔊 Tone Gen</button>
-                                <button id="addNoiseGeneratorNodeBtn" class="button button-secondary w-full text-xs">🌫️ Noise Gen</button>
-                                <button id="addWavePlayerNodeBtn" class="button button-secondary w-full text-xs">🎵 Wave Player</button>
-                                <button id="addMicrophoneInputNodeBtn" class="button button-secondary w-full text-xs">🎤 Mic Input</button>
-                                <button id="addChordGeneratorNodeBtn" class="button button-secondary w-full text-xs">🎼 Chord Gen</button>
-                            </div>
-                        </div>
-
-                        <!-- Effects -->
-                        <div class="mb-4">
-                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">Effects</h4>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button id="addFilterNodeBtn" class="button button-secondary w-full text-xs">📉 Filter</button>
-                                <button id="addDelayNodeBtn" class="button button-secondary w-full text-xs">⏳ Delay</button>
-                                <button id="addDistortionNodeBtn" class="button button-secondary w-full text-xs">🎸 Distortion</button>
-                                <button id="addCompressorNodeBtn" class="button button-secondary w-full text-xs">📊 Compressor</button>
-                                <button id="addReverbNodeBtn" class="button button-secondary w-full text-xs">🏞️ Reverb</button>
-                                <button id="addBitcrusherNodeBtn" class="button button-secondary w-full text-xs">👾 Bitcrusher</button>
-                                <button id="addVocoderNodeBtn" class="button button-secondary w-full text-xs">🗣️ Vocoder</button>
-                                <button id="addGranularSynthesizerNodeBtn" class="button button-secondary w-full text-xs">✨ Granular</button>
-                                <button id="addStereoPannerNodeBtn" class="button button-secondary w-full text-xs">↔️ Stereo Panner</button>
-                            </div>
-                        </div>
-
-                        <!-- Modulation & Sequencing -->
-                        <div class="mb-4">
-                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">Modulation & Sequencing</h4>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button id="addSequencerNodeBtn" class="button button-secondary w-full text-xs">🎶 Sequencer</button>
-                                <button id="addDrumMachineNodeBtn" class="button button-secondary w-full text-xs">🥁 Drum Machine</button>
-                                <button id="addArpeggiatorNodeBtn" class="button button-secondary w-full text-xs">🎹 Arpeggiator</button>
-                                <button id="addLFONodeBtn" class="button button-secondary w-full text-xs">🌊 LFO</button>
-                                <button id="addADSREnvelopeNodeBtn" class="button button-secondary w-full text-xs">✉️ ADSR</button>
-                                <button id="addManualGateNodeBtn" class="button button-secondary w-full text-xs">🔳 Manual Gate</button>
-                                <button id="addQuantizerNodeBtn" class="button button-secondary w-full text-xs">🎹 Quantizer</button>
-                            </div>
-                        </div>
-
-                        <!-- Utilities -->
-                        <div class="mb-2">
-                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">Utilities</h4>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button id="addVCANodeBtn" class="button button-secondary w-full text-xs">🎚️ VCA</button>
-                                <button id="addMixerNodeBtn" class="button button-secondary w-full text-xs">🎛️ Mixer</button>
-                                <button id="addAttenuverterNodeBtn" class="button button-secondary w-full text-xs">🔄 Attenuverter</button>
-                                <button id="addMasterClockNodeBtn" class="button button-secondary w-full text-xs">⏱️ Master Clock</button>
-                                <button id="addMasterGainOutputNodeBtn" class="button button-secondary w-full text-xs">🔊 Master</button>
-                            </div>
+                        <div class="grid grid-cols-2 gap-2" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
+                            <button id="addToneGeneratorNodeBtn" class="button button-secondary w-full text-xs">🔊 Tone Gen</button>
+                            <button id="addNoiseGeneratorNodeBtn" class="button button-secondary w-full text-xs">🌫️ Noise Gen</button>
+                            <button id="addWavePlayerNodeBtn" class="button button-secondary w-full text-xs">🎵 Wave Player</button>
+                            <button id="addChordGeneratorNodeBtn" class="button button-secondary w-full text-xs">🎼 Chord Gen</button>
+                            <button id="addVCANodeBtn" class="button button-secondary w-full text-xs">🎚️ VCA</button>
+                            <button id="addMasterGainOutputNodeBtn" class="button button-secondary w-full text-xs">🔊 Master</button>
+                            <button id="addFilterNodeBtn" class="button button-secondary w-full text-xs">📉 Filter</button>
+                            <button id="addDelayNodeBtn" class="button button-secondary w-full text-xs">⏳ Delay</button>
+                            <button id="addDistortionNodeBtn" class="button button-secondary w-full text-xs">🎸 Distortion</button>
+                            <button id="addCompressorNodeBtn" class="button button-secondary w-full text-xs">📊 Compressor</button>
+                            <button id="addReverbNodeBtn" class="button button-secondary w-full text-xs">🏞️ Reverb</button>
+                            <button id="addArpeggiatorNodeBtn" class="button button-secondary w-full text-xs">🎹 Arpeggiator</button>
+                            <button id="addLFONodeBtn" class="button button-secondary w-full text-xs">🌊 LFO</button>
+                            <button id="addADSREnvelopeNodeBtn" class="button button-secondary w-full text-xs">✉️ ADSR</button>
+                            <button id="addBitcrusherNodeBtn" class="button button-secondary w-full text-xs">👾 Bitcrusher</button>
+                            <button id="addSequencerNodeBtn" class="button button-secondary w-full text-xs">🎶 Sequencer</button>
+                            <button id="addAttenuverterNodeBtn" class="button button-secondary w-full text-xs">🔄 Attenuverter</button>
+                            <button id="addMasterClockNodeBtn" class="button button-secondary w-full text-xs">⏱️ Master Clock</button>
+                            <button id="addVocoderNodeBtn" class="button button-secondary w-full text-xs">🗣️ Vocoder</button>
+                            <button id="addMicrophoneInputNodeBtn" class="button button-secondary w-full text-xs">🎤 Mic Input</button>
+                            <button id="addGranularSynthesizerNodeBtn" class="button button-secondary w-full text-xs">✨ Granular</button>
+                            <button id="addManualGateNodeBtn" class="button button-secondary w-full text-xs">🔳 Manual Gate</button>
+                            <button id="addQuantizerNodeBtn" class="button button-secondary w-full text-xs">🎹 Quantizer</button>
+                            <button id="addDrumMachineNodeBtn" class="button button-secondary w-full text-xs">🥁 Drum Machine</button>
+                            <button id="addMixerNodeBtn" class="button button-secondary w-full text-xs">🎛️ Mixer</button>
+                            <button id="addStereoPannerNodeBtn" class="button button-secondary w-full text-xs">↔️ Stereo Panner</button>
                         </div>
                     </div>
                 </div>
@@ -449,8 +423,8 @@ layout: none
     <script>
         // Global variables for Web Audio API
         var audioContext;
-const audioNodes = new Map();
-window.audioNodes = audioNodes;
+        const audioNodes = new Map();
+        window.audioNodes = audioNodes;
 
         // UI Elements
         const addToneGeneratorNodeBtn = document.getElementById('addToneGeneratorNodeBtn');
@@ -475,8 +449,8 @@ window.audioNodes = audioNodes;
         const addQuantizerNodeBtn = document.getElementById('addQuantizerNodeBtn');
         const addDrumMachineNodeBtn = document.getElementById('addDrumMachineNodeBtn');
         const addMixerNodeBtn = document.getElementById('addMixerNodeBtn');
+        const addStereoPannerNodeBtn = document.getElementById('addStereoPannerNodeBtn');
         const clearEditorBtn = document.getElementById('clearEditorBtn');
-        const reteContainer = document.getElementById('audio-editor-container');
         const messageBox = document.getElementById('messageBox');
         const recordBtn = document.getElementById('recordBtn');
         const playStopBtn = document.getElementById('playStopBtn');
@@ -504,11 +478,6 @@ window.audioNodes = audioNodes;
                 clearTimeout(timeout);
                 timeout = setTimeout(() => func.apply(this, args), wait);
             };
-        }
-
-        function isWorkspaceOutdated(workspaceData) {
-            // V1 workspaces saved the generic socket name 'voltage' instead of the specific input key.
-            return workspaceData && workspaceData.connections && workspaceData.connections.some(c => c.targetInput === 'voltage');
         }
 
         function editorToJSON() {
@@ -664,8 +633,6 @@ window.audioNodes = audioNodes;
             if (isWorkspaceOutdated(data)) {
                 showMessage('Workspace is outdated and will be migrated.', 'info');
                 data = migrateV1ToV2(data);
-                // After migration, immediately save the corrected data back to localStorage
-                // to avoid repeated migrations.
                 saveWorkspace();
             }
 
@@ -740,7 +707,6 @@ window.audioNodes = audioNodes;
             reader.readAsText(file);
         }
 
-
         async function updateAndPublishWorkspace() {
             const currentData = editorToJSON();
             const nodeConstructors = NodeRegistry.getConstructors();
@@ -793,7 +759,6 @@ workspace_data: ${base64Data}
                 messageBox.classList.add('hidden');
             }, 5000);
         }
-
 
         // --- Web Audio API Management ---
 
@@ -942,8 +907,6 @@ workspace_data: ${base64Data}
             recordBtn.disabled = false;
         }
 
-
-
         // --- Event Listeners for UI Buttons ---
         clearEditorBtn.addEventListener('click', clearEditor);
 
@@ -985,6 +948,7 @@ workspace_data: ${base64Data}
         setupAddNodeBtn('addQuantizerNodeBtn', QuantizerNode);
         setupAddNodeBtn('addDrumMachineNodeBtn', DrumMachineNode);
         setupAddNodeBtn('addMixerNodeBtn', MixerNode);
+        setupAddNodeBtn('addStereoPannerNodeBtn', StereoPannerNode);
 
         // Initialize editor on window load
 
@@ -1079,18 +1043,6 @@ workspace_data: ${base64Data}
 
                 const audioNode = audioNodes.get(node.id);
                 if (audioNode) {
-                    if ((node.label === 'Tone Generator' || node.label === 'Noise Generator') && audioNode.stop && audioNode.started) {
-                        try {
-                            audioNode.stop();
-                            audioNode.started = false;
-                        } catch (e) {}
-                    }
-                    if (node.label === 'Arpeggiator' && audioNode.stop && audioNode.started) {
-                        try {
-                            audioNode.stop();
-                            audioNode.started = false;
-                        } catch (e) {}
-                    }
                     try {
                         if (audioNode.mainOutput) {
                             audioNode.mainOutput.disconnect();
@@ -1113,14 +1065,6 @@ workspace_data: ${base64Data}
                 }
                 if (audioContext && audioContext.state === 'running') {
                     updateAudioGraphConnections();
-                    if (connection.targetInput === 'clock') {
-                        const targetReteNode = editor.getNode(connection.target);
-                        const targetAudioNode = audioNodes.get(connection.target);
-                        if (targetAudioNode && ['Arpeggiator', 'Sequencer'].includes(targetReteNode.label) && targetAudioNode.started) {
-                            targetAudioNode.stop();
-                            targetAudioNode.start();
-                        }
-                    }
                 }
                 showMessage('Connection created.', 'info');
             });
@@ -1132,14 +1076,6 @@ workspace_data: ${base64Data}
                 }
                 if (audioContext && audioContext.state === 'running') {
                     updateAudioGraphConnections();
-                    if (connection.targetInput === 'clock') {
-                        const targetReteNode = editor.getNode(connection.target);
-                        const targetAudioNode = audioNodes.get(connection.target);
-                        if (targetAudioNode && ['Arpeggiator', 'Sequencer'].includes(targetReteNode.label) && targetAudioNode.started) {
-                            targetAudioNode.stop();
-                            targetAudioNode.start();
-                        }
-                    }
                 }
                 showMessage('Connection removed.', 'info');
             });
@@ -1253,7 +1189,6 @@ workspace_data: ${base64Data}
                         mediaRecorder.stop();
                     }
                     await stopAudio(); // stopAudio is also async
-                    // stopAudio now correctly sets the state and button text
                 }
             });
 
@@ -1319,7 +1254,6 @@ workspace_data: ${base64Data}
             document.addEventListener('keydown', (e) => {
                 if (e.code === 'Space' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA' && document.activeElement.tagName !== 'SELECT') {
                     e.preventDefault();
-                    // Assuming 'playStopBtn' is globally available or defined earlier
                     if (typeof playStopBtn !== 'undefined' && playStopBtn.click) {
                         playStopBtn.click();
                     }
