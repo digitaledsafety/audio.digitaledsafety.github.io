@@ -31,32 +31,6 @@ layout: none
             height: 100vh;
             width: 100%;
             box-sizing: border-box;
-            position: relative;
-        }
-        #visualizer-view {
-            height: 100%;
-            position: absolute;
-            inset: 0;
-            z-index: 0;
-            visibility: hidden;
-            pointer-events: none;
-        }
-        #visualizer-view.active {
-            z-index: 10;
-            visibility: visible;
-            pointer-events: auto;
-        }
-        #workspace-view {
-            position: absolute;
-            inset: 0;
-            z-index: 0;
-            visibility: hidden;
-            pointer-events: none;
-        }
-        #workspace-view.active {
-            z-index: 10;
-            visibility: visible;
-            pointer-events: auto;
         }
         .button {
             padding: 0.5rem 1rem;
@@ -302,13 +276,13 @@ layout: none
     <div class="fixed top-4 right-4 z-50 bg-indigo-600/80 text-white text-xs font-bold px-2 py-1 rounded shadow-md pointer-events-none">BETA</div>
     <div class="rete-container">
         <div id="messageBox" class="message-box hidden"></div>
-        
-        <div id="workspace-view" class="flex-grow h-full active">
+
+        <div id="workspace-view" class="flex-grow h-full">
             {{ content }}
             <div id="rete-container" class="relative h-full"></div>
         </div>
-        
-        <div id="visualizer-view" class="h-full">
+
+        <div id="visualizer-view" class="hidden h-full">
             <canvas id="visualizer" class="w-full h-full border-none"></canvas>
         </div>
 
@@ -326,59 +300,32 @@ layout: none
                     <button id="addNodeToggle" class="button button-primary">➕</button>
                     <div id="addNodeDropdown" class="max-h-[85vh] overflow-y-auto origin-bottom-right absolute right-0 bottom-full mb-2 w-64 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-30 p-2">
                         <h3 class="text-sm font-bold text-center mb-2">Add Node</h3>
-
-                        <!-- Sources -->
-                        <div class="mb-4">
-                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">Sources</h4>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button id="addToneGeneratorNodeBtn" class="button button-secondary w-full text-xs">🔊 Tone Gen</button>
-                                <button id="addNoiseGeneratorNodeBtn" class="button button-secondary w-full text-xs">🌫️ Noise Gen</button>
-                                <button id="addWavePlayerNodeBtn" class="button button-secondary w-full text-xs">🎵 Wave Player</button>
-                                <button id="addMicrophoneInputNodeBtn" class="button button-secondary w-full text-xs">🎤 Mic Input</button>
-                                <button id="addChordGeneratorNodeBtn" class="button button-secondary w-full text-xs">🎼 Chord Gen</button>
-                            </div>
-                        </div>
-
-                        <!-- Effects -->
-                        <div class="mb-4">
-                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">Effects</h4>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button id="addFilterNodeBtn" class="button button-secondary w-full text-xs">📉 Filter</button>
-                                <button id="addDelayNodeBtn" class="button button-secondary w-full text-xs">⏳ Delay</button>
-                                <button id="addDistortionNodeBtn" class="button button-secondary w-full text-xs">🎸 Distortion</button>
-                                <button id="addCompressorNodeBtn" class="button button-secondary w-full text-xs">📊 Compressor</button>
-                                <button id="addReverbNodeBtn" class="button button-secondary w-full text-xs">🏞️ Reverb</button>
-                                <button id="addBitcrusherNodeBtn" class="button button-secondary w-full text-xs">👾 Bitcrusher</button>
-                                <button id="addVocoderNodeBtn" class="button button-secondary w-full text-xs">🗣️ Vocoder</button>
-                                <button id="addGranularSynthesizerNodeBtn" class="button button-secondary w-full text-xs">✨ Granular</button>
-                                <button id="addStereoPannerNodeBtn" class="button button-secondary w-full text-xs">↔️ Stereo Panner</button>
-                            </div>
-                        </div>
-
-                        <!-- Modulation & Sequencing -->
-                        <div class="mb-4">
-                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">Modulation & Sequencing</h4>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button id="addSequencerNodeBtn" class="button button-secondary w-full text-xs">🎶 Sequencer</button>
-                                <button id="addDrumMachineNodeBtn" class="button button-secondary w-full text-xs">🥁 Drum Machine</button>
-                                <button id="addArpeggiatorNodeBtn" class="button button-secondary w-full text-xs">🎹 Arpeggiator</button>
-                                <button id="addLFONodeBtn" class="button button-secondary w-full text-xs">🌊 LFO</button>
-                                <button id="addADSREnvelopeNodeBtn" class="button button-secondary w-full text-xs">✉️ ADSR</button>
-                                <button id="addManualGateNodeBtn" class="button button-secondary w-full text-xs">🔳 Manual Gate</button>
-                                <button id="addQuantizerNodeBtn" class="button button-secondary w-full text-xs">🎹 Quantizer</button>
-                            </div>
-                        </div>
-
-                        <!-- Utilities -->
-                        <div class="mb-2">
-                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">Utilities</h4>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button id="addVCANodeBtn" class="button button-secondary w-full text-xs">🎚️ VCA</button>
-                                <button id="addMixerNodeBtn" class="button button-secondary w-full text-xs">🎛️ Mixer</button>
-                                <button id="addAttenuverterNodeBtn" class="button button-secondary w-full text-xs">🔄 Attenuverter</button>
-                                <button id="addMasterClockNodeBtn" class="button button-secondary w-full text-xs">⏱️ Master Clock</button>
-                                <button id="addMasterGainOutputNodeBtn" class="button button-secondary w-full text-xs">🔊 Master</button>
-                            </div>
+                        <div class="grid grid-cols-2 gap-2" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
+                            <button id="addToneGeneratorNodeBtn" class="button button-secondary w-full text-xs">🔊 Tone Gen</button>
+                            <button id="addNoiseGeneratorNodeBtn" class="button button-secondary w-full text-xs">🌫️ Noise Gen</button>
+                            <button id="addWavePlayerNodeBtn" class="button button-secondary w-full text-xs">🎵 Wave Player</button>
+                            <button id="addChordGeneratorNodeBtn" class="button button-secondary w-full text-xs">🎼 Chord Gen</button>
+                            <button id="addVCANodeBtn" class="button button-secondary w-full text-xs">🎚️ VCA</button>
+                            <button id="addMasterGainOutputNodeBtn" class="button button-secondary w-full text-xs">🔊 Master</button>
+                            <button id="addFilterNodeBtn" class="button button-secondary w-full text-xs">📉 Filter</button>
+                            <button id="addDelayNodeBtn" class="button button-secondary w-full text-xs">⏳ Delay</button>
+                            <button id="addDistortionNodeBtn" class="button button-secondary w-full text-xs">🎸 Distortion</button>
+                            <button id="addCompressorNodeBtn" class="button button-secondary w-full text-xs">📊 Compressor</button>
+                            <button id="addReverbNodeBtn" class="button button-secondary w-full text-xs">🏞️ Reverb</button>
+                            <button id="addArpeggiatorNodeBtn" class="button button-secondary w-full text-xs">🎹 Chord Arp</button>
+                            <button id="addScaleArpeggiatorNodeBtn" class="button button-secondary w-full text-xs">🎹 Scale Arp</button>
+                            <button id="addLFONodeBtn" class="button button-secondary w-full text-xs">🌊 LFO</button>
+                            <button id="addADSREnvelopeNodeBtn" class="button button-secondary w-full text-xs">✉️ ADSR</button>
+                            <button id="addBitcrusherNodeBtn" class="button button-secondary w-full text-xs">👾 Bitcrusher</button>
+                            <button id="addSequencerNodeBtn" class="button button-secondary w-full text-xs">🎶 Sequencer</button>
+                            <button id="addAttenuverterNodeBtn" class="button button-secondary w-full text-xs">🔄 Attenuverter</button>
+                            <button id="addMasterClockNodeBtn" class="button button-secondary w-full text-xs">⏱️ Master Clock</button>
+                            <button id="addVocoderNodeBtn" class="button button-secondary w-full text-xs">🗣️ Vocoder</button>
+                            <button id="addMicrophoneInputNodeBtn" class="button button-secondary w-full text-xs">🎤 Mic Input</button>
+                            <button id="addGranularSynthesizerNodeBtn" class="button button-secondary w-full text-xs">✨ Granular</button>
+                            <button id="addManualGateNodeBtn" class="button button-secondary w-full text-xs">🔳 Manual Gate</button>
+                            <button id="addQuantizerNodeBtn" class="button button-secondary w-full text-xs">🎹 Quantizer</button>
+                            <button id="addDrumMachineNodeBtn" class="button button-secondary w-full text-xs">🥁 Drum Machine</button>
                         </div>
                     </div>
                 </div>
@@ -463,28 +410,11 @@ layout: none
         const { ConnectionPlugin, Presets: ConnectionPresets } = window.ReteConnectionPlugin;
         const { DataflowEngine } = window.ReteEngine;
         const { ReactRenderPlugin, Presets: ReactPresets } = window.ReteReactRenderPlugin
-        const { ContextMenuPlugin, Presets: ContextMenuPresets } = window.ReteContextMenuPlugin;        
+        const { ContextMenuPlugin, Presets: ContextMenuPresets } = window.ReteContextMenuPlugin;
 
         // Global variables for Web Audio API
         var audioContext;
         const reteAudioNodes = new Map(); // Maps Rete.js node IDs to Web Audio API nodes
-
-        const NodeRegistry = {
-            _nodes: new Map(),
-            register(name, constructor) {
-                this._nodes.set(name, constructor);
-            },
-            getConstructor(name) {
-                return this._nodes.get(name);
-            },
-            getConstructors() {
-                const constructors = {};
-                for (const [name, constructor] of this._nodes.entries()) {
-                    constructors[name] = constructor;
-                }
-                return constructors;
-            }
-        };
 
         const legacyNameMap = {
             nodes: {
@@ -541,7 +471,7 @@ layout: none
             'Diminished (Half-Whole)': [0, 1, 3, 4, 6, 7, 9, 10],
             'Chromatic Scale': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
         };
-        
+
         const ROOT_NOTES = {
             'C1': 24, 'C#1': 25, 'D1': 26, 'D#1': 27, 'E1': 28, 'F1': 29, 'F#1': 30, 'G1': 31, 'G#1': 32, 'A1': 33, 'A#1': 34, 'B1': 35,
             'C2': 36, 'C#2': 37, 'D2': 38, 'D#2': 39, 'E2': 40, 'F2': 41, 'F#2': 42, 'G2': 43, 'G#2': 44, 'A2': 45, 'A#2': 46, 'B2': 47,
@@ -561,6 +491,7 @@ layout: none
         const addFilterNodeBtn = document.getElementById('addFilterNodeBtn');
         const addDelayNodeBtn = document.getElementById('addDelayNodeBtn');
         const addArpeggiatorNodeBtn = document.getElementById('addArpeggiatorNodeBtn');
+        const addScaleArpeggiatorNodeBtn = document.getElementById('addScaleArpeggiatorNodeBtn');
         const addLFONodeBtn = document.getElementById('addLFONodeBtn');
         const addADSREnvelopeNodeBtn = document.getElementById('addADSREnvelopeNodeBtn');
         const addBitcrusherNodeBtn = document.getElementById('addBitcrusherNodeBtn');
@@ -573,7 +504,6 @@ layout: none
         const addManualGateNodeBtn = document.getElementById('addManualGateNodeBtn');
         const addQuantizerNodeBtn = document.getElementById('addQuantizerNodeBtn');
         const addDrumMachineNodeBtn = document.getElementById('addDrumMachineNodeBtn');
-        const addMixerNodeBtn = document.getElementById('addMixerNodeBtn');
         const clearEditorBtn = document.getElementById('clearEditorBtn');
         const reteContainer = document.getElementById('rete-container');
         const messageBox = document.getElementById('messageBox');
@@ -595,7 +525,7 @@ layout: none
         let multiplayer;
         let _isLocalChange = true;
         // --- Main Controls Logic ---
-        let audioState = 'stopped'; // 'stopped', 'playing'        
+        let audioState = 'stopped'; // 'stopped', 'playing'
 
         // --- Utility Functions ---
 
@@ -660,13 +590,42 @@ layout: none
 
         async function editorFromJSON(json) {
             try
-            {                
+            {
                 console.log('Loading editor from JSON:', json);
                 await editor.clear();
 
+                // TODO: How do we avoid hardcoding any new node types here?
+                const nodeConstructors = {
+                    'Tone Generator': ToneGeneratorNode,
+                    'Noise Generator': NoiseGeneratorNode,
+                    'Wave Player': WavePlayerNode,
+                    'Chord Generator': ChordGeneratorNode,
+                    'VCA': VCANode,
+                    'Master': MasterGainOutputNode,
+                    'Filter': FilterNode,
+                    'Delay': DelayNode,
+                    'Distortion': DistortionNode,
+                    'Compressor': CompressorNode,
+                    'Reverb': ReverbNode,
+                    'Scale Arpeggiator': ScaleArpeggiatorNode,
+                    'Arpeggiator': ArpeggiatorNode,
+                    'LFO': LFONode,
+                    'ADSR Envelope': ADSREnvelopeNode,
+                    'Bitcrusher': BitcrusherNode,
+                    'Sequencer': SequencerNode,
+                    'Attenuverter': AttenuverterNode,
+                    'Master Clock': MasterClockNode,
+                    'Vocoder': VocoderNode,
+                    '🎤 Mic Input': MicrophoneInputNode,
+                    'Granular Synthesizer': GranularSynthesizerNode,
+                    'Manual Gate': ManualGateNode,
+                    'Quantizer': QuantizerNode,
+                    'Drum Machine': DrumMachineNode
+                };
+
                 // Stage 1: Create and add all nodes to the editor's data model.
                 for (const nodeData of json.nodes) {
-                    const Constructor = NodeRegistry.getConstructor(nodeData.label);
+                    const Constructor = nodeConstructors[nodeData.label];
                     if (Constructor) {
                         const node = new Constructor();
                         node.id = nodeData.id;
@@ -682,11 +641,6 @@ layout: none
                                 }
                             }
                         }
-
-                        if (typeof node.onDataLoaded === 'function') {
-                            node.onDataLoaded();
-                        }
-
                         await editor.addNode(node);
                     } else {
                         console.warn(`Node type "${nodeData.label}" not found.`);
@@ -701,7 +655,7 @@ layout: none
                     if (sourceNode && targetNode) {
                         const sourceOutput = connData.sourceOutput;
                         const targetInput = connData.targetInput;
-                        
+
                         if (sourceNode.outputs[sourceOutput] && targetNode.inputs[targetInput]) {
                              await editor.addConnection(new Classic.Connection(sourceNode, sourceOutput, targetNode, targetInput));
                         } else {
@@ -721,17 +675,12 @@ layout: none
                     // Manually trigger a render update for each node.
                     area.update('node', nodeData.id);
                 }
-                
-                // Stage 4: Zoom to fit all nodes.
-                requestAnimationFrame(async () => {
-                    await AreaExtensions.zoomAt(area, editor.getNodes());
-                });   
             }
             catch (error) {
                 showMessage('Error syncing workspace: ' + error.message, 'error');
             }
 
-        }          
+        }
 
         function getWorkspaces() {
             const workspaces = localStorage.getItem('rete-workspaces');
@@ -859,7 +808,7 @@ layout: none
 
                     const wasAudioRunning = audioContext && audioContext.state === 'running';
                     if (wasAudioRunning) await stopAudio();
-                    
+
                     await editorFromJSON(data);
 
                     if (wasAudioRunning) await startAudio();
@@ -911,7 +860,15 @@ layout: none
 
         async function updateAndPublishWorkspace() {
             const currentData = editorToJSON();
-            const nodeConstructors = NodeRegistry.getConstructors();
+            const nodeConstructors = {
+                'Tone Generator': ToneGeneratorNode, 'Noise Generator': NoiseGeneratorNode, 'Wave Player': WavePlayerNode,
+                'Chord Generator': ChordGeneratorNode, 'VCA': VCANode, 'Mixer': MixerNode, 'Master': MasterGainOutputNode,
+                'Filter': FilterNode, 'Delay': DelayNode, 'Distortion': DistortionNode, 'Compressor': CompressorNode,
+                'Reverb': ReverbNode, 'Arpeggiator': ArpeggiatorNode, 'LFO': LFONode, 'ADSR Envelope': ADSREnvelopeNode,
+                'Bitcrusher': BitcrusherNode, 'Sequencer': SequencerNode, 'Attenuverter': AttenuverterNode,
+                'Master Clock': MasterClockNode, 'Vocoder': VocoderNode, '🎤 Mic Input': MicrophoneInputNode,
+                'Granular Synthesizer': GranularSynthesizerNode, 'Manual Gate': ManualGateNode
+            };
             const migratedData = migrateV1ToV2(currentData, nodeConstructors);
 
             await editorFromJSON(migratedData);
@@ -1023,7 +980,7 @@ workspace_data: ${base64Data}
             }
             return impulse;
         }
-        
+
         // --- Web Audio API Management ---
 
         /**
@@ -1078,9 +1035,9 @@ workspace_data: ${base64Data}
 
             mediaStreamDestination = audioContext.createMediaStreamDestination();
             masterGain.connect(mediaStreamDestination);
-         
+
             clearEditorBtn.disabled = false;
-        
+
             //showMessage('Audio context started! Nodes in the editor are now active.', 'success');
 
             // Initialize/start audio nodes that are already in the editor
@@ -1154,6 +1111,200 @@ workspace_data: ${base64Data}
             }
         }
 
+        class ScaleArpeggiator {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+                this.started = false;
+                this.timeoutId = null;
+                this.currentNoteIndex = 0;
+                this.nextStepTime = 0;
+                this.midiListeners = [];
+                this.tickCount = 0;
+
+                this.mainOutput = this.audioContext.createGain();
+                this.mainOutput.gain.value = 0.5;
+
+                this.transposeControl = this.audioContext.createGain();
+                this.transposeControl.gain.value = 1200; // 1V = 1200 cents
+
+                this.setupNotesAndScales();
+            }
+
+            addMidiListener(callback) {
+                if (typeof callback === 'function' && !this.midiListeners.includes(callback)) {
+                    this.midiListeners.push(callback);
+                }
+            }
+
+            removeMidiListener(callback) {
+                const index = this.midiListeners.indexOf(callback);
+                if (index > -1) {
+                    this.midiListeners.splice(index, 1);
+                }
+            }
+
+            onTick(tickTime, tickDuration) {
+                const noteDurationMap = { '1': 96, '1/2': 48, '1/4': 24, '1/8': 12, '1/16': 6, '1/32': 3, '1/64': 1.5, '1/128': 0.75 };
+                const ticksPerStep = noteDurationMap[this.data.noteDuration] || 6;
+
+                if (this.tickCount % ticksPerStep === 0) {
+                    const notes = this.getArpeggioNotes();
+                    if (notes.length > 0) {
+                        const currentStep = notes[this.currentNoteIndex];
+                        const stepDuration = tickDuration * ticksPerStep;
+                        this.scheduleNote(currentStep, stepDuration * 0.9, tickTime);
+
+                        const midiNotesToBroadcast = Array.isArray(currentStep) ? currentStep : [currentStep];
+                        if (this.midiListeners.length > 0) {
+                            this.midiListeners.forEach(callback => callback(midiNotesToBroadcast));
+                        }
+                        this.currentNoteIndex = (this.currentNoteIndex + 1) % notes.length;
+                    }
+                }
+                this.tickCount++;
+            }
+
+            setupNotesAndScales() {
+                this.scaleTypes = SCALE_TYPES;
+                this.rootNotes = ROOT_NOTES;
+            }
+
+            getArpeggioNotes() {
+                const rootMidi = this.rootNotes[this.data.rootNote] || 60;
+                const scaleOffsets = this.scaleTypes[this.data.scaleType] || this.scaleTypes['Major (Ionian)'];
+                const octaveRange = this.data.octaveRange || 1;
+                const arpeggioNotes = [];
+
+                for (let oct = 0; oct < octaveRange; oct++) {
+                    scaleOffsets.forEach(offset => {
+                        arpeggioNotes.push(rootMidi + offset + (oct * 12));
+                    });
+                }
+
+                const sortedNotes = [...arpeggioNotes].sort((a, b) => a - b);
+                let patternResult = [];
+
+                switch (this.data.arpeggioPattern) {
+                    case 'Down':
+                        patternResult = [...sortedNotes].reverse();
+                        break;
+                    case 'Up-Down':
+                        const reversedUpdown = [...sortedNotes].reverse();
+                        patternResult = sortedNotes.concat(reversedUpdown.slice(1, -1));
+                        break;
+                    case 'Down-Up':
+                        const reversedDownUp = [...sortedNotes].reverse();
+                        patternResult = reversedDownUp.concat(sortedNotes.slice(1, -1));
+                        break;
+                    case 'Random':
+                        patternResult = [...sortedNotes];
+                        for (let i = patternResult.length - 1; i > 0; i--) {
+                            const j = Math.floor(Math.random() * (i + 1));
+                            [patternResult[i], patternResult[j]] = [patternResult[j], patternResult[i]];
+                        }
+                        break;
+                    default: // 'Up'
+                        patternResult = sortedNotes;
+                        break;
+                }
+                return patternResult;
+            }
+
+            scheduleNote(midiNotes, durationSeconds, startTime) {
+                if (!this.audioContext) return;
+                const now = startTime || this.audioContext.currentTime;
+
+                const notesToPlay = Array.isArray(midiNotes) ? midiNotes : [midiNotes];
+                notesToPlay.forEach(midiNote => {
+                    const frequency = midiToFrequency(midiNote);
+                    const osc = this.audioContext.createOscillator();
+                    const gainNode = this.audioContext.createGain();
+                    osc.type = this.data.waveform || 'sine';
+                    osc.frequency.setValueAtTime(frequency, now);
+                    this.transposeControl.connect(osc.detune);
+
+                    const adsrData = {
+                        attack: this.data.attack || 0.01,
+                        decay: this.data.decay || 0.1,
+                        sustain: this.data.sustain || 0.5,
+                        release: this.data.release || 0.1
+                    };
+                    applyADSR(gainNode, adsrData, durationSeconds, this.audioContext, 0.3 / notesToPlay.length, now);
+
+                    osc.connect(gainNode);
+                    gainNode.connect(this.mainOutput);
+                    osc.start(now);
+                    osc.stop(now + durationSeconds);
+                    osc.onended = () => {
+                        osc.disconnect();
+                        gainNode.disconnect();
+                    };
+                });
+            }
+
+            start() {
+                if (this.started || !this.audioContext) return;
+                this.started = true;
+                this.currentNoteIndex = 0;
+                this.nextStepTime = this.audioContext.currentTime;
+                this.schedule();
+            }
+
+            schedule() {
+                if (!this.started) return;
+
+                const hasClockConnection = editor.getConnections().some(conn => conn.target === this.reteNodeId && conn.targetInput === 'clock');
+                if (hasClockConnection) {
+                    // In external clock mode, the onTick method will handle scheduling.
+                    // This loop just needs to keep running to take over if the clock is disconnected.
+                    this.timeoutId = setTimeout(() => this.schedule(), 100); // Check for clock disconnection periodically
+                    return;
+                }
+
+                const notes = this.getArpeggioNotes();
+                if (notes.length === 0) {
+                    this.stop();
+                    return;
+                }
+
+                const bpm = this.data.bpm || 120;
+                const noteDurationMap = { '1': 4, '1/2': 2, '1/4': 1, '1/8': 0.5, '1/16': 0.25, '1/32': 0.125, '1/64': 0.0625, '1/128': 0.03125 };
+                const noteValue = noteDurationMap[this.data.noteDuration] || 0.25;
+                const secondsPerBeat = 60.0 / bpm;
+                const stepDuration = secondsPerBeat * noteValue;
+
+                while (this.nextStepTime < this.audioContext.currentTime + 0.1) {
+                    const midiNote = notes[this.currentNoteIndex];
+                    this.scheduleNote(midiNote, stepDuration, this.nextStepTime);
+
+                    if (this.midiListeners.length > 0) {
+                        const midiNotesToBroadcast = Array.isArray(midiNote) ? midiNote : [midiNote];
+                        this.midiListeners.forEach(callback => callback(midiNotesToBroadcast));
+                    }
+
+                    this.nextStepTime += stepDuration;
+                    this.currentNoteIndex = (this.currentNoteIndex + 1) % notes.length;
+                }
+                this.timeoutId = setTimeout(() => this.schedule(), 25);
+            }
+
+            stop() {
+                if (!this.started) return;
+                clearTimeout(this.timeoutId);
+                this.timeoutId = null;
+                this.started = false;
+            }
+
+            updateParameter(param, value) {
+                this.data[param] = value;
+                if (this.started) {
+                    this.stop();
+                    this.start();
+                }
+            }
+        }
 
         function stopPlaybackAndResetUI() {
             if (loopSource) {
@@ -1199,23 +1350,13 @@ workspace_data: ${base64Data}
                         console.warn(`Oscillator for node ${id} already stopped or could not be stopped.`, e);
                     }
                 }
-                // Stop arpeggiator, sequencer, drum machine
-                if (reteNode && ['Arpeggiator', 'Sequencer', 'Drum Machine'].includes(reteNode.label) && audioNode.stop && audioNode.started) {
+                // Stop arpeggiator
+                if (reteNode && reteNode.label === 'Arpeggiator' && audioNode.stop && audioNode.started) {
                     try {
                         audioNode.stop();
                         audioNode.started = false;
                     } catch (e) {
-                        console.warn(`${reteNode.label} for node ${id} could not be stopped.`, e);
-                    }
-                }
-
-                // Stop Chord Generator
-                if (reteNode && reteNode.label === 'Chord Generator' && audioNode.stop && audioNode.started) {
-                    try {
-                        audioNode.stop();
-                        audioNode.started = false;
-                    } catch (e) {
-                        console.warn(`Chord Generator for node ${id} could not be stopped.`, e);
+                        console.warn(`Arpeggiator for node ${id} could not be stopped.`, e);
                     }
                 }
 
@@ -1227,7 +1368,7 @@ workspace_data: ${base64Data}
                         console.warn(`Master Clock for node ${id} could not be stopped.`, e);
                     }
                 }
-                
+
                 // Disconnect each main audio node from the graph (for Arpeggiator, this would be its master gain)
                 try {
                     // For Arpeggiator, we disconnect its master output. Other nodes are direct Web Audio nodes.
@@ -1246,7 +1387,7 @@ workspace_data: ${base64Data}
             //    await audioContext.suspend();
             //    console.log('AudioContext suspended.');
             //}
-            
+
             audioState = 'stopped';
             playStopBtn.textContent = '▶️';
             recordBtn.textContent = '⏺️ Record';
@@ -1293,11 +1434,10 @@ workspace_data: ${base64Data}
                 ambient: () => {
                     const rootNote = RandomWorkspaceGenerator.getRandomElement(['C2', 'G2', 'D2', 'A2', 'E2']);
                     const scale = RandomWorkspaceGenerator.getRandomElement(['Major (Ionian)', 'Natural Minor (Aeolian)', 'Dorian Mode', 'Lydian Mode']);
-                    const sequence = RandomWorkspaceGenerator.generateRandomMelody(scale, rootNote, 2, 16);
                     return {
                         nodes: [
                             { id: '1', label: 'Master Clock', data: { bpm: RandomWorkspaceGenerator.getRandomInt(60, 90) }, position: { x: 50, y: 300 } },
-                            { id: '2', label: 'Sequencer', data: { sequence, waveform: 'sine', noteDuration: '1/4' }, position: { x: 300, y: 100 } },
+                            { id: '2', label: 'Scale Arpeggiator', data: { rootNote, scaleType: scale, arpeggioPattern: 'Random', octaveRange: 3, noteDuration: '1/4', waveform: 'sine' }, position: { x: 300, y: 100 } },
                             { id: '3', label: 'LFO', data: { frequency: RandomWorkspaceGenerator.getRandomFloat(0.1, 0.5), amount: 1000, waveform: 'sine' }, position: { x: 50, y: 500 } },
                             { id: '4', label: 'Filter', data: { frequency: 1000, q: 1 }, position: { x: 550, y: 100 } },
                             { id: '5', label: 'Reverb', data: { mix: 0.7, duration: 4, decay: 4 }, position: { x: 800, y: 100 } },
@@ -1353,11 +1493,10 @@ workspace_data: ${base64Data}
                 anime: () => {
                     const rootNote = RandomWorkspaceGenerator.getRandomElement(['G3', 'C4', 'F3', 'D4']);
                     const scale = RandomWorkspaceGenerator.getRandomElement(['Major (Ionian)', 'Lydian Mode', 'Pentatonic Major']);
-                    const sequence = RandomWorkspaceGenerator.generateRandomMelody(scale, rootNote, 1, 16);
                     return {
                         nodes: [
                             { id: '1', label: 'Master Clock', data: { bpm: RandomWorkspaceGenerator.getRandomInt(140, 160) }, position: { x: 50, y: 300 } },
-                            { id: '2', label: 'Sequencer', data: { sequence, waveform: 'sine', noteDuration: '1/8' }, position: { x: 300, y: 100 } },
+                            { id: '2', label: 'Scale Arpeggiator', data: { rootNote, scaleType: scale, arpeggioPattern: 'Up-Down', octaveRange: 2, noteDuration: '1/8', waveform: 'sine' }, position: { x: 300, y: 100 } },
                             { id: '3', label: 'Delay', data: { delayTime: 0.3, feedback: 0.4 }, position: { x: 550, y: 100 } },
                             { id: '4', label: 'Reverb', data: { mix: 0.4 }, position: { x: 800, y: 100 } },
                             { id: '5', label: 'Master', data: { gain: 0.4 }, position: { x: 1050, y: 100 } }
@@ -1402,63 +1541,6 @@ workspace_data: ${base64Data}
                             { id: 'c3', source: '3', sourceOutput: 'audio', target: '4', targetInput: 'audio' }
                         ]
                     };
-                },
-                evolvingDrone: () => {
-                    return {
-                        nodes: [
-                            { id: '1', label: 'Noise Generator', data: { gainValue: 0.5 }, position: { x: 50, y: 100 } },
-                            { id: '2', label: 'Filter', data: { frequency: 400, q: 8, filterType: 'bandpass' }, position: { x: 300, y: 100 } },
-                            { id: '3', label: 'LFO', data: { frequency: 0.05, amount: 200, waveform: 'sine' }, position: { x: 50, y: 300 } },
-                            { id: '4', label: 'Reverb', data: { mix: 0.6, duration: 5 }, position: { x: 550, y: 100 } },
-                            { id: '5', label: 'Master', data: { gain: 0.4 }, position: { x: 800, y: 100 } }
-                        ],
-                        connections: [
-                            { id: 'c1', source: '1', sourceOutput: 'audio', target: '2', targetInput: 'audio' },
-                            { id: 'c2', source: '3', sourceOutput: 'cv', target: '2', targetInput: 'freq' },
-                            { id: 'c3', source: '2', sourceOutput: 'audio', target: '4', targetInput: 'audio' },
-                            { id: 'c4', source: '4', sourceOutput: 'audio', target: '5', targetInput: 'audio' }
-                        ]
-                    };
-                },
-                granularClouds: () => {
-                    return {
-                        nodes: [
-                            { id: '1', label: 'Tone Generator', data: { waveform: 'sine', frequency: 220 }, position: { x: 50, y: 100 } },
-                            { id: '2', label: 'Granular Synthesizer', data: { grainSize: 0.2, grainDensity: 40, pitchShift: 0 }, position: { x: 300, y: 100 } },
-                            { id: '3', label: 'LFO', data: { frequency: 0.1, amount: 0.3, waveform: 'triangle' }, position: { x: 50, y: 400 } },
-                            { id: '4', label: 'Delay', data: { delayTime: 0.4, feedback: 0.6 }, position: { x: 550, y: 100 } },
-                            { id: '5', label: 'Reverb', data: { mix: 0.5, duration: 3 }, position: { x: 800, y: 100 } },
-                            { id: '6', label: 'Master', data: { gain: 0.3 }, position: { x: 1050, y: 100 } }
-                        ],
-                        connections: [
-                            { id: 'c1', source: '1', sourceOutput: 'audio', target: '2', targetInput: 'audio' },
-                            { id: 'c2', source: '3', sourceOutput: 'cv', target: '2', targetInput: 'grainSizeCV' },
-                            { id: 'c3', source: '2', sourceOutput: 'audio', target: '4', targetInput: 'audio' },
-                            { id: 'c4', source: '4', sourceOutput: 'audio', target: '5', targetInput: 'audio' },
-                            { id: 'c5', source: '5', sourceOutput: 'audio', target: '6', targetInput: 'audio' }
-                        ]
-                    };
-                },
-                deepSpace: () => {
-                    return {
-                        nodes: [
-                            { id: '1', label: 'Chord Generator', data: { chordType: 'Minor 9th', rootNote: 'C2', waveform: 'sawtooth' }, position: { x: 50, y: 100 } },
-                            { id: '2', label: 'VCA', data: { gain: 1 }, position: { x: 300, y: 100 } },
-                            { id: '3', label: 'Filter', data: { frequency: 300, q: 4, filterType: 'lowpass' }, position: { x: 550, y: 100 } },
-                            { id: '4', label: 'LFO', data: { frequency: 0.03, amount: 0.5, waveform: 'sine' }, position: { x: 50, y: 400 } },
-                            { id: '5', label: 'LFO', data: { frequency: 0.07, amount: 500, waveform: 'sine' }, position: { x: 300, y: 400 } },
-                            { id: '6', label: 'Reverb', data: { mix: 0.8, duration: 8 }, position: { x: 800, y: 100 } },
-                            { id: '7', label: 'Master', data: { gain: 0.3 }, position: { x: 1050, y: 100 } }
-                        ],
-                        connections: [
-                            { id: 'c1', source: '1', sourceOutput: 'audio', target: '2', targetInput: 'audio' },
-                            { id: 'c2', source: '4', sourceOutput: 'cv', target: '2', targetInput: 'gain_cv' },
-                            { id: 'c3', source: '2', sourceOutput: 'audio', target: '3', targetInput: 'audio' },
-                            { id: 'c4', source: '5', sourceOutput: 'cv', target: '3', targetInput: 'freq' },
-                            { id: 'c5', source: '3', sourceOutput: 'audio', target: '6', targetInput: 'audio' },
-                            { id: 'c6', source: '6', sourceOutput: 'audio', target: '7', targetInput: 'audio' }
-                        ]
-                    };
                 }
             },
 
@@ -1493,7 +1575,7 @@ workspace_data: ${base64Data}
                 }
                 return connectionStrategies['default'];
             }
-            
+
             // 1. Disconnect everything to rebuild connections from scratch.
             reteAudioNodes.forEach(audioNode => {
                 try {
@@ -1556,7 +1638,7 @@ workspace_data: ${base64Data}
             }
         }
 
-        
+
         class MidiConnectionStrategy extends ConnectionStrategy {
             connect(sourceReteNode, targetReteNode) {
                 const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
@@ -1603,11 +1685,15 @@ workspace_data: ${base64Data}
 
                 const sourceToConnect = sourceAudioNode.mainOutput || sourceAudioNode;
 
-                // Check for specifically named inputs (e.g., carrierInput, in1Input)
-                const namedInput = targetAudioNode[targetInputKey + 'Input'];
-                if (namedInput) {
-                    sourceToConnect.connect(namedInput);
-                    return;
+                // Specific handling for Vocoder inputs
+                if (targetReteNode.label === 'Vocoder') {
+                    if (targetInputKey === 'carrier') {
+                        sourceToConnect.connect(targetAudioNode.carrierInput);
+                        return;
+                    } else if (targetInputKey === 'modulator') {
+                        sourceToConnect.connect(targetAudioNode.modulatorInput);
+                        return;
+                    }
                 }
 
                 if (targetInputKey === 'clock' && typeof targetAudioNode.onTick === 'function') {
@@ -1672,12 +1758,15 @@ workspace_data: ${base64Data}
                 }
 
                 const sourceToDisconnect = sourceAudioNode.mainOutput || sourceAudioNode;
-
-                // Check for specifically named inputs
-                const namedInput = targetAudioNode[targetInputKey + 'Input'];
-                if (namedInput) {
-                    sourceToDisconnect.disconnect(namedInput);
-                    return;
+                 // Specific handling for Vocoder inputs
+                if (targetReteNode.label === 'Vocoder') {
+                    if (targetInputKey === 'carrier') {
+                        sourceToDisconnect.disconnect(targetAudioNode.carrierInput);
+                        return;
+                    } else if (targetInputKey === 'modulator') {
+                        sourceToDisconnect.disconnect(targetAudioNode.modulatorInput);
+                        return;
+                    }
                 }
                 const key = `${sourceReteNode.id}-${targetReteNode.id}-${targetInputKey}`;
 
@@ -1754,8 +1843,6 @@ workspace_data: ${base64Data}
                 switch (targetInputKey) {
                     case 'freq':
                         return targetNode.frequency;
-                    case 'pan_cv':
-                        return targetNode.pan;
                     case 'q_cv':
                         return targetNode.Q;
                     case 'delay_cv':
@@ -2149,7 +2236,7 @@ workspace_data: ${base64Data}
                 return new MicrophoneInput(audioContext, this.id, this.data);
             }
         }
-        
+
         class ToneGeneratorNode extends WebAudioNode {
             constructor() {
                 super('Tone Generator');
@@ -2486,90 +2573,10 @@ workspace_data: ${base64Data}
             }
         }
 
-        class Mixer {
-            constructor(audioContext, reteNodeId, data) {
-                this.audioContext = audioContext;
-                this.reteNodeId = reteNodeId;
-                this.data = data;
-
-                this.mainOutput = this.audioContext.createGain();
-
-                this.in1Input = this.audioContext.createGain();
-                this.in2Input = this.audioContext.createGain();
-                this.in3Input = this.audioContext.createGain();
-                this.in4Input = this.audioContext.createGain();
-
-                this.in1Input.connect(this.mainOutput);
-                this.in2Input.connect(this.mainOutput);
-                this.in3Input.connect(this.mainOutput);
-                this.in4Input.connect(this.mainOutput);
-
-                this.updateParameter('gain1', this.data.gain1 !== undefined ? this.data.gain1 : 0.8);
-                this.updateParameter('gain2', this.data.gain2 !== undefined ? this.data.gain2 : 0.8);
-                this.updateParameter('gain3', this.data.gain3 !== undefined ? this.data.gain3 : 0.8);
-                this.updateParameter('gain4', this.data.gain4 !== undefined ? this.data.gain4 : 0.8);
-            }
-
-            updateParameter(paramName, value) {
-                this.data[paramName] = value;
-                if (paramName === 'gain1') this.in1Input.gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
-                if (paramName === 'gain2') this.in2Input.gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
-                if (paramName === 'gain3') this.in3Input.gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
-                if (paramName === 'gain4') this.in4Input.gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
-            }
-
-            start() {}
-            stop() {}
-        }
-
-        class MixerNode extends WebAudioNode {
-            constructor() {
-                super('Mixer');
-                this.addInput('in1', new Classic.Input(voltageSocket, 'In 1'));
-                this.addInput('in2', new Classic.Input(voltageSocket, 'In 2'));
-                this.addInput('in3', new Classic.Input(voltageSocket, 'In 3'));
-                this.addInput('in4', new Classic.Input(voltageSocket, 'In 4'));
-                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
-
-                this.data.gain1 = 0.8;
-                this.addControl('gain1', new SliderControl('gain1', 'Gain 1', 0, 1, 0.01, this.data.gain1, (val) => {
-                    this.data.gain1 = val;
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode) audioNode.updateParameter('gain1', val);
-                }));
-
-                this.data.gain2 = 0.8;
-                this.addControl('gain2', new SliderControl('gain2', 'Gain 2', 0, 1, 0.01, this.data.gain2, (val) => {
-                    this.data.gain2 = val;
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode) audioNode.updateParameter('gain2', val);
-                }));
-
-                this.data.gain3 = 0.8;
-                this.addControl('gain3', new SliderControl('gain3', 'Gain 3', 0, 1, 0.01, this.data.gain3, (val) => {
-                    this.data.gain3 = val;
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode) audioNode.updateParameter('gain3', val);
-                }));
-
-                this.data.gain4 = 0.8;
-                this.addControl('gain4', new SliderControl('gain4', 'Gain 4', 0, 1, 0.01, this.data.gain4, (val) => {
-                    this.data.gain4 = val;
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode) audioNode.updateParameter('gain4', val);
-                }));
-            }
-
-            build() {
-                return new Mixer(audioContext, this.id, this.data);
-            }
-        }
-
         class MasterGainOutputNode extends WebAudioNode {
             constructor() {
                 super('Master');
                 this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
-                this.addInput('gain_cv', new Classic.Input(voltageSocket, 'Gain CV'));
 
                 this.data.gain = 0.5;
                 this.addControl('gain', new SliderControl('gainSlider', 'Gain', 0, 1, 0.01, this.data.gain, (val) => {
@@ -2772,113 +2779,113 @@ workspace_data: ${base64Data}
                 }
 
                 // First, ensure the base set of notes is sorted in ascending order.
+                // This is crucial for 'Converge' and 'Diverge' to work correctly.
                 const sortedNotes = [...arpeggioNotes].sort((a, b) => a - b);
                 let patternResult = []; // This will hold the sequence of notes for the arpeggio
 
-                if (this.data.arpeggioPattern === 'Custom') {
-                    const indices = (this.data.pattern || '0 1 2 3').split(/\s+/).filter(s => s !== '');
-                    for (const idx of indices) {
-                        const i = parseInt(idx);
-                        if (!isNaN(i) && i >= 0 && i < sortedNotes.length) {
-                            patternResult.push(sortedNotes[i]);
+                switch (this.data.arpeggioPattern) {
+                    case 'Down':
+                        patternResult = [...sortedNotes].reverse();
+                        break;
+
+                    case 'Up-Down':
+                        // Plays notes up, then down without repeating the highest/lowest notes
+                        const reversedUpdown = [...sortedNotes].reverse();
+                        patternResult = sortedNotes.concat(reversedUpdown.slice(1, -1));
+                        break;
+
+                    case 'Down-Up':
+                        const reversedDownUp = [...sortedNotes].reverse();
+                        patternResult = reversedDownUp.concat(sortedNotes.slice(1, -1));
+                        break;
+
+                    case 'Converge':
+                        // Starts from the lowest and highest notes, moving towards the middle
+                        let lowIdxConverge = 0;
+                        let highIdxConverge = sortedNotes.length - 1;
+                        while (lowIdxConverge <= highIdxConverge) {
+                            if (lowIdxConverge === highIdxConverge) {
+                                patternResult.push(sortedNotes[lowIdxConverge]);
+                            } else {
+                                patternResult.push(sortedNotes[lowIdxConverge]);
+                                patternResult.push(sortedNotes[highIdxConverge]);
+                            }
+                            lowIdxConverge++;
+                            highIdxConverge--;
                         }
-                    }
-                } else {
-                    switch (this.data.arpeggioPattern) {
-                        case 'Down':
-                            patternResult = [...sortedNotes].reverse();
-                            break;
+                        break;
 
-                        case 'Up-Down':
-                            // Plays notes up, then down without repeating the highest/lowest notes
-                            const reversedUpdown = [...sortedNotes].reverse();
-                            patternResult = sortedNotes.concat(reversedUpdown.slice(1, -1));
-                            break;
+                    case 'Diverge':
+                        // Starts from the middle notes, moving outwards towards the lowest and highest
+                        const lenDiverge = sortedNotes.length;
+                        let midLowIdxDiverge = Math.floor((lenDiverge - 1) / 2);
+                        let midHighIdxDiverge = Math.ceil((lenDiverge - 1) / 2);
 
-                        case 'Down-Up':
-                            const reversedDownUp = [...sortedNotes].reverse();
-                            patternResult = reversedDownUp.concat(sortedNotes.slice(1, -1));
-                            break;
+                        // If odd number of notes, the single middle note plays first
+                        if (lenDiverge % 2 !== 0) {
+                            patternResult.push(sortedNotes[midLowIdxDiverge]);
+                            midLowIdxDiverge--;
+                            midHighIdxDiverge++;
+                        }
 
-                        case 'Converge':
-                            // Starts from the lowest and highest notes, moving towards the middle
-                            let lowIdxConverge = 0;
-                            let highIdxConverge = sortedNotes.length - 1;
-                            while (lowIdxConverge <= highIdxConverge) {
-                                if (lowIdxConverge === highIdxConverge) {
-                                    patternResult.push(sortedNotes[lowIdxConverge]);
-                                } else {
-                                    patternResult.push(sortedNotes[lowIdxConverge]);
-                                    patternResult.push(sortedNotes[highIdxConverge]);
-                                }
-                                lowIdxConverge++;
-                                highIdxConverge--;
-                            }
-                            break;
+                        // Now, add notes outwards from the middle
+                        while (midLowIdxDiverge >= 0 && midHighIdxDiverge < lenDiverge) {
+                            patternResult.push(sortedNotes[midLowIdxDiverge]);
+                            patternResult.push(sortedNotes[midHighIdxDiverge]);
+                            midLowIdxDiverge--;
+                            midHighIdxDiverge++;
+                        }
+                        break;
 
-                        case 'Diverge':
-                            // Starts from the middle notes, moving outwards towards the lowest and highest
-                            const lenDiverge = sortedNotes.length;
-                            let midLowIdxDiverge = Math.floor((lenDiverge - 1) / 2);
-                            let midHighIdxDiverge = Math.ceil((lenDiverge - 1) / 2);
+                    case 'Random':
+                        // Shuffles the notes into a random order
+                        patternResult = [...sortedNotes]; // Create a copy to shuffle
+                        for (let i = patternResult.length - 1; i > 0; i--) {
+                            const j = Math.floor(Math.random() * (i + 1));
+                            [patternResult[i], patternResult[j]] = [patternResult[j], patternResult[i]]; // Swap
+                        }
+                        break;
 
-                            // If odd number of notes, the single middle note plays first
-                            if (lenDiverge % 2 !== 0) {
-                                patternResult.push(sortedNotes[midLowIdxDiverge]);
-                                midLowIdxDiverge--;
-                                midHighIdxDiverge++;
-                            }
-
-                            // Now, add notes outwards from the middle
-                            while (midLowIdxDiverge >= 0 && midHighIdxDiverge < lenDiverge) {
-                                patternResult.push(sortedNotes[midLowIdxDiverge]);
-                                patternResult.push(sortedNotes[midHighIdxDiverge]);
-                                midLowIdxDiverge--;
-                                midHighIdxDiverge++;
-                            }
-                            break;
-
-                        case 'Alberti Bass':
-                            if (sortedNotes.length >= 3) {
-                                // 1-5-3-5 pattern from the chord's notes
-                                const root = sortedNotes[0];
-                                const third = sortedNotes[1];
-                                const fifth = sortedNotes[2];
-                                patternResult = [root, fifth, third, fifth];
-                            } else {
-                                // Fallback for chords with less than 3 notes
-                                patternResult = sortedNotes;
-                            }
-                            break;
-
-                        case 'Chord':
-                            // This will be a single step in the sequence, containing all notes
-                            patternResult = [sortedNotes];
-                            break;
-
-                        case 'Melodic':
-                            // A common "melodic" pattern is to go up, then come back down partway, or a zig-zag.
-                            // Here's one interpretation: Play ascending, then descend from the second highest note down to the lowest.
-                            if (sortedNotes.length === 0) {
-                                patternResult = [];
-                            } else if (sortedNotes.length === 1) {
-                                patternResult = [...sortedNotes];
-                            } else {
-                                // Ascending part
-                                patternResult = [...sortedNotes];
-
-                                // Descending part from the second highest note down to the lowest
-                                for (let i = sortedNotes.length - 2; i >= 0; i--) {
-                                    patternResult.push(sortedNotes[i]);
-                                }
-                            }
-                            // Example: [C, E, G, C'] -> [C, E, G, C', G, E, C]
-                            break;
-
-                        default: // 'Up' pattern
+                    case 'Alberti Bass':
+                        if (sortedNotes.length >= 3) {
+                            // 1-5-3-5 pattern from the chord's notes
+                            const root = sortedNotes[0];
+                            const third = sortedNotes[1];
+                            const fifth = sortedNotes[2];
+                            patternResult = [root, fifth, third, fifth];
+                        } else {
+                            // Fallback for chords with less than 3 notes
                             patternResult = sortedNotes;
-                            break;
-                    }
+                        }
+                        break;
+
+                    case 'Chord':
+                        // This will be a single step in the sequence, containing all notes
+                        patternResult = [sortedNotes];
+                        break;
+
+                    case 'Melodic':
+                        // A common "melodic" pattern is to go up, then come back down partway, or a zig-zag.
+                        // Here's one interpretation: Play ascending, then descend from the second highest note down to the lowest.
+                        if (sortedNotes.length === 0) {
+                            patternResult = [];
+                        } else if (sortedNotes.length === 1) {
+                            patternResult = [...sortedNotes];
+                        } else {
+                            // Ascending part
+                            patternResult = [...sortedNotes];
+
+                            // Descending part from the second highest note down to the lowest
+                            for (let i = sortedNotes.length - 2; i >= 0; i--) {
+                                patternResult.push(sortedNotes[i]);
+                            }
+                        }
+                        // Example: [C, E, G, C'] -> [C, E, G, C', G, E, C]
+                        break;
+
+                    default: // 'Up' pattern
+                        patternResult = sortedNotes;
+                        break;
                 }
 
                 return patternResult;
@@ -3002,7 +3009,7 @@ workspace_data: ${base64Data}
                 this.data.noteDuration = '1/16';
                 this.addControl('noteDuration', new SelectControl('arpNoteDuration', 'Note Duration', ['1', '1/2', '1/4', '1/8', '1/16', '1/32', '1/64', '1/128'], this.data.noteDuration, (val) => {
                     this.data.noteDuration = val;
-                    const audioNode = reteAudioNodes.get(this.id); 
+                    const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.updateParameter) audioNode.updateParameter('noteDuration', val);
                 }));
 
@@ -3023,24 +3030,10 @@ workspace_data: ${base64Data}
                 }));
 
                 this.data.arpeggioPattern = 'Up';
-                this.addControl('arpeggioPattern', new SelectControl('arpPattern', 'Pattern', ['Up', 'Down', 'Up-Down', 'Down-Up', 'Converge', 'Diverge', 'Alberti Bass', 'Chord', 'Melodic', 'Custom'], this.data.arpeggioPattern, (val) => {
+                this.addControl('arpeggioPattern', new SelectControl('arpPattern', 'Pattern', ['Up', 'Down', 'Up-Down', 'Down-Up', 'Converge', 'Diverge', 'Random', 'Alberti Bass', 'Chord', 'Melodic'], this.data.arpeggioPattern, (val) => {
                     this.data.arpeggioPattern = val;
-                    this.controls.pattern.hidden = (val !== 'Custom');
-                    area.update('node', this.id);
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.updateParameter) audioNode.updateParameter('arpeggioPattern', val);
-                }));
-
-                this.data.pattern = '0 1 2 3';
-                this.addControl('pattern', new TextControl('arpPatternText', 'Pattern Indices', this.data.pattern, (val) => {
-                    this.data.pattern = val;
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('pattern', val);
-                }));
-                this.controls.pattern.hidden = (this.data.arpeggioPattern !== 'Custom');
-
-                this.addControl('randomize', new ButtonControl('randomizeArp', '🎲', () => {
-                    this.randomize();
                 }));
 
                 this.data.octaveRange = 1;
@@ -3095,34 +3088,6 @@ workspace_data: ${base64Data}
                 this.controls.release.hidden = true;
             }
 
-            onDataLoaded() {
-                this.controls.pattern.hidden = (this.data.arpeggioPattern !== 'Custom');
-                const show = !!this.data.showEnvelope;
-                this.controls.attack.hidden = !show;
-                this.controls.decay.hidden = !show;
-                this.controls.sustain.hidden = !show;
-                this.controls.release.hidden = !show;
-            }
-
-            randomize() {
-                const audioNode = reteAudioNodes.get(this.id);
-                if (audioNode) {
-                    const chordOffsets = CHORD_TYPES[this.data.chordType] || CHORD_TYPES['Major Triad'];
-                    const octaveRange = this.data.octaveRange || 1;
-                    const numNotes = chordOffsets.length * octaveRange;
-
-                    let indices = [];
-                    for (let i = 0; i < 16; i++) {
-                        indices.push(Math.floor(Math.random() * numNotes));
-                    }
-                    const newPattern = indices.join(' ');
-                    this.controls.pattern.value = newPattern;
-                    this.data.pattern = newPattern;
-                    audioNode.updateParameter('pattern', newPattern);
-                    area.update('node', this.id);
-                }
-            }
-
             build() {
                 return new Arpeggiator(audioContext, this.id, this.data);
             }
@@ -3161,7 +3126,7 @@ workspace_data: ${base64Data}
 
                 // Note map for drum sounds
                 const drumNoteMap = { 'k': 60, 's': 62, 'h': 64 }; // Using midi numbers as placeholders
-                this.parser = new MiniNotationParser(drumNoteMap);
+                this.parser = new MiniNotationParser({ 'noteMap': drumNoteMap });
                 this.sequenceEvents = this.parseSequence();
             }
 
@@ -3351,7 +3316,7 @@ workspace_data: ${base64Data}
                 clearTimeout(this.timeoutId);
                 this.timeoutId = null;
                 this.started = false;
-            }            
+            }
 
             updateParameter(param, value) {
                 this.data[param] = value;
@@ -3365,33 +3330,25 @@ workspace_data: ${base64Data}
                 const steps = 16;
                 let sequence = new Array(steps).fill('~');
 
-                // Kick: 4-on-the-floor
+                // Four on the floor kick
                 for (let i = 0; i < steps; i += 4) {
                     sequence[i] = 'k';
                 }
 
-                // Snare: steps 4 and 12
-                if (sequence[4] === '~') sequence[4] = 's';
-                else sequence[4] = '[' + sequence[4] + ' s]';
+                // Snare on 2 and 4
+                sequence[4] = 's';
+                sequence[12] = 's';
 
-                if (sequence[12] === '~') sequence[12] = 's';
-                else sequence[12] = '[' + sequence[12] + ' s]';
-
-                // Random Hi-hats and occasional extra kicks/snares
+                // Hi-hats
                 for (let i = 0; i < steps; i++) {
-                    if (Math.random() < 0.5) { // 50% chance for hi-hats
+                    if (Math.random() < 0.7) { // 70% chance of a hi-hat
                         if (sequence[i] === '~') {
                             sequence[i] = 'h';
-                        } else {
-                            sequence[i] = '[' + sequence[i] + ' h]';
                         }
-                    }
-                    if (Math.random() < 0.1 && sequence[i] === '~') {
-                        sequence[i] = Math.random() < 0.5 ? 'k' : 's';
                     }
                 }
                 return sequence.join(' ');
-            }            
+            }
         }
 
 
@@ -3605,17 +3562,11 @@ workspace_data: ${base64Data}
             }
 
             generateRandomSequence() {
-                const randomizeMode = this.data.randomizeMode || 'Chord';
                 const chordType = this.data.chordType || 'Major Triad';
-                const scaleType = this.data.scaleType || 'Major (Ionian)';
                 const rootNote = this.data.rootNote || 'C4';
                 const octaveRange = this.data.octaveRange !== undefined ? this.data.octaveRange : 0;
-                const pattern = this.data.arpeggioPattern || 'Random';
 
-                const intervals = randomizeMode === 'Chord'
-                    ? (CHORD_TYPES[chordType] || CHORD_TYPES['Major Triad'])
-                    : (SCALE_TYPES[scaleType] || SCALE_TYPES['Major (Ionian)']);
-
+                const chordIntervals = CHORD_TYPES[chordType] || CHORD_TYPES['Major Triad'];
                 const rootMidi = ROOT_NOTES[rootNote] || ROOT_NOTES['C4'];
 
                 // Reverse map for MIDI to Note Name
@@ -3624,43 +3575,30 @@ workspace_data: ${base64Data}
                     midiToNoteName[midi] = name;
                 }
 
-                let allNotesMidi = [];
-                for (let oct = 0; oct <= octaveRange; oct++) {
+                let possibleNotes = [];
+                for (let oct = -octaveRange; oct <= octaveRange; oct++) {
                     const offset = oct * 12;
-                    intervals.forEach(interval => {
+                    chordIntervals.forEach(interval => {
                         const midi = rootMidi + interval + offset;
-                        allNotesMidi.push(midi);
+                        if (midiToNoteName[midi]) {
+                            possibleNotes.push(midiToNoteName[midi]);
+                        }
                     });
                 }
-                allNotesMidi.sort((a, b) => a - b);
 
-                let selectedNotesMidi = [];
-                switch (pattern) {
-                    case 'Down':
-                        selectedNotesMidi = [...allNotesMidi].reverse();
-                        break;
-                    case 'Up-Down':
-                        selectedNotesMidi = allNotesMidi.concat([...allNotesMidi].reverse().slice(1, -1));
-                        break;
-                    case 'Down-Up':
-                        selectedNotesMidi = [...allNotesMidi].reverse().concat(allNotesMidi.slice(1, -1));
-                        break;
-                    case 'Random':
-                        selectedNotesMidi = [];
-                        for (let i = 0; i < 16; i++) {
-                            if (Math.random() < 0.2) {
-                                selectedNotesMidi.push(null); // represent rest
-                            } else {
-                                selectedNotesMidi.push(allNotesMidi[Math.floor(Math.random() * allNotesMidi.length)]);
-                            }
-                        }
-                        break;
-                    default: // 'Up'
-                        selectedNotesMidi = allNotesMidi;
-                        break;
+                if (possibleNotes.length === 0) possibleNotes = ['C4'];
+
+                let sequence = [];
+                for (let i = 0; i < 16; i++) {
+                    const isRest = Math.random() < 0.25; // 25% chance of a rest
+                    if (isRest) {
+                        sequence.push('~');
+                    } else {
+                        const note = possibleNotes[Math.floor(Math.random() * possibleNotes.length)];
+                        sequence.push(note);
+                    }
                 }
-
-                return selectedNotesMidi.map(midi => (midi === null || !midiToNoteName[midi]) ? '~' : midiToNoteName[midi]).join(' ');
+                return sequence.join(' ');
             }
         }
 
@@ -3694,69 +3632,27 @@ workspace_data: ${base64Data}
                 }));
 
                 // Randomization settings
-                this.data.showRandomSettings = false;
-                this.addControl('randomSettingsToggle', new ButtonControl('randSettingsBtn', 'Randomize Settings', () => {
-                    this.data.showRandomSettings = !this.data.showRandomSettings;
-                    const show = this.data.showRandomSettings;
-                    this.controls.randomizeMode.hidden = !show;
-                    this.controls.chordType.hidden = !show || (this.data.randomizeMode === 'Scale');
-                    this.controls.scaleType.hidden = !show || (this.data.randomizeMode === 'Chord');
-                    this.controls.rootNote.hidden = !show;
-                    this.controls.octaveRange.hidden = !show;
-                    this.controls.arpeggioPattern.hidden = !show;
-                    this.controls.randomize.hidden = !show;
-                    area.update('node', this.id);
-                }));
-
-                this.data.randomizeMode = this.data.randomizeMode || 'Chord';
-                this.addControl('randomizeMode', new SelectControl('randModeSelect', 'Random Mode', ['Chord', 'Scale'], this.data.randomizeMode, (val) => {
-                    this.data.randomizeMode = val;
-                    this.controls.chordType.hidden = (val === 'Scale');
-                    this.controls.scaleType.hidden = (val === 'Chord');
-                    area.update('node', this.id);
-                    this.randomize();
-                }));
-                this.controls.randomizeMode.hidden = true;
-
                 this.data.chordType = this.data.chordType || 'Major Triad';
                 this.addControl('chordType', new SelectControl('chordTypeSelect', 'Chord Type', Object.keys(CHORD_TYPES), this.data.chordType, (val) => {
                     this.data.chordType = val;
                     this.randomize();
                 }));
-                this.controls.chordType.hidden = true;
-
-                this.data.scaleType = this.data.scaleType || 'Major (Ionian)';
-                this.addControl('scaleType', new SelectControl('scaleTypeSelect', 'Scale Type', Object.keys(SCALE_TYPES), this.data.scaleType, (val) => {
-                    this.data.scaleType = val;
-                    this.randomize();
-                }));
-                this.controls.scaleType.hidden = true;
 
                 this.data.rootNote = this.data.rootNote || 'C4';
                 this.addControl('rootNote', new SelectControl('rootNoteSelect', 'Root Note', Object.keys(ROOT_NOTES), this.data.rootNote, (val) => {
                     this.data.rootNote = val;
                     this.randomize();
                 }));
-                this.controls.rootNote.hidden = true;
 
                 this.data.octaveRange = this.data.octaveRange || 0;
                 this.addControl('octaveRange', new SliderControl('octaveRangeSlider', 'Octave Spread', 0, 3, 1, this.data.octaveRange, (val) => {
                     this.data.octaveRange = val;
                     this.randomize();
                 }));
-                this.controls.octaveRange.hidden = true;
-
-                this.data.arpeggioPattern = this.data.arpeggioPattern || 'Random';
-                this.addControl('arpeggioPattern', new SelectControl('arpPattern', 'Gen Pattern', ['Up', 'Down', 'Up-Down', 'Down-Up', 'Random'], this.data.arpeggioPattern, (val) => {
-                    this.data.arpeggioPattern = val;
-                    this.randomize();
-                }));
-                this.controls.arpeggioPattern.hidden = true;
 
                 this.addControl('randomize', new ButtonControl('randomizeSeq', '🎲', () => {
                     this.randomize();
                 }));
-                this.controls.randomize.hidden = true;
 
                 this.data.waveform = 'sine';
                 this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveform, (val) => {
@@ -4063,30 +3959,6 @@ workspace_data: ${base64Data}
 
         // --- New Effects Nodes ---
 
-        class StereoPannerNode extends WebAudioNode {
-            constructor() {
-                super('Stereo Panner');
-                this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
-                this.addInput('pan_cv', new Classic.Input(voltageSocket, 'Pan CV'));
-                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
-
-                this.data.pan = 0;
-                this.addControl('pan', new SliderControl('panSlider', 'Pan', -1, 1, 0.01, this.data.pan, (val) => {
-                    this.data.pan = val;
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode && audioNode.pan) {
-                        audioNode.pan.setTargetAtTime(val, audioContext.currentTime, 0.01);
-                    }
-                }));
-            }
-
-            build() {
-                const audioNode = audioContext.createStereoPanner();
-                audioNode.pan.value = this.data.pan !== undefined ? this.data.pan : 0;
-                return audioNode;
-            }
-        }
-
         class DistortionNode extends WebAudioNode {
             constructor() {
                 super('Distortion');
@@ -4197,7 +4069,7 @@ workspace_data: ${base64Data}
                 super('Reverb');
                 this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
-                
+
                 this.data.duration = 2;
                 this.addControl('duration', new SliderControl('reverbDuration', 'Duration (s)', 0.1, 10, 0.1, this.data.duration, (val) => {
                     this.data.duration = val;
@@ -4206,7 +4078,7 @@ workspace_data: ${base64Data}
                         audioNode.convolver.buffer = generateImpulseResponse(audioContext, this.data.duration, this.data.decay);
                     }
                 }));
-                
+
                 this.data.decay = 2;
                 this.addControl('decay', new SliderControl('reverbDecay', 'Decay', 0.1, 10, 0.1, this.data.decay, (val) => {
                     this.data.decay = val;
@@ -4215,7 +4087,7 @@ workspace_data: ${base64Data}
                         audioNode.convolver.buffer = generateImpulseResponse(audioContext, this.data.duration, this.data.decay);
                     }
                 }));
-                
+
                 this.data.mix = 0.5;
                 this.addControl('mix', new SliderControl('reverbMix', 'Mix', 0, 1, 0.01, this.data.mix, (val) => {
                     this.data.mix = val;
@@ -4264,7 +4136,7 @@ workspace_data: ${base64Data}
                 mainInput.disconnect = function(destination) {
                     this.mainOutput.disconnect(destination);
                 };
-                
+
                 return mainInput;
             }
         }
@@ -4312,7 +4184,7 @@ workspace_data: ${base64Data}
                     this.oscillator.connect(this.mainOutput);
                     this.oscillator.type = this.data.waveform;
                     this.oscillator.frequency.value = this.data.frequency;
-                    
+
                     this.started = false;
                     console.log(`LFO ${this.reteNodeId} stopped.`);
                 } catch (e) {
@@ -4799,6 +4671,117 @@ workspace_data: ${base64Data}
             }
         }
 
+        class ScaleArpeggiatorNode extends WebAudioNode {
+            constructor() {
+                super('Scale Arpeggiator');
+                this.addInput('clock', new Classic.Input(voltageSocket, 'Clock In'));
+                this.addInput('transpose_cv', new Classic.Input(voltageSocket, 'Transpose CV'));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio'));
+                this.addOutput('midi', new Classic.Output(midiSocket, 'MIDI Out'));
+
+                this.data.bpm = 120;
+                this.addControl('bpm', new SliderControl('arpBpm', 'BPM', 60, 240, 1, this.data.bpm, (val) => {
+                    this.data.bpm = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('bpm', val);
+                }));
+
+                this.data.noteDuration = '1/16';
+                this.addControl('noteDuration', new SelectControl('arpNoteDuration', 'Note Duration', ['1', '1/2', '1/4', '1/8', '1/16', '1/32', '1/64', '1/128'], this.data.noteDuration, (val) => {
+                    this.data.noteDuration = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('noteDuration', val);
+                }));
+
+                this.data.scaleType = 'Major (Ionian)';
+                this.addControl('scaleType', new SelectControl('arpScaleType', 'Scale Type', Object.keys(SCALE_TYPES), this.data.scaleType, (val) => {
+                    this.data.scaleType = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('scaleType', val);
+                }));
+
+                this.data.rootNote = 'C4';
+                const rootNoteOptions = Object.keys(ROOT_NOTES);
+                this.addControl('rootNote', new SelectControl('arpRootNote', 'Root Note', rootNoteOptions, this.data.rootNote, (val) => {
+                    this.data.rootNote = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('rootNote', val);
+                }));
+
+                this.data.arpeggioPattern = 'Up';
+                this.addControl('arpeggioPattern', new SelectControl('arpPattern', 'Pattern', ['Up', 'Down', 'Up-Down', 'Down-Up', 'Random'], this.data.arpeggioPattern, (val) => {
+                    this.data.arpeggioPattern = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('arpeggioPattern', val);
+                }));
+
+                this.data.octaveRange = 1;
+                this.addControl('octaveRange', new SliderControl('arpOctaveRange', 'Octaves', 1, 5, 1, this.data.octaveRange, (val) => {
+                    this.data.octaveRange = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('octaveRange', val);
+                }));
+
+                this.data.waveform = 'sine';
+                this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveform, (val) => {
+                    this.data.waveform = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('waveform', val);
+                }));
+
+                // ADSR Controls
+                this.data.showEnvelope = false;
+                this.data.attack = 0.01;
+                this.data.decay = 0.1;
+                this.data.sustain = 0.5;
+                this.data.release = 0.1;
+
+                this.addControl('envelopeToggle', new ButtonControl('envelopeToggle', 'Envelope', () => {
+                    this.data.showEnvelope = !this.data.showEnvelope;
+                    this.controls.attack.hidden = !this.data.showEnvelope;
+                    this.controls.decay.hidden = !this.data.showEnvelope;
+                    this.controls.sustain.hidden = !this.data.showEnvelope;
+                    this.controls.release.hidden = !this.data.showEnvelope;
+                    area.update('node', this.id);
+                }));
+
+                this.addControl('attack', new SliderControl('scaleArpAttack', 'Attack (s)', 0.01, 2, 0.01, this.data.attack, (val) => {
+                    this.data.attack = val;
+                }));
+                this.controls.attack.hidden = true;
+
+                this.addControl('decay', new SliderControl('scaleArpDecay', 'Decay (s)', 0.01, 2, 0.01, this.data.decay, (val) => {
+                    this.data.decay = val;
+                }));
+                this.controls.decay.hidden = true;
+
+                this.addControl('sustain', new SliderControl('scaleArpSustain', 'Sustain', 0, 1, 0.01, this.data.sustain, (val) => {
+                    this.data.sustain = val;
+                }));
+                this.controls.sustain.hidden = true;
+
+                this.addControl('release', new SliderControl('scaleArpRelease', 'Release (s)', 0.01, 5, 0.01, this.data.release, (val) => {
+                    this.data.release = val;
+                }));
+                this.controls.release.hidden = true;
+            }
+
+            build() {
+                return new ScaleArpeggiator(audioContext, this.id, this.data);
+            }
+
+            start() {
+                const audioNode = reteAudioNodes.get(this.id);
+                if (audioNode && audioNode.start && !audioNode.started) {
+                    try {
+                        audioNode.start();
+                        audioNode.started = true;
+                    } catch (e) {
+                        console.warn(`Could not start ${this.label} for node ${this.id}:`, e);
+                    }
+                }
+            }
+        }
 
         class Vocoder {
             constructor(audioContext, reteNodeId, data) {
@@ -5232,7 +5215,7 @@ workspace_data: ${base64Data}
                 */
 
 
-                
+
                 // Prevent dragging when clicking on sockets
                 const sockets = this.el.querySelectorAll('.socket');
                 sockets.forEach(socket => {
@@ -5248,7 +5231,7 @@ workspace_data: ${base64Data}
                         e.stopPropagation();
                     });
                 });
-                
+
 
             }
 
@@ -5327,14 +5310,6 @@ workspace_data: ${base64Data}
         });
 
         // New Effects Node Buttons
-        addStereoPannerNodeBtn.addEventListener('click', async () => {
-            const node = new StereoPannerNode();
-            const existingNodesCount = editor.getNodes().length;
-            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
-            await editor.addNode(node);
-            clearEditorBtn.disabled = false;
-        });
-
         addDistortionNodeBtn.addEventListener('click', async () => {
             const node = new DistortionNode();
             const existingNodesCount = editor.getNodes().length;
@@ -5368,6 +5343,14 @@ workspace_data: ${base64Data}
             clearEditorBtn.disabled = false;
         });
 
+        addScaleArpeggiatorNodeBtn.addEventListener('click', async () => {
+            const node = new ScaleArpeggiatorNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false;
+        });
+
         addLFONodeBtn.addEventListener('click', async () => {
             await editor.addNode(new LFONode());
             clearEditorBtn.disabled = false;
@@ -5392,7 +5375,7 @@ workspace_data: ${base64Data}
             await editor.addNode(new AttenuverterNode());
             clearEditorBtn.disabled = false;
         });
-          
+
         addMasterClockNodeBtn.addEventListener('click', async () => {
             await editor.addNode(new MasterClockNode());
             clearEditorBtn.disabled = false;
@@ -5428,39 +5411,7 @@ workspace_data: ${base64Data}
             clearEditorBtn.disabled = false;
         });
 
-        addMixerNodeBtn.addEventListener('click', async () => {
-            await editor.addNode(new MixerNode());
-            clearEditorBtn.disabled = false;
-        });
-
         // Initialize editor on window load
-        NodeRegistry.register('Tone Generator', ToneGeneratorNode);
-        NodeRegistry.register('Noise Generator', NoiseGeneratorNode);
-        NodeRegistry.register('Wave Player', WavePlayerNode);
-        NodeRegistry.register('Chord Generator', ChordGeneratorNode);
-        NodeRegistry.register('VCA', VCANode);
-        NodeRegistry.register('Master', MasterGainOutputNode);
-        NodeRegistry.register('Filter', FilterNode);
-        NodeRegistry.register('Delay', DelayNode);
-        NodeRegistry.register('Distortion', DistortionNode);
-        NodeRegistry.register('Compressor', CompressorNode);
-        NodeRegistry.register('Reverb', ReverbNode);
-        NodeRegistry.register('Arpeggiator', ArpeggiatorNode);
-        NodeRegistry.register('LFO', LFONode);
-        NodeRegistry.register('ADSR Envelope', ADSREnvelopeNode);
-        NodeRegistry.register('Bitcrusher', BitcrusherNode);
-        NodeRegistry.register('Sequencer', SequencerNode);
-        NodeRegistry.register('Attenuverter', AttenuverterNode);
-        NodeRegistry.register('Master Clock', MasterClockNode);
-        NodeRegistry.register('Vocoder', VocoderNode);
-        NodeRegistry.register('🎤 Mic Input', MicrophoneInputNode);
-        NodeRegistry.register('Granular Synthesizer', GranularSynthesizerNode);
-        NodeRegistry.register('Manual Gate', ManualGateNode);
-        NodeRegistry.register('Quantizer', QuantizerNode);
-        NodeRegistry.register('Drum Machine', DrumMachineNode);
-        NodeRegistry.register('Mixer', MixerNode);
-        NodeRegistry.register('Stereo Panner', StereoPannerNode);
-
         window.onload = async () => {
 
 
@@ -5474,7 +5425,7 @@ workspace_data: ${base64Data}
             // NodeEditor is correctly destructured from window.Rete
             editor = new NodeEditor(schemes);
             // DataflowEngine is correctly destructured from window.ReteEngine
-            engine = new DataflowEngine(schemes); 
+            engine = new DataflowEngine(schemes);
 
             // Rete.js v2: AreaPlugin is instantiated and then other plugins are added to it
             area = new AreaPlugin(reteContainer);
@@ -5491,46 +5442,46 @@ workspace_data: ${base64Data}
 
             // --- Multiplayer Logic ---
             multiplayer = new Multiplayer();
-            multiplayer.initialize();            
+            multiplayer.initialize();
 
             multiplayer.on('peer-id-ready', (id) => {
                 document.getElementById('peerIdDisplay').textContent = id;
             });
-            
+
             multiplayer.on('data-received', async (data) => {
                 _isLocalChange = false;
                 await editorFromJSON(data);
                 _isLocalChange = true;
                 autoSave();
             });
-    
+
             multiplayer.on('connections-updated', (connections) => {
                 const usersList = document.getElementById('connectedUsersList');
                 usersList.innerHTML = ''; // Clear the list
-    
+
                 // Add the current user (self)
                 const selfLi = document.createElement('li');
                 selfLi.textContent = `${multiplayer.getPeerId()} (You)`;
                 selfLi.classList.add('font-semibold');
                 usersList.appendChild(selfLi);
-    
+
                 // Add other connected peers
                 connections.forEach(conn => {
                     const userLi = document.createElement('li');
                     userLi.textContent = conn.peer;
                     usersList.appendChild(userLi);
                 });
-    
+
                 // Show disconnect button when connected to a session
                 if (multiplayer.isConnected()) {
                     document.getElementById('createSessionBtn').classList.add('hidden');
                     document.getElementById('disconnectBtn').classList.remove('hidden');
                 }
-            });               
+            });
 
             const connection = new ConnectionPlugin();
             // Corrected: ContextMenuPlugin is instantiated with the editor instance, and then its preset is added
-            //const contextMenu = new ContextMenuPlugin(editor); 
+            //const contextMenu = new ContextMenuPlugin(editor);
 
             const reactRender = new ReactRenderPlugin({ createRoot });
 
@@ -5548,6 +5499,7 @@ workspace_data: ${base64Data}
                     ['Compressor', () => new CompressorNode()],   // New Context Menu Item
                     ['Reverb', () => new ReverbNode()],            // New Context Menu Item
                     ['Arpeggiator', () => new ArpeggiatorNode()], // Add Arpeggiator to context menu
+                    ['Scale Arpeggiator', () => new ScaleArpeggiatorNode()],
                     ['LFO', () => new LFONode()], // New: LFO
                     ['ADSR Envelope', () => new ADSREnvelopeNode()], // New: ADSR
                     ['Bitcrusher', () => new BitcrusherNode()], // New: Bitcrusher
@@ -5556,14 +5508,13 @@ workspace_data: ${base64Data}
                     ['Master Clock', () => new MasterClockNode()],
                     ['Vocoder', () => new VocoderNode()],
                     ['Granular Synthesizer', () => new GranularSynthesizerNode()],
-                    ['Mixer', () => new MixerNode()],
 
                 ])
             });
-            
+
             // Rete.js v2: Add presets to connection and contextMenu plugins
             connection.addPreset(ConnectionPresets.classic.setup());
-            
+
             // Corrected: ContextMenuPresets.classic.setup expects an object with an 'items' property.
             /*contextMenu.addPreset(ContextMenuPresets.classic.setup({
                 items: [
@@ -5573,7 +5524,7 @@ workspace_data: ${base64Data}
                 ]
             }));*/
 
-            // Rete.js v2: Register plugins with the AreaPlugin          
+            // Rete.js v2: Register plugins with the AreaPlugin
             editor.use(area);
 
             area.use(connection);
@@ -5597,7 +5548,7 @@ workspace_data: ${base64Data}
                     const workspaceData = editorToJSON();
                     multiplayer.broadcast(workspaceData);
                     autoSave();
-                }                
+                }
                 if (context.type === 'rendered' && context.data.type === 'node') {
                     // Add a data-node-id attribute to the node's root element for easier DOM selection
                     context.data.element.setAttribute('data-node-id', context.data.payload.id);
@@ -5758,8 +5709,8 @@ workspace_data: ${base64Data}
                 } else if (context.type === 'nodeeditorrendered') {
                      // This event fires after the initial editor rendering
                     AreaExtensions.zoomAt(area, editor.getNodes());
-                }      
-                       
+                }
+
                 return context;
             });
 
@@ -5886,7 +5837,6 @@ workspace_data: ${base64Data}
 
             playStopBtn.addEventListener('click', async () => {
                 if (audioState === 'stopped') {
-                    glitchSeed = Math.random();
                     await startAudio(); // This is async, so we await its completion
                     audioState = 'playing';
                     playStopBtn.textContent = '⏹️';
@@ -5913,11 +5863,11 @@ workspace_data: ${base64Data}
                     // --- Start Recording ---
                     if (mediaStreamDestination) {
 
-                        // Ensure the visualizer is active before recording
-                        if (!visualizerView.classList.contains('active')) {
+                        // Ensure the visualizer is visible before recording
+                        if (visualizerView.classList.contains('hidden')) {
                             visualizerTab.click();
                         }
-                        
+
                         const videoStream = visualizerCanvas.captureStream(30); // 30 FPS
                         const audioStream = mediaStreamDestination.stream;
                         const combinedStream = new MediaStream([
@@ -5983,7 +5933,7 @@ workspace_data: ${base64Data}
                     const touchEndTime = new Date().getTime();
                     const touchEndX = e.changedTouches[0] ? e.changedTouches[0].screenX : touchStartCoords.x;
                     const touchEndY = e.changedTouches[0] ? e.changedTouches[0].screenY : touchStartCoords.y;
-                    
+
                     const duration = touchEndTime - touchStartTime;
                     const distance = Math.sqrt(Math.pow(touchEndX - touchStartCoords.x, 2) + Math.pow(touchEndY - touchStartCoords.y, 2));
 
@@ -5993,7 +5943,7 @@ workspace_data: ${base64Data}
                     }
                 }
             }, { passive: false });
-            
+
             // --- Initial State ---
             clearEditorBtn.disabled = false; // Initially enabled to allow clearing default workspace
 
@@ -6009,18 +5959,18 @@ workspace_data: ${base64Data}
                 await audioContext.audioWorklet.addModule('{{ "assets/js/audio-worklets/granular-processor.js" | relative_url }}');
                 await audioContext.audioWorklet.addModule('{{ "assets/js/audio-worklets/vocoder-processor.js" | relative_url }}');
                 await audioContext.audioWorklet.addModule('{{ "assets/js/audio-worklets/quantizer-processor.js" | relative_url }}');
-                
+
                 const urlParams = new URLSearchParams(window.location.search);
                 const sessionId = urlParams.get('session');
 
                 let workspaceData = {};
-                
+
                 if (sessionId) {
                     multiplayer.connectTo(sessionId);
                 } else {
-                
+
                     workspaceData = RandomWorkspaceGenerator.generate();
-                
+
                     {% if page.workspace_data %}
                     try {
                         workspaceData = JSON.parse(atob('{{ page.workspace_data }}'));
@@ -6035,13 +5985,13 @@ workspace_data: ${base64Data}
                         showMessage('Error loading workspace data.', 'error');
                     }
                     {% endif %}
-            
+
                     await editorFromJSON(workspaceData);
                 }
 
                 document.getElementById('hero-overlay').remove();
             });
-            
+
             // --- Visualizer Toggle ---
             const visualizerCanvas = document.getElementById('visualizer');
             const workspaceTab = document.getElementById('workspace-tab');
@@ -6052,29 +6002,9 @@ workspace_data: ${base64Data}
             let shaderProgram;
             let positionBuffer;
             let uTime;
-            let uGlitchSeed;
             let uResolution;
             let uFrequencyData;
             let frequencyDataTexture;
-            let glitchSeed = Math.random();
-            let isAnimating = false;
-
-            function resizeCanvas() {
-                const displayWidth  = visualizerCanvas.clientWidth;
-                const displayHeight = visualizerCanvas.clientHeight;
-                const dpr = window.devicePixelRatio || 1;
-
-                if (visualizerCanvas.width !== Math.floor(displayWidth * dpr) ||
-                    visualizerCanvas.height !== Math.floor(displayHeight * dpr)) {
-                    visualizerCanvas.width  = Math.floor(displayWidth * dpr);
-                    visualizerCanvas.height = Math.floor(displayHeight * dpr);
-                    if (gl) {
-                        gl.viewport(0, 0, visualizerCanvas.width, visualizerCanvas.height);
-                    }
-                }
-            }
-
-            window.addEventListener('resize', resizeCanvas);
 
             function initWebGL() {
                 gl = visualizerCanvas.getContext('webgl');
@@ -6082,8 +6012,6 @@ workspace_data: ${base64Data}
                     console.error('WebGL not supported');
                     return;
                 }
-
-                resizeCanvas();
 
                 const vertexShaderSource = document.getElementById('vertex-shader').text;
                 const fragmentShaderSource = document.getElementById('fragment-shader').text;
@@ -6109,7 +6037,6 @@ workspace_data: ${base64Data}
                 gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
 
                 uTime = gl.getUniformLocation(shaderProgram, 'u_time');
-                uGlitchSeed = gl.getUniformLocation(shaderProgram, 'u_glitch_seed');
                 uResolution = gl.getUniformLocation(shaderProgram, 'u_resolution');
                 uFrequencyData = gl.getUniformLocation(shaderProgram, 'u_frequency_data');
 
@@ -6147,11 +6074,7 @@ workspace_data: ${base64Data}
             }
 
             function visualize() {
-                const isRecording = mediaRecorder && mediaRecorder.state === 'recording';
-                const isActive = visualizerView.classList.contains('active');
-
-                if (!isActive && !isRecording) {
-                    isAnimating = false;
+                if (visualizerView.classList.contains('hidden')) {
                     return;
                 }
 
@@ -6160,7 +6083,6 @@ workspace_data: ${base64Data}
                 analyser.getByteFrequencyData(dataArray);
 
                 gl.uniform1f(uTime, performance.now() / 1000);
-                gl.uniform1f(uGlitchSeed, glitchSeed);
                 gl.uniform2f(uResolution, gl.canvas.width, gl.canvas.height);
 
                 gl.bindTexture(gl.TEXTURE_2D, frequencyDataTexture);
@@ -6173,119 +6095,80 @@ workspace_data: ${base64Data}
             }
 
             workspaceTab.addEventListener('click', () => {
-                workspaceView.classList.add('active');
-                visualizerView.classList.remove('active');
+                workspaceView.classList.remove('hidden');
+                visualizerView.classList.add('hidden');
                 workspaceTab.classList.replace('button-secondary', 'button-primary');
                 visualizerTab.classList.replace('button-primary', 'button-secondary');
             });
 
             visualizerTab.addEventListener('click', () => {
-                workspaceView.classList.remove('active');
-                visualizerView.classList.add('active');
+                workspaceView.classList.add('hidden');
+                visualizerView.classList.remove('hidden');
                 visualizerTab.classList.replace('button-secondary', 'button-primary');
                 workspaceTab.classList.replace('button-primary', 'button-secondary');
 
                 if (!gl) {
                     initWebGL();
                 }
-                if (!isAnimating) {
-                    isAnimating = true;
-                    visualize();
-                }
+                visualize();
             });
         };
     </script>
-<script id="vertex-shader" type="x-shader/x-vertex">
-    // Set precision for the vertex shader to match the fragment shader
-    precision mediump float;
 
-    attribute vec4 a_position;
-    uniform float u_time;
-    uniform float u_glitch_seed;
-    
-    float randV(float n){ return fract(sin(n) * 43758.5453123); }
-
-    void main() {
-        vec4 pos = a_position;
-        
-        // Occasional full-screen "jump"
-        if(randV(u_time * u_glitch_seed) > 0.98) {
-            pos.x += (randV(u_time) - 0.5) * 0.1;
-            pos.y += (randV(u_time + 1.0) - 0.5) * 0.1;
+    <script id="vertex-shader" type="x-shader/x-vertex">
+        attribute vec4 a_position;
+        void main() {
+            gl_Position = a_position;
         }
-        
-        gl_Position = pos;
-    }
-</script>
+    </script>
 
-<script id="fragment-shader" type="x-shader/x-fragment">
-    precision mediump float;
-    
-    uniform float u_time;
-    uniform float u_glitch_seed;
-    uniform sampler2D u_frequency_data;
-    uniform vec2 u_resolution;
+    <script id="fragment-shader" type="x-shader/x-fragment">
+        precision mediump float;
+        uniform float u_time;
+        uniform sampler2D u_frequency_data;
+        uniform vec2 u_resolution;
 
-    float rand(vec2 co){
-        return fract(sin(dot(co.xy + u_glitch_seed, vec2(12.9898, 78.233))) * 43758.5453);
-    }
-
-    void main() {
-        // --- 1. COORDINATE CRUSH ---
-        // Quantize UVs based on bass to create a "bit-crushed" pixel look
-        float bass_raw = texture2D(u_frequency_data, vec2(0.05, 0.0)).r;
-        float quantize = 512.0 - (bass_raw * 480.0);
-        vec2 uv = floor(gl_FragCoord.xy / u_resolution.xy * quantize) / quantize;
-
-        // Audio analysis
-        float mid = texture2D(u_frequency_data, vec2(0.3, 0.0)).r;
-        float high = texture2D(u_frequency_data, vec2(0.7, 0.0)).r;
-        float vol = (bass_raw + mid + high) / 3.0;
-
-        // --- 2. MULTI-LAYER DATA CORRUPTION ---
-        vec2 block_uv = uv;
-        
-        // Large scale displacement
-        vec2 l_block = floor(uv * 6.0) / 6.0;
-        if (rand(l_block + floor(u_time * 12.0)) < 0.2 * bass_raw) {
-            block_uv += (rand(l_block) - 0.5) * 0.3;
+        float rand(vec2 co){
+            return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
         }
 
-        // Horizontal "Analog Tearing" strips
-        float strip_y = floor(uv.y * 40.0);
-        if (rand(vec2(strip_y, floor(u_time * 20.0))) > 0.9) {
-            block_uv.x += (rand(vec2(u_time)) - 0.5) * 0.4 * high;
+        void main() {
+            vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / u_resolution.y;
+
+            // Audio analysis
+            float bass = texture2D(u_frequency_data, vec2(0.05, 0.0)).r;
+            float mid = texture2D(u_frequency_data, vec2(0.3, 0.0)).r;
+            float high = texture2D(u_frequency_data, vec2(0.8, 0.0)).r;
+
+            // --- Pulsating Circle (Sphere) ---
+            float circle_radius = 0.2 + bass * 0.1;
+            float circle = 1.0 - smoothstep(circle_radius - 0.01, circle_radius, length(uv));
+            vec3 color = vec3(circle * bass, circle * mid, circle * high);
+
+            // --- RGB Split (Glitch) ---
+            vec2 offset = vec2(high * 0.02, 0.0);
+            float r = texture2D(u_frequency_data, uv + offset).r;
+            float g = texture2D(u_frequency_data, uv).r;
+            float b = texture2D(u_frequency_data, uv - offset).r;
+
+            color += vec3(r, g, b) * 0.1;
+
+            // --- Background Chaos ---
+            float time_distortion = u_time * (1.0 + mid * 2.0);
+            vec2 distorted_uv = uv + vec2(
+                sin(uv.y * 10.0 + time_distortion) * 0.1,
+                cos(uv.x * 10.0 + time_distortion) * 0.1
+            );
+            color += vec3(rand(distorted_uv), rand(distorted_uv + 1.0), rand(distorted_uv + 2.0)) * 0.2;
+
+            // --- Color Flashes ---
+            if (high > 0.9) {
+                color = 1.0 - color; // Invert colors on high transients
+            }
+
+            gl_FragColor = vec4(color, 1.0);
         }
-
-        // --- 3. COLOR & CHROMATIC ABERRATION ---
-        // Intense RGB splitting on transients
-        float shift = 0.08 * mid * rand(vec2(floor(u_time * 15.0)));
-        
-        float r = texture2D(u_frequency_data, vec2(fract(block_uv.x + shift), 0.0)).r;
-        float g = texture2D(u_frequency_data, vec2(block_uv.x, 0.0)).r;
-        float b = texture2D(u_frequency_data, vec2(fract(block_uv.x - shift), 0.0)).r;
-        
-        vec3 color = vec3(r, g, b);
-
-        // --- 4. ARTIFACTING & NOISE ---
-        // Data-moshing bars
-        float bar_idx = floor(block_uv.x * 32.0);
-        float bar_freq = texture2D(u_frequency_data, vec2(bar_idx / 32.0, 0.0)).r;
-        if (block_uv.y < bar_freq) {
-            color += vec3(0.0, 0.5, 1.0) * mid;
-        }
-
-        // Digital grain (static)
-        color += (rand(block_uv + fract(u_time)) - 0.5) * (0.3 + high);
-
-        // Inversion Flash
-        if (high > 0.93 && rand(vec2(u_time)) > 0.5) {
-            color = 1.0 - color;
-        }
-
-        gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
-    }
-</script>
+    </script>
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {

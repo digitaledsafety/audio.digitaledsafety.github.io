@@ -1,460 +1,4 @@
----
-layout: none
----
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audio</title>
-    <link rel="manifest" href="{{ "/manifest.json" | relative_url }}">
-    <script src="https://cdn.digitaleducationsafety.org/packages/tailwindcss@3.4.17/tailwindcss.js"></script>
-    <base target="_top">
-    <style>
-        /* Custom styles for better visual appeal */
-        html, body {
-            height: 100%;
-            margin: 0;
-            padding: 0;
-            overflow: hidden; /* Prevent scrolling of the body */
-        }
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f0f2f5;
-            display: flex;
-            flex-direction: column;
-        }
-        .rete-container {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            width: 100%;
-            box-sizing: border-box;
-            position: relative;
-        }
-        #visualizer-view {
-            height: 100%;
-            position: absolute;
-            inset: 0;
-            z-index: 0;
-            visibility: hidden;
-            pointer-events: none;
-        }
-        #visualizer-view.active {
-            z-index: 10;
-            visibility: visible;
-            pointer-events: auto;
-        }
-        #workspace-view {
-            position: absolute;
-            inset: 0;
-            z-index: 0;
-            visibility: hidden;
-            pointer-events: none;
-        }
-        #workspace-view.active {
-            z-index: 10;
-            visibility: visible;
-            pointer-events: auto;
-        }
-        .button {
-            padding: 0.5rem 1rem;
-            border-radius: 0.5rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        }
-        #bottom-nav {
-            background-color: #f0f2f5;
-        }
-        #bottom-nav .button {
-            padding: 0.25rem 0.5rem;
-        }
-        .button-primary {
-            background-color: #4f46e5;
-            color: white;
-        }
-        .button-primary:hover {
-            background-color: #4338ca;
-            transform: translateY(-1px);
-        }
-        .button-secondary {
-            background-color: #e0e7ff;
-            color: #4f46e5;
-            border: 1px solid #a5b4fc;
-        }
-        .button-secondary:hover {
-            background-color: #c7d2fe;
-            transform: translateY(-1px);
-        }
-        .button-danger {
-            background-color: #ef4444;
-            color: white;
-        }
-        .button-danger:hover {
-            background-color: #dc2626;
-            transform: translateY(-1px);
-        }
-        .message-box {
-            background-color: #fffbeb;
-            color: #9a3412;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            border: 1px solid #fcd34d;
-            margin-top: 1rem;
-            text-align: center;
-        }
-        .message-box.success {
-            background-color: #ecfdf5;
-            color: #065f46;
-            border-color: #34d399;
-        }
 
-        /* Rete.js specific styles */
-        #rete-container {
-            width: 100%;
-            height: 100%;
-            background-color: #f9fafb;
-            overflow: hidden; /* Ensures content stays within bounds */
-        }
-        .node {
-            background: #ffffff;
-            border: 1px solid #d1d5db;
-            border-radius: 0.75rem;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
-            padding: 1rem;
-            color: #1f2937;
-            font-weight: 500;
-            min-width: 180px;
-            box-sizing: border-box;
-        }
-        .node.selected {
-            border-color: #4f46e5;
-            box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
-        }
-        .node .title {
-            font-weight: 600;
-            font-size: 1.125rem; /* text-lg */
-            margin-bottom: 0.75rem;
-            text-align: center;
-            color: #374151;
-        }
-        .node .input, .node .output {
-            display: flex;
-            align-items: center;
-            margin-bottom: 0.5rem;
-        }
-        .node .input-title, .node .output-title {
-            flex-grow: 1;
-            font-size: 0.875rem; /* text-sm */
-            color: #4b5563;
-        }
-        .socket {
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: #9ca3af;
-            border: 2px solid #6b7280;
-            cursor: pointer;
-            transition: background 0.2s ease-in-out, border-color 0.2s ease-in-out;
-        }
-        .socket.input {
-            margin-right: 0.5rem;
-        }
-        .socket.output {
-            margin-left: 0.5rem;
-        }
-        .socket:hover {
-            background: #4f46e5;
-            border-color: #4338ca;
-        }
-        /* Custom control styling */
-        .control {
-            margin-top: 0.75rem;
-            margin-bottom: 0.5rem;
-        }
-        .control label {
-            display: block;
-            font-size: 0.875rem;
-            color: #ffffff;
-            margin-bottom: 0.25rem;
-            text-align: center;
-        }
-        .control input[type="range"] {
-            width: 100%;
-            -webkit-appearance: none;
-            height: 8px;
-            background: #d1d5db;
-            border-radius: 5px;
-            outline: none;
-            opacity: 0.7;
-            transition: opacity .2s;
-            margin-top: 0.5rem;
-        }
-        .control input[type="text"] {
-            width: 100%;
-            padding: 0.5rem;
-            border-radius: 0.25rem;
-            border: 1px solid #d1d5db;
-            background-color: #fff;
-            color: #374151;
-            font-size: 0.875rem;
-            margin-top: 0.25rem;
-        }
-        .control input[type="range"]:hover {
-            opacity: 1;
-        }
-        .control input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: #4f46e5;
-            cursor: pointer;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-        }
-        .control input[type="range"]::-moz-range-thumb {
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: #4f46e5;
-            cursor: pointer;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-        }
-        .control .value-display {
-            min-width: 40px;
-            text-align: center;
-            font-weight: 500;
-            color: #ffffff;
-            font-size: 0.9rem;
-            margin-top: 0.25rem;
-        }
-        .control select {
-            width: 100%;
-            padding: 0.25rem;
-            border-radius: 0.25rem;
-            border: 1px solid #d1d5db;
-            background-color: #fff;
-            color: #374151;
-            font-size: 0.875rem;
-            margin-top: 0.25rem;
-        }
-        .clock-indicator {
-            width: 16px;
-            height: 16px;
-            background-color: #777;
-            border-radius: 50%;
-            margin: 10px auto;
-            transition: background-color 0.05s ease-in-out;
-            border: 2px solid #333;
-        }
-        .clock-indicator.blinking {
-            background-color: #ff4500; /* Bright orange */
-        }
-        #hero-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.9);
-            color: white;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            z-index: 9999;
-        }
-        #hero-overlay h1 {
-            font-size: 4rem;
-            margin-bottom: 1rem;
-        }
-        #hero-overlay p {
-            font-size: 1.25rem;
-            margin-bottom: 2rem;
-            max-width: 600px;
-        }
-        #cta-button {
-            padding: 1rem 2rem;
-            font-size: 1.25rem;
-            background-color: #4f46e5;
-            color: white;
-            border: none;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            transition: background-color 0.2s ease-in-out;
-        }
-        #cta-button:hover {
-            background-color: #4338ca;
-        }
-    </style>
-</head>
-<body>
-    <div id="hero-overlay">
-        <h1>Audio<span class="bg-indigo-600 text-white text-sm px-2 py-1 rounded-full ml-4 align-middle font-normal">Beta</span></h1>
-        <p>Create, experiment, and share your sound with a powerful node-based synthesizer, right here in your browser.</p>
-        <button id="cta-button">Enter the Studio</button>
-    </div>
-    <div class="fixed top-4 right-4 z-50 bg-indigo-600/80 text-white text-xs font-bold px-2 py-1 rounded shadow-md pointer-events-none">BETA</div>
-    <div class="rete-container">
-        <div id="messageBox" class="message-box hidden"></div>
-        
-        <div id="workspace-view" class="flex-grow h-full active">
-            {{ content }}
-            <div id="rete-container" class="relative h-full"></div>
-        </div>
-        
-        <div id="visualizer-view" class="h-full">
-            <canvas id="visualizer" class="w-full h-full border-none"></canvas>
-        </div>
-
-        <!-- Bottom Navigation Bar -->
-        <div id="bottom-nav" class="fixed bottom-0 left-0 right-0 bg-white shadow-lg flex justify-between items-center p-2 z-20">
-            <!-- Tabs -->
-            <div class="flex gap-2">
-                <button id="workspace-tab" class="button button-primary">🎛️</button>
-                <button id="visualizer-tab" class="button button-secondary">✨</button>
-            </div>
-            <!-- Action Buttons -->
-            <div class="flex gap-2 items-center">
-                <!-- Add Node Dropdown -->
-                <div class="relative inline-block text-left">
-                    <button id="addNodeToggle" class="button button-primary">➕</button>
-                    <div id="addNodeDropdown" class="max-h-[85vh] overflow-y-auto origin-bottom-right absolute right-0 bottom-full mb-2 w-64 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-30 p-2">
-                        <h3 class="text-sm font-bold text-center mb-2">Add Node</h3>
-
-                        <!-- Sources -->
-                        <div class="mb-4">
-                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">Sources</h4>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button id="addToneGeneratorNodeBtn" class="button button-secondary w-full text-xs">🔊 Tone Gen</button>
-                                <button id="addNoiseGeneratorNodeBtn" class="button button-secondary w-full text-xs">🌫️ Noise Gen</button>
-                                <button id="addWavePlayerNodeBtn" class="button button-secondary w-full text-xs">🎵 Wave Player</button>
-                                <button id="addMicrophoneInputNodeBtn" class="button button-secondary w-full text-xs">🎤 Mic Input</button>
-                                <button id="addChordGeneratorNodeBtn" class="button button-secondary w-full text-xs">🎼 Chord Gen</button>
-                            </div>
-                        </div>
-
-                        <!-- Effects -->
-                        <div class="mb-4">
-                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">Effects</h4>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button id="addFilterNodeBtn" class="button button-secondary w-full text-xs">📉 Filter</button>
-                                <button id="addDelayNodeBtn" class="button button-secondary w-full text-xs">⏳ Delay</button>
-                                <button id="addDistortionNodeBtn" class="button button-secondary w-full text-xs">🎸 Distortion</button>
-                                <button id="addCompressorNodeBtn" class="button button-secondary w-full text-xs">📊 Compressor</button>
-                                <button id="addReverbNodeBtn" class="button button-secondary w-full text-xs">🏞️ Reverb</button>
-                                <button id="addBitcrusherNodeBtn" class="button button-secondary w-full text-xs">👾 Bitcrusher</button>
-                                <button id="addVocoderNodeBtn" class="button button-secondary w-full text-xs">🗣️ Vocoder</button>
-                                <button id="addGranularSynthesizerNodeBtn" class="button button-secondary w-full text-xs">✨ Granular</button>
-                                <button id="addStereoPannerNodeBtn" class="button button-secondary w-full text-xs">↔️ Stereo Panner</button>
-                            </div>
-                        </div>
-
-                        <!-- Modulation & Sequencing -->
-                        <div class="mb-4">
-                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">Modulation & Sequencing</h4>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button id="addSequencerNodeBtn" class="button button-secondary w-full text-xs">🎶 Sequencer</button>
-                                <button id="addDrumMachineNodeBtn" class="button button-secondary w-full text-xs">🥁 Drum Machine</button>
-                                <button id="addArpeggiatorNodeBtn" class="button button-secondary w-full text-xs">🎹 Arpeggiator</button>
-                                <button id="addLFONodeBtn" class="button button-secondary w-full text-xs">🌊 LFO</button>
-                                <button id="addADSREnvelopeNodeBtn" class="button button-secondary w-full text-xs">✉️ ADSR</button>
-                                <button id="addManualGateNodeBtn" class="button button-secondary w-full text-xs">🔳 Manual Gate</button>
-                                <button id="addQuantizerNodeBtn" class="button button-secondary w-full text-xs">🎹 Quantizer</button>
-                            </div>
-                        </div>
-
-                        <!-- Utilities -->
-                        <div class="mb-2">
-                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">Utilities</h4>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button id="addVCANodeBtn" class="button button-secondary w-full text-xs">🎚️ VCA</button>
-                                <button id="addMixerNodeBtn" class="button button-secondary w-full text-xs">🎛️ Mixer</button>
-                                <button id="addAttenuverterNodeBtn" class="button button-secondary w-full text-xs">🔄 Attenuverter</button>
-                                <button id="addMasterClockNodeBtn" class="button button-secondary w-full text-xs">⏱️ Master Clock</button>
-                                <button id="addMasterGainOutputNodeBtn" class="button button-secondary w-full text-xs">🔊 Master</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <button id="playStopBtn" class="button button-primary">▶️</button>
-                <!-- Settings Menu -->
-                <div class="relative inline-block text-left">
-                    <button id="settingsToggle" class="button button-secondary">⚙️</button>
-                    <div id="settingsDropdown" class="max-h-[85vh] overflow-y-auto origin-bottom-right absolute right-0 bottom-full mb-2 w-80 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-30 p-4 flex flex-col gap-4">
-                        <h3 class="text-lg font-bold text-center">Settings</h3>
-                        <!-- Recording Controls -->
-                        <div class="flex flex-col gap-2 p-3 bg-gray-50 rounded-lg border">
-                            <h4 class="font-semibold text-center">Recording</h4>
-                            <div class="flex justify-center gap-2">
-                                <button id="recordBtn" class="button button-danger flex-1">⏺️ Record</button>
-                            </div>
-                        </div>
-                        <!-- Workspace Controls -->
-                        <div class="flex flex-col gap-2 p-3 bg-gray-50 rounded-lg border">
-                            <h4 class="font-semibold text-center">Workspace</h4>
-                            <input type="text" id="workspaceName" placeholder="Workspace Name" class="p-2 border rounded-md">
-                            <div class="grid grid-cols-2 gap-2">
-                                <button id="saveWorkspaceBtn" class="button button-primary">💾 Save</button>
-                                <button id="deleteWorkspaceBtn" class="button button-danger">🗑️ Delete</button>
-                            </div>
-                            <select id="workspaceSelector" class="w-full p-2 border rounded-md"></select>
-                            <button id="loadWorkspaceBtn" class="button button-secondary">🔄 Load Selected</button>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button id="exportWorkspaceBtn" class="button button-secondary">📤 Export</button>
-                                <input type="file" id="importWorkspaceInput" class="hidden">
-                                <button id="importWorkspaceBtn" class="button button-secondary">📥 Import</button>
-                            </div>
-                            <button id="updateWorkspaceBtn" class="button button-primary mt-2 hidden">✨ Update Workspace</button>
-                            <button id="publishWorkspaceBtn" class="button button-secondary mt-2">🚀 Publish</button>
-                            <button id="randomizeWorkspaceBtn" class="button button-secondary mt-2">🎲 Randomize</button>
-                        </div>
-                        <!-- Multiplayer Controls -->
-                        <div class="flex flex-col gap-2 p-3 bg-gray-50 rounded-lg border">
-                            <h4 class="font-semibold text-center">Multiplayer</h4>
-                            <p class="text-xs text-center">Your ID: <span id="peerIdDisplay" class="font-mono bg-gray-200 px-1 rounded truncate">...</span></p>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button id="createSessionBtn" class="button button-primary">🤝 Create</button>
-                                <button id="disconnectBtn" class="button button-danger hidden">🔌 Disconnect</button>
-                            </div>
-                            <div class="flex gap-2">
-                                <input type="text" id="shareLinkInput" readonly placeholder="Session link will appear here" class="w-full p-2 border rounded-md bg-gray-100">
-                                <button id="copyLinkBtn" class="button button-secondary">📋</button>
-                            </div>
-                            <div>
-                                <h5 class="text-sm font-semibold text-center mt-2">Connected Users</h5>
-                                <ul id="connectedUsersList" class="text-xs text-center text-gray-600 mt-1 h-16 overflow-y-auto bg-gray-100 rounded p-1">
-                                    <!-- User list will be populated here -->
-                                </ul>
-                            </div>
-                        </div>
-                         <button id="clearEditorBtn" class="button button-danger" disabled>🗑️ Clear All</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script type="text/javascript" src="https://cdn.digitaleducationsafety.org/packages/rete@2.0.6/rete.min.js"></script>
-    <script type="text/javascript" src="https://cdn.digitaleducationsafety.org/packages/react-is@18.3.1/react-is.production.min.js"></script>
-    <script type="text/javascript" src="https://cdn.digitaleducationsafety.org/packages/react@18.3.0/react.production.min.js"></script>
-    <script type="text/javascript" src="https://cdn.digitaleducationsafety.org/packages/styled-components@6.1.19/styled-components.js"></script>
-    <script type="text/javascript" src="https://cdn.digitaleducationsafety.org/packages/react-dom@18.3.1/react-dom.production.min.js"></script>
-    <script type="text/javascript" src="https://cdn.digitaleducationsafety.org/packages/rete-area-plugin@2.1.5/rete-area-plugin.min.js"></script>
-    <script type="text/javascript" src="https://cdn.digitaleducationsafety.org/packages/rete-render-utils@2.0.0-beta.10/rete-render-utils.min.js"></script>
-    <script type="text/javascript" src="https://cdn.digitaleducationsafety.org/packages/rete-react-render-plugin@2.0.0-beta.9/rete-react-render-plugin.min.js"></script>
-    <script type="text/javascript" src="https://cdn.digitaleducationsafety.org/packages/rete-connection-plugin@2.0.5/rete-connection-plugin.min.js"></script>
-    <script type="text/javascript" src="https://cdn.digitaleducationsafety.org/packages/rete-context-menu-plugin@2.0.6/rete-context-menu-plugin.min.js"></script>
-    <script type="text/javascript" src="https://cdn.digitaleducationsafety.org/packages/rete-engine@2.1.1/rete-engine.min.js"></script>
-    <script type="text/javascript" src="https://cdn.digitaleducationsafety.org/packages/peerjs@1.5.5/peerjs.min.js"></script>
-    <script src="{{ "assets/js/mini-notation-parser.js" | relative_url }}"></script>
-
-    <script>
         // Capture global Rete.js objects into local constants after all CDN scripts have loaded
 
         const { ClassicPreset: Classic, NodeEditor } = window.Rete;
@@ -463,7 +7,7 @@ layout: none
         const { ConnectionPlugin, Presets: ConnectionPresets } = window.ReteConnectionPlugin;
         const { DataflowEngine } = window.ReteEngine;
         const { ReactRenderPlugin, Presets: ReactPresets } = window.ReteReactRenderPlugin
-        const { ContextMenuPlugin, Presets: ContextMenuPresets } = window.ReteContextMenuPlugin;        
+        const { ContextMenuPlugin, Presets: ContextMenuPresets } = window.ReteContextMenuPlugin;
 
         // Global variables for Web Audio API
         var audioContext;
@@ -541,7 +85,7 @@ layout: none
             'Diminished (Half-Whole)': [0, 1, 3, 4, 6, 7, 9, 10],
             'Chromatic Scale': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
         };
-        
+
         const ROOT_NOTES = {
             'C1': 24, 'C#1': 25, 'D1': 26, 'D#1': 27, 'E1': 28, 'F1': 29, 'F#1': 30, 'G1': 31, 'G#1': 32, 'A1': 33, 'A#1': 34, 'B1': 35,
             'C2': 36, 'C#2': 37, 'D2': 38, 'D#2': 39, 'E2': 40, 'F2': 41, 'F#2': 42, 'G2': 43, 'G#2': 44, 'A2': 45, 'A#2': 46, 'B2': 47,
@@ -595,7 +139,7 @@ layout: none
         let multiplayer;
         let _isLocalChange = true;
         // --- Main Controls Logic ---
-        let audioState = 'stopped'; // 'stopped', 'playing'        
+        let audioState = 'stopped'; // 'stopped', 'playing'
 
         // --- Utility Functions ---
 
@@ -660,7 +204,7 @@ layout: none
 
         async function editorFromJSON(json) {
             try
-            {                
+            {
                 console.log('Loading editor from JSON:', json);
                 await editor.clear();
 
@@ -682,11 +226,6 @@ layout: none
                                 }
                             }
                         }
-
-                        if (typeof node.onDataLoaded === 'function') {
-                            node.onDataLoaded();
-                        }
-
                         await editor.addNode(node);
                     } else {
                         console.warn(`Node type "${nodeData.label}" not found.`);
@@ -701,7 +240,7 @@ layout: none
                     if (sourceNode && targetNode) {
                         const sourceOutput = connData.sourceOutput;
                         const targetInput = connData.targetInput;
-                        
+
                         if (sourceNode.outputs[sourceOutput] && targetNode.inputs[targetInput]) {
                              await editor.addConnection(new Classic.Connection(sourceNode, sourceOutput, targetNode, targetInput));
                         } else {
@@ -721,17 +260,17 @@ layout: none
                     // Manually trigger a render update for each node.
                     area.update('node', nodeData.id);
                 }
-                
+
                 // Stage 4: Zoom to fit all nodes.
                 requestAnimationFrame(async () => {
                     await AreaExtensions.zoomAt(area, editor.getNodes());
-                });   
+                });
             }
             catch (error) {
                 showMessage('Error syncing workspace: ' + error.message, 'error');
             }
 
-        }          
+        }
 
         function getWorkspaces() {
             const workspaces = localStorage.getItem('rete-workspaces');
@@ -859,7 +398,7 @@ layout: none
 
                     const wasAudioRunning = audioContext && audioContext.state === 'running';
                     if (wasAudioRunning) await stopAudio();
-                    
+
                     await editorFromJSON(data);
 
                     if (wasAudioRunning) await startAudio();
@@ -1023,7 +562,7 @@ workspace_data: ${base64Data}
             }
             return impulse;
         }
-        
+
         // --- Web Audio API Management ---
 
         /**
@@ -1078,9 +617,9 @@ workspace_data: ${base64Data}
 
             mediaStreamDestination = audioContext.createMediaStreamDestination();
             masterGain.connect(mediaStreamDestination);
-         
+
             clearEditorBtn.disabled = false;
-        
+
             //showMessage('Audio context started! Nodes in the editor are now active.', 'success');
 
             // Initialize/start audio nodes that are already in the editor
@@ -1199,23 +738,13 @@ workspace_data: ${base64Data}
                         console.warn(`Oscillator for node ${id} already stopped or could not be stopped.`, e);
                     }
                 }
-                // Stop arpeggiator, sequencer, drum machine
-                if (reteNode && ['Arpeggiator', 'Sequencer', 'Drum Machine'].includes(reteNode.label) && audioNode.stop && audioNode.started) {
+                // Stop arpeggiator
+                if (reteNode && reteNode.label === 'Arpeggiator' && audioNode.stop && audioNode.started) {
                     try {
                         audioNode.stop();
                         audioNode.started = false;
                     } catch (e) {
-                        console.warn(`${reteNode.label} for node ${id} could not be stopped.`, e);
-                    }
-                }
-
-                // Stop Chord Generator
-                if (reteNode && reteNode.label === 'Chord Generator' && audioNode.stop && audioNode.started) {
-                    try {
-                        audioNode.stop();
-                        audioNode.started = false;
-                    } catch (e) {
-                        console.warn(`Chord Generator for node ${id} could not be stopped.`, e);
+                        console.warn(`Arpeggiator for node ${id} could not be stopped.`, e);
                     }
                 }
 
@@ -1227,7 +756,7 @@ workspace_data: ${base64Data}
                         console.warn(`Master Clock for node ${id} could not be stopped.`, e);
                     }
                 }
-                
+
                 // Disconnect each main audio node from the graph (for Arpeggiator, this would be its master gain)
                 try {
                     // For Arpeggiator, we disconnect its master output. Other nodes are direct Web Audio nodes.
@@ -1246,7 +775,7 @@ workspace_data: ${base64Data}
             //    await audioContext.suspend();
             //    console.log('AudioContext suspended.');
             //}
-            
+
             audioState = 'stopped';
             playStopBtn.textContent = '▶️';
             recordBtn.textContent = '⏺️ Record';
@@ -1493,7 +1022,7 @@ workspace_data: ${base64Data}
                 }
                 return connectionStrategies['default'];
             }
-            
+
             // 1. Disconnect everything to rebuild connections from scratch.
             reteAudioNodes.forEach(audioNode => {
                 try {
@@ -1556,7 +1085,7 @@ workspace_data: ${base64Data}
             }
         }
 
-        
+
         class MidiConnectionStrategy extends ConnectionStrategy {
             connect(sourceReteNode, targetReteNode) {
                 const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
@@ -1754,8 +1283,6 @@ workspace_data: ${base64Data}
                 switch (targetInputKey) {
                     case 'freq':
                         return targetNode.frequency;
-                    case 'pan_cv':
-                        return targetNode.pan;
                     case 'q_cv':
                         return targetNode.Q;
                     case 'delay_cv':
@@ -2149,7 +1676,7 @@ workspace_data: ${base64Data}
                 return new MicrophoneInput(audioContext, this.id, this.data);
             }
         }
-        
+
         class ToneGeneratorNode extends WebAudioNode {
             constructor() {
                 super('Tone Generator');
@@ -3002,7 +2529,7 @@ workspace_data: ${base64Data}
                 this.data.noteDuration = '1/16';
                 this.addControl('noteDuration', new SelectControl('arpNoteDuration', 'Note Duration', ['1', '1/2', '1/4', '1/8', '1/16', '1/32', '1/64', '1/128'], this.data.noteDuration, (val) => {
                     this.data.noteDuration = val;
-                    const audioNode = reteAudioNodes.get(this.id); 
+                    const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode && audioNode.updateParameter) audioNode.updateParameter('noteDuration', val);
                 }));
 
@@ -3093,15 +2620,6 @@ workspace_data: ${base64Data}
                     this.data.release = val;
                 }));
                 this.controls.release.hidden = true;
-            }
-
-            onDataLoaded() {
-                this.controls.pattern.hidden = (this.data.arpeggioPattern !== 'Custom');
-                const show = !!this.data.showEnvelope;
-                this.controls.attack.hidden = !show;
-                this.controls.decay.hidden = !show;
-                this.controls.sustain.hidden = !show;
-                this.controls.release.hidden = !show;
             }
 
             randomize() {
@@ -3351,7 +2869,7 @@ workspace_data: ${base64Data}
                 clearTimeout(this.timeoutId);
                 this.timeoutId = null;
                 this.started = false;
-            }            
+            }
 
             updateParameter(param, value) {
                 this.data[param] = value;
@@ -3391,7 +2909,7 @@ workspace_data: ${base64Data}
                     }
                 }
                 return sequence.join(' ');
-            }            
+            }
         }
 
 
@@ -3695,7 +3213,7 @@ workspace_data: ${base64Data}
 
                 // Randomization settings
                 this.data.showRandomSettings = false;
-                this.addControl('randomSettingsToggle', new ButtonControl('randSettingsBtn', 'Randomize Settings', () => {
+                this.addControl('randomSettingsToggle', new ButtonControl('randSettingsBtn', '🎲 Settings', () => {
                     this.data.showRandomSettings = !this.data.showRandomSettings;
                     const show = this.data.showRandomSettings;
                     this.controls.randomizeMode.hidden = !show;
@@ -3704,7 +3222,6 @@ workspace_data: ${base64Data}
                     this.controls.rootNote.hidden = !show;
                     this.controls.octaveRange.hidden = !show;
                     this.controls.arpeggioPattern.hidden = !show;
-                    this.controls.randomize.hidden = !show;
                     area.update('node', this.id);
                 }));
 
@@ -3756,7 +3273,6 @@ workspace_data: ${base64Data}
                 this.addControl('randomize', new ButtonControl('randomizeSeq', '🎲', () => {
                     this.randomize();
                 }));
-                this.controls.randomize.hidden = true;
 
                 this.data.waveform = 'sine';
                 this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveform, (val) => {
@@ -4063,30 +3579,6 @@ workspace_data: ${base64Data}
 
         // --- New Effects Nodes ---
 
-        class StereoPannerNode extends WebAudioNode {
-            constructor() {
-                super('Stereo Panner');
-                this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
-                this.addInput('pan_cv', new Classic.Input(voltageSocket, 'Pan CV'));
-                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
-
-                this.data.pan = 0;
-                this.addControl('pan', new SliderControl('panSlider', 'Pan', -1, 1, 0.01, this.data.pan, (val) => {
-                    this.data.pan = val;
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode && audioNode.pan) {
-                        audioNode.pan.setTargetAtTime(val, audioContext.currentTime, 0.01);
-                    }
-                }));
-            }
-
-            build() {
-                const audioNode = audioContext.createStereoPanner();
-                audioNode.pan.value = this.data.pan !== undefined ? this.data.pan : 0;
-                return audioNode;
-            }
-        }
-
         class DistortionNode extends WebAudioNode {
             constructor() {
                 super('Distortion');
@@ -4197,7 +3689,7 @@ workspace_data: ${base64Data}
                 super('Reverb');
                 this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
-                
+
                 this.data.duration = 2;
                 this.addControl('duration', new SliderControl('reverbDuration', 'Duration (s)', 0.1, 10, 0.1, this.data.duration, (val) => {
                     this.data.duration = val;
@@ -4206,7 +3698,7 @@ workspace_data: ${base64Data}
                         audioNode.convolver.buffer = generateImpulseResponse(audioContext, this.data.duration, this.data.decay);
                     }
                 }));
-                
+
                 this.data.decay = 2;
                 this.addControl('decay', new SliderControl('reverbDecay', 'Decay', 0.1, 10, 0.1, this.data.decay, (val) => {
                     this.data.decay = val;
@@ -4215,7 +3707,7 @@ workspace_data: ${base64Data}
                         audioNode.convolver.buffer = generateImpulseResponse(audioContext, this.data.duration, this.data.decay);
                     }
                 }));
-                
+
                 this.data.mix = 0.5;
                 this.addControl('mix', new SliderControl('reverbMix', 'Mix', 0, 1, 0.01, this.data.mix, (val) => {
                     this.data.mix = val;
@@ -4264,7 +3756,7 @@ workspace_data: ${base64Data}
                 mainInput.disconnect = function(destination) {
                     this.mainOutput.disconnect(destination);
                 };
-                
+
                 return mainInput;
             }
         }
@@ -4312,7 +3804,7 @@ workspace_data: ${base64Data}
                     this.oscillator.connect(this.mainOutput);
                     this.oscillator.type = this.data.waveform;
                     this.oscillator.frequency.value = this.data.frequency;
-                    
+
                     this.started = false;
                     console.log(`LFO ${this.reteNodeId} stopped.`);
                 } catch (e) {
@@ -5232,7 +4724,7 @@ workspace_data: ${base64Data}
                 */
 
 
-                
+
                 // Prevent dragging when clicking on sockets
                 const sockets = this.el.querySelectorAll('.socket');
                 sockets.forEach(socket => {
@@ -5248,7 +4740,7 @@ workspace_data: ${base64Data}
                         e.stopPropagation();
                     });
                 });
-                
+
 
             }
 
@@ -5327,14 +4819,6 @@ workspace_data: ${base64Data}
         });
 
         // New Effects Node Buttons
-        addStereoPannerNodeBtn.addEventListener('click', async () => {
-            const node = new StereoPannerNode();
-            const existingNodesCount = editor.getNodes().length;
-            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
-            await editor.addNode(node);
-            clearEditorBtn.disabled = false;
-        });
-
         addDistortionNodeBtn.addEventListener('click', async () => {
             const node = new DistortionNode();
             const existingNodesCount = editor.getNodes().length;
@@ -5392,7 +4876,7 @@ workspace_data: ${base64Data}
             await editor.addNode(new AttenuverterNode());
             clearEditorBtn.disabled = false;
         });
-          
+
         addMasterClockNodeBtn.addEventListener('click', async () => {
             await editor.addNode(new MasterClockNode());
             clearEditorBtn.disabled = false;
@@ -5459,7 +4943,6 @@ workspace_data: ${base64Data}
         NodeRegistry.register('Quantizer', QuantizerNode);
         NodeRegistry.register('Drum Machine', DrumMachineNode);
         NodeRegistry.register('Mixer', MixerNode);
-        NodeRegistry.register('Stereo Panner', StereoPannerNode);
 
         window.onload = async () => {
 
@@ -5474,7 +4957,7 @@ workspace_data: ${base64Data}
             // NodeEditor is correctly destructured from window.Rete
             editor = new NodeEditor(schemes);
             // DataflowEngine is correctly destructured from window.ReteEngine
-            engine = new DataflowEngine(schemes); 
+            engine = new DataflowEngine(schemes);
 
             // Rete.js v2: AreaPlugin is instantiated and then other plugins are added to it
             area = new AreaPlugin(reteContainer);
@@ -5491,46 +4974,46 @@ workspace_data: ${base64Data}
 
             // --- Multiplayer Logic ---
             multiplayer = new Multiplayer();
-            multiplayer.initialize();            
+            multiplayer.initialize();
 
             multiplayer.on('peer-id-ready', (id) => {
                 document.getElementById('peerIdDisplay').textContent = id;
             });
-            
+
             multiplayer.on('data-received', async (data) => {
                 _isLocalChange = false;
                 await editorFromJSON(data);
                 _isLocalChange = true;
                 autoSave();
             });
-    
+
             multiplayer.on('connections-updated', (connections) => {
                 const usersList = document.getElementById('connectedUsersList');
                 usersList.innerHTML = ''; // Clear the list
-    
+
                 // Add the current user (self)
                 const selfLi = document.createElement('li');
                 selfLi.textContent = `${multiplayer.getPeerId()} (You)`;
                 selfLi.classList.add('font-semibold');
                 usersList.appendChild(selfLi);
-    
+
                 // Add other connected peers
                 connections.forEach(conn => {
                     const userLi = document.createElement('li');
                     userLi.textContent = conn.peer;
                     usersList.appendChild(userLi);
                 });
-    
+
                 // Show disconnect button when connected to a session
                 if (multiplayer.isConnected()) {
                     document.getElementById('createSessionBtn').classList.add('hidden');
                     document.getElementById('disconnectBtn').classList.remove('hidden');
                 }
-            });               
+            });
 
             const connection = new ConnectionPlugin();
             // Corrected: ContextMenuPlugin is instantiated with the editor instance, and then its preset is added
-            //const contextMenu = new ContextMenuPlugin(editor); 
+            //const contextMenu = new ContextMenuPlugin(editor);
 
             const reactRender = new ReactRenderPlugin({ createRoot });
 
@@ -5560,10 +5043,10 @@ workspace_data: ${base64Data}
 
                 ])
             });
-            
+
             // Rete.js v2: Add presets to connection and contextMenu plugins
             connection.addPreset(ConnectionPresets.classic.setup());
-            
+
             // Corrected: ContextMenuPresets.classic.setup expects an object with an 'items' property.
             /*contextMenu.addPreset(ContextMenuPresets.classic.setup({
                 items: [
@@ -5573,7 +5056,7 @@ workspace_data: ${base64Data}
                 ]
             }));*/
 
-            // Rete.js v2: Register plugins with the AreaPlugin          
+            // Rete.js v2: Register plugins with the AreaPlugin
             editor.use(area);
 
             area.use(connection);
@@ -5597,7 +5080,7 @@ workspace_data: ${base64Data}
                     const workspaceData = editorToJSON();
                     multiplayer.broadcast(workspaceData);
                     autoSave();
-                }                
+                }
                 if (context.type === 'rendered' && context.data.type === 'node') {
                     // Add a data-node-id attribute to the node's root element for easier DOM selection
                     context.data.element.setAttribute('data-node-id', context.data.payload.id);
@@ -5758,8 +5241,8 @@ workspace_data: ${base64Data}
                 } else if (context.type === 'nodeeditorrendered') {
                      // This event fires after the initial editor rendering
                     AreaExtensions.zoomAt(area, editor.getNodes());
-                }      
-                       
+                }
+
                 return context;
             });
 
@@ -5913,11 +5396,11 @@ workspace_data: ${base64Data}
                     // --- Start Recording ---
                     if (mediaStreamDestination) {
 
-                        // Ensure the visualizer is active before recording
-                        if (!visualizerView.classList.contains('active')) {
+                        // Ensure the visualizer is visible before recording
+                        if (visualizerView.classList.contains('hidden')) {
                             visualizerTab.click();
                         }
-                        
+
                         const videoStream = visualizerCanvas.captureStream(30); // 30 FPS
                         const audioStream = mediaStreamDestination.stream;
                         const combinedStream = new MediaStream([
@@ -5983,7 +5466,7 @@ workspace_data: ${base64Data}
                     const touchEndTime = new Date().getTime();
                     const touchEndX = e.changedTouches[0] ? e.changedTouches[0].screenX : touchStartCoords.x;
                     const touchEndY = e.changedTouches[0] ? e.changedTouches[0].screenY : touchStartCoords.y;
-                    
+
                     const duration = touchEndTime - touchStartTime;
                     const distance = Math.sqrt(Math.pow(touchEndX - touchStartCoords.x, 2) + Math.pow(touchEndY - touchStartCoords.y, 2));
 
@@ -5993,7 +5476,7 @@ workspace_data: ${base64Data}
                     }
                 }
             }, { passive: false });
-            
+
             // --- Initial State ---
             clearEditorBtn.disabled = false; // Initially enabled to allow clearing default workspace
 
@@ -6009,18 +5492,18 @@ workspace_data: ${base64Data}
                 await audioContext.audioWorklet.addModule('{{ "assets/js/audio-worklets/granular-processor.js" | relative_url }}');
                 await audioContext.audioWorklet.addModule('{{ "assets/js/audio-worklets/vocoder-processor.js" | relative_url }}');
                 await audioContext.audioWorklet.addModule('{{ "assets/js/audio-worklets/quantizer-processor.js" | relative_url }}');
-                
+
                 const urlParams = new URLSearchParams(window.location.search);
                 const sessionId = urlParams.get('session');
 
                 let workspaceData = {};
-                
+
                 if (sessionId) {
                     multiplayer.connectTo(sessionId);
                 } else {
-                
+
                     workspaceData = RandomWorkspaceGenerator.generate();
-                
+
                     {% if page.workspace_data %}
                     try {
                         workspaceData = JSON.parse(atob('{{ page.workspace_data }}'));
@@ -6035,13 +5518,13 @@ workspace_data: ${base64Data}
                         showMessage('Error loading workspace data.', 'error');
                     }
                     {% endif %}
-            
+
                     await editorFromJSON(workspaceData);
                 }
 
                 document.getElementById('hero-overlay').remove();
             });
-            
+
             // --- Visualizer Toggle ---
             const visualizerCanvas = document.getElementById('visualizer');
             const workspaceTab = document.getElementById('workspace-tab');
@@ -6057,24 +5540,6 @@ workspace_data: ${base64Data}
             let uFrequencyData;
             let frequencyDataTexture;
             let glitchSeed = Math.random();
-            let isAnimating = false;
-
-            function resizeCanvas() {
-                const displayWidth  = visualizerCanvas.clientWidth;
-                const displayHeight = visualizerCanvas.clientHeight;
-                const dpr = window.devicePixelRatio || 1;
-
-                if (visualizerCanvas.width !== Math.floor(displayWidth * dpr) ||
-                    visualizerCanvas.height !== Math.floor(displayHeight * dpr)) {
-                    visualizerCanvas.width  = Math.floor(displayWidth * dpr);
-                    visualizerCanvas.height = Math.floor(displayHeight * dpr);
-                    if (gl) {
-                        gl.viewport(0, 0, visualizerCanvas.width, visualizerCanvas.height);
-                    }
-                }
-            }
-
-            window.addEventListener('resize', resizeCanvas);
 
             function initWebGL() {
                 gl = visualizerCanvas.getContext('webgl');
@@ -6082,8 +5547,6 @@ workspace_data: ${base64Data}
                     console.error('WebGL not supported');
                     return;
                 }
-
-                resizeCanvas();
 
                 const vertexShaderSource = document.getElementById('vertex-shader').text;
                 const fragmentShaderSource = document.getElementById('fragment-shader').text;
@@ -6147,11 +5610,7 @@ workspace_data: ${base64Data}
             }
 
             function visualize() {
-                const isRecording = mediaRecorder && mediaRecorder.state === 'recording';
-                const isActive = visualizerView.classList.contains('active');
-
-                if (!isActive && !isRecording) {
-                    isAnimating = false;
+                if (visualizerView.classList.contains('hidden')) {
                     return;
                 }
 
@@ -6173,120 +5632,26 @@ workspace_data: ${base64Data}
             }
 
             workspaceTab.addEventListener('click', () => {
-                workspaceView.classList.add('active');
-                visualizerView.classList.remove('active');
+                workspaceView.classList.remove('hidden');
+                visualizerView.classList.add('hidden');
                 workspaceTab.classList.replace('button-secondary', 'button-primary');
                 visualizerTab.classList.replace('button-primary', 'button-secondary');
             });
 
             visualizerTab.addEventListener('click', () => {
-                workspaceView.classList.remove('active');
-                visualizerView.classList.add('active');
+                workspaceView.classList.add('hidden');
+                visualizerView.classList.remove('hidden');
                 visualizerTab.classList.replace('button-secondary', 'button-primary');
                 workspaceTab.classList.replace('button-primary', 'button-secondary');
 
                 if (!gl) {
                     initWebGL();
                 }
-                if (!isAnimating) {
-                    isAnimating = true;
-                    visualize();
-                }
+                visualize();
             });
         };
-    </script>
-<script id="vertex-shader" type="x-shader/x-vertex">
-    // Set precision for the vertex shader to match the fragment shader
-    precision mediump float;
 
-    attribute vec4 a_position;
-    uniform float u_time;
-    uniform float u_glitch_seed;
-    
-    float randV(float n){ return fract(sin(n) * 43758.5453123); }
 
-    void main() {
-        vec4 pos = a_position;
-        
-        // Occasional full-screen "jump"
-        if(randV(u_time * u_glitch_seed) > 0.98) {
-            pos.x += (randV(u_time) - 0.5) * 0.1;
-            pos.y += (randV(u_time + 1.0) - 0.5) * 0.1;
-        }
-        
-        gl_Position = pos;
-    }
-</script>
-
-<script id="fragment-shader" type="x-shader/x-fragment">
-    precision mediump float;
-    
-    uniform float u_time;
-    uniform float u_glitch_seed;
-    uniform sampler2D u_frequency_data;
-    uniform vec2 u_resolution;
-
-    float rand(vec2 co){
-        return fract(sin(dot(co.xy + u_glitch_seed, vec2(12.9898, 78.233))) * 43758.5453);
-    }
-
-    void main() {
-        // --- 1. COORDINATE CRUSH ---
-        // Quantize UVs based on bass to create a "bit-crushed" pixel look
-        float bass_raw = texture2D(u_frequency_data, vec2(0.05, 0.0)).r;
-        float quantize = 512.0 - (bass_raw * 480.0);
-        vec2 uv = floor(gl_FragCoord.xy / u_resolution.xy * quantize) / quantize;
-
-        // Audio analysis
-        float mid = texture2D(u_frequency_data, vec2(0.3, 0.0)).r;
-        float high = texture2D(u_frequency_data, vec2(0.7, 0.0)).r;
-        float vol = (bass_raw + mid + high) / 3.0;
-
-        // --- 2. MULTI-LAYER DATA CORRUPTION ---
-        vec2 block_uv = uv;
-        
-        // Large scale displacement
-        vec2 l_block = floor(uv * 6.0) / 6.0;
-        if (rand(l_block + floor(u_time * 12.0)) < 0.2 * bass_raw) {
-            block_uv += (rand(l_block) - 0.5) * 0.3;
-        }
-
-        // Horizontal "Analog Tearing" strips
-        float strip_y = floor(uv.y * 40.0);
-        if (rand(vec2(strip_y, floor(u_time * 20.0))) > 0.9) {
-            block_uv.x += (rand(vec2(u_time)) - 0.5) * 0.4 * high;
-        }
-
-        // --- 3. COLOR & CHROMATIC ABERRATION ---
-        // Intense RGB splitting on transients
-        float shift = 0.08 * mid * rand(vec2(floor(u_time * 15.0)));
-        
-        float r = texture2D(u_frequency_data, vec2(fract(block_uv.x + shift), 0.0)).r;
-        float g = texture2D(u_frequency_data, vec2(block_uv.x, 0.0)).r;
-        float b = texture2D(u_frequency_data, vec2(fract(block_uv.x - shift), 0.0)).r;
-        
-        vec3 color = vec3(r, g, b);
-
-        // --- 4. ARTIFACTING & NOISE ---
-        // Data-moshing bars
-        float bar_idx = floor(block_uv.x * 32.0);
-        float bar_freq = texture2D(u_frequency_data, vec2(bar_idx / 32.0, 0.0)).r;
-        if (block_uv.y < bar_freq) {
-            color += vec3(0.0, 0.5, 1.0) * mid;
-        }
-
-        // Digital grain (static)
-        color += (rand(block_uv + fract(u_time)) - 0.5) * (0.3 + high);
-
-        // Inversion Flash
-        if (high > 0.93 && rand(vec2(u_time)) > 0.5) {
-            color = 1.0 - color;
-        }
-
-        gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
-    }
-</script>
-    <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('{{ "/sw.js" | relative_url }}').then(registration => {
@@ -6296,6 +5661,3 @@ workspace_data: ${base64Data}
           });
         });
       }
-    </script>
-</body>
-</html>
