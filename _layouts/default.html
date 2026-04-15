@@ -2022,6 +2022,9 @@ workspace_data: ${base64Data}
              */
             updateParameter(paramName, value) {
                 this.data[paramName] = value;
+                if (paramName === 'gain') {
+                    this.mainOutput.gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
+                }
                 if (this.started) {
                     // For chord parameters or waveform, we need to restart the oscillators
                     if (['chordType', 'rootNote', 'octaveRange', 'waveform'].includes(paramName)) {
@@ -2362,6 +2365,8 @@ workspace_data: ${base64Data}
                 this.data[paramName] = value;
                 if (paramName === 'audioUrl') {
                     this.loadAudio();
+                } else if (paramName === 'gain') {
+                    this.mainOutput.gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
                 }
             }
         }
@@ -2389,10 +2394,21 @@ workspace_data: ${base64Data}
                         audioNode.play();
                     }
                 }));
+
+                this.data.gain = 1.0;
+                this.addControl('gain', new SliderControl('waveGain', 'Gain', 0, 2, 0.01, this.data.gain, (val) => {
+                    this.data.gain = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('gain', val);
+                }));
             }
 
             build() {
-                return new WavePlayer(audioContext, this.id, this.data);
+                const audioNode = new WavePlayer(audioContext, this.id, this.data);
+                if (this.data.gain !== undefined) {
+                    audioNode.mainOutput.gain.value = this.data.gain;
+                }
+                return audioNode;
             }
         }
 
@@ -2440,6 +2456,13 @@ workspace_data: ${base64Data}
                     if (audioNode instanceof ChordGenerator) {
                         audioNode.updateParameter('waveform', val);
                     }
+                }));
+
+                this.data.gain = 0.5;
+                this.addControl('gain', new SliderControl('chordGain', 'Gain', 0, 1, 0.01, this.data.gain, (val) => {
+                    this.data.gain = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.updateParameter) audioNode.updateParameter('gain', val);
                 }));
             }
 
@@ -2974,6 +2997,9 @@ workspace_data: ${base64Data}
 
             updateParameter(param, value) {
                 this.data[param] = value;
+                if (param === 'gain') {
+                    this.mainOutput.gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
+                }
                 if (this.started) {
                     // Restart arpeggiator to apply new tempo/notes/pattern
                     this.stop();
