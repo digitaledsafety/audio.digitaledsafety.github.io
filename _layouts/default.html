@@ -354,6 +354,12 @@ layout: none
                             <button id="addMixerNodeBtn" class="button button-secondary w-full text-xs">🎛️ Mixer</button>
                             <button id="addStereoPannerNodeBtn" class="button button-secondary w-full text-xs">↔️ Stereo Panner</button>
                         </div>
+                        <h3 class="text-sm font-bold text-center mt-4 mb-2">Connection Style</h3>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button id="connCurvedBtn" class="button button-secondary w-full text-[10px]">Curved</button>
+                            <button id="connStraightBtn" class="button button-secondary w-full text-[10px]">Straight</button>
+                            <button id="connStepBtn" class="button button-secondary w-full text-[10px]">Step</button>
+                        </div>
                     </div>
                 </div>
                 <button id="playStopBtn" class="button button-primary">▶️</button>
@@ -504,6 +510,7 @@ layout: none
 
             return {
                 workspaceFormatVersion: '2.0',
+                connectionType: editor.connectionType,
                 nodes,
                 connections
             };
@@ -514,6 +521,10 @@ layout: none
             {                
                 console.log('Loading editor from JSON:', json);
                 await editor.clear();
+
+                if (json.connectionType) {
+                    editor.connectionType = json.connectionType;
+                }
 
                 // Stage 1: Create and add all nodes to the editor's data model.
                 for (const nodeData of json.nodes) {
@@ -1100,6 +1111,22 @@ workspace_data: ${base64Data}
 
             setupDropdown('addNodeToggle', 'addNodeDropdown');
             setupDropdown('settingsToggle', 'settingsDropdown');
+
+            document.getElementById('connCurvedBtn').addEventListener('click', () => {
+                editor.connectionType = 'curved';
+                editor.getConnections().forEach(c => c.update());
+                document.getElementById('addNodeDropdown').classList.add('hidden');
+            });
+            document.getElementById('connStraightBtn').addEventListener('click', () => {
+                editor.connectionType = 'straight';
+                editor.getConnections().forEach(c => c.update());
+                document.getElementById('addNodeDropdown').classList.add('hidden');
+            });
+            document.getElementById('connStepBtn').addEventListener('click', () => {
+                editor.connectionType = 'step';
+                editor.getConnections().forEach(c => c.update());
+                document.getElementById('addNodeDropdown').classList.add('hidden');
+            });
 
             // Close dropdowns if clicking outside
             document.addEventListener('click', (e) => {
