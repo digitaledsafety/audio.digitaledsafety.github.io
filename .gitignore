@@ -1,6 +1,9 @@
-node_modules
-_site/
-.jekyll-cache/
-test-results/
 *.png
+.bundle/
+.jekyll-cache/
+_site/
+node_modules
+playwright-report/
 server.log
+test-results/
+vendor/
