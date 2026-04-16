@@ -42,13 +42,17 @@ class AudioEditor {
         // Connections are drawn on an SVG layer
         this.svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         this.svg.style.position = 'absolute';
-        this.svg.style.top = '-50000px'; // Cover a huge area
-        this.svg.style.left = '-50000px';
-        this.svg.style.width = '100000px';
-        this.svg.style.height = '100000px';
+        this.svg.style.top = '0';
+        this.svg.style.left = '0';
+        this.svg.style.width = '1px';
+        this.svg.style.height = '1px';
+        this.svg.style.overflow = 'visible';
         this.svg.style.pointerEvents = 'none';
         this.svg.style.zIndex = '0';
         this.world.appendChild(this.svg);
+
+        this.connectionType = 'curved'; // 'curved', 'straight', 'step'
+        this.currentContextMenu = null;
 
         this.updateTransform();
     }
@@ -74,6 +78,66 @@ class AudioEditor {
         window.addEventListener('pointermove', this.onPointerMove.bind(this));
         window.addEventListener('pointerup', this.onPointerUp.bind(this));
         this.container.addEventListener('wheel', this.onWheel.bind(this), { passive: false });
+        this.container.addEventListener('contextmenu', this.onContextMenu.bind(this));
+    }
+
+    onContextMenu(e) {
+        e.preventDefault();
+        const nodeEl = e.target.closest('.node');
+        if (nodeEl) {
+            const nodeId = nodeEl.getAttribute('data-node-id');
+            const node = this.nodes.get(nodeId);
+            this.showContextMenu(e.clientX, e.clientY, node);
+        }
+    }
+
+    showContextMenu(x, y, node) {
+        this.hideContextMenu();
+
+        const menu = document.createElement('div');
+        menu.className = 'context-menu';
+        menu.style.position = 'fixed';
+        menu.style.left = `${x}px`;
+        menu.style.top = `${y}px`;
+        menu.style.backgroundColor = 'white';
+        menu.style.border = '1px solid #d1d5db';
+        menu.style.borderRadius = '0.5rem';
+        menu.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)';
+        menu.style.zIndex = '1000';
+        menu.style.padding = '0.5rem 0';
+        menu.style.minWidth = '140px';
+
+        const deleteItem = document.createElement('div');
+        deleteItem.textContent = '🗑️ Delete Node';
+        deleteItem.style.padding = '0.5rem 1rem';
+        deleteItem.style.cursor = 'pointer';
+        deleteItem.style.fontSize = '0.875rem';
+        deleteItem.style.color = '#ef4444';
+        deleteItem.onmouseover = () => deleteItem.style.backgroundColor = '#fef2f2';
+        deleteItem.onmouseout = () => deleteItem.style.backgroundColor = 'transparent';
+        deleteItem.onclick = () => {
+            this.removeNode(node);
+            this.hideContextMenu();
+        };
+
+        menu.appendChild(deleteItem);
+        document.body.appendChild(menu);
+
+        const closeMenu = (e) => {
+            if (!menu.contains(e.target)) {
+                this.hideContextMenu();
+                document.removeEventListener('pointerdown', closeMenu);
+            }
+        };
+        setTimeout(() => document.addEventListener('pointerdown', closeMenu), 0);
+        this.currentContextMenu = menu;
+    }
+
+    hideContextMenu() {
+        if (this.currentContextMenu) {
+            this.currentContextMenu.remove();
+            this.currentContextMenu = null;
+        }
     }
 
     onPointerDown(e) {
@@ -118,7 +182,10 @@ class AudioEditor {
         if (this.isDraggingNode) {
             this.isDraggingNode.position.x += dx / this.zoom;
             this.isDraggingNode.position.y += dy / this.zoom;
-            this.isDraggingNode.update();
+            if (this.isDraggingNode.el) {
+                this.isDraggingNode.el.style.left = `${this.isDraggingNode.position.x}px`;
+                this.isDraggingNode.el.style.top = `${this.isDraggingNode.position.y}px`;
+            }
             this.updateNodeConnections(this.isDraggingNode);
         } else if (this.isPanning) {
             this.translateX += dx;
@@ -209,14 +276,24 @@ class AudioEditor {
         const x2 = (e.clientX - worldRect.left) / this.zoom;
         const y2 = (e.clientY - worldRect.top) / this.zoom;
 
-        const dx = Math.abs(x1 - x2) * 0.5;
-        let d;
-        if (this.activeConnection.startPort.type === 'output') {
-            d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
-        } else {
-            d = `M ${x1} ${y1} C ${x1 - dx} ${y1}, ${x2 + dx} ${y2}, ${x2} ${y2}`;
+        this.activeConnection.path.setAttribute('d', this.getPathData(x1, y1, x2, y2, this.activeConnection.startPort.type));
+    }
+
+    getPathData(x1, y1, x2, y2, startPortType) {
+        const type = this.connectionType || 'curved';
+        if (type === 'straight') {
+            return `M ${x1} ${y1} L ${x2} ${y2}`;
+        } else if (type === 'step') {
+            const midX = (x1 + x2) / 2;
+            return `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
+        } else { // curved
+            const dx = Math.abs(x1 - x2) * 0.5;
+            if (startPortType === 'output') {
+                return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+            } else {
+                return `M ${x1} ${y1} C ${x1 - dx} ${y1}, ${x2 + dx} ${y2}, ${x2} ${y2}`;
+            }
         }
-        this.activeConnection.path.setAttribute('d', d);
     }
 
     async completeConnection(targetPort) {
@@ -432,7 +509,7 @@ class Node {
 
         // Outputs
         const outputsContainer = document.createElement('div');
-        outputsContainer.className = 'outputs';
+        outputsContainer.className = 'outputs mt-2 pt-2 border-t border-gray-100';
         for (const key in this.outputs) {
             outputsContainer.appendChild(this.outputs[key].render());
         }
@@ -497,6 +574,8 @@ class Port {
             div.appendChild(title);
         } else {
             div.appendChild(title);
+            socket.style.backgroundColor = '#4f46e5';
+            socket.style.borderColor = '#4338ca';
             div.appendChild(socket);
         }
 
@@ -546,9 +625,7 @@ class Connection {
         const x2 = (targetRect.left + targetRect.width / 2 - worldRect.left) / zoom;
         const y2 = (targetRect.top + targetRect.height / 2 - worldRect.top) / zoom;
 
-        const dx = Math.abs(x1 - x2) * 0.5;
-        const path = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
-        this.el.setAttribute('d', path);
+        this.el.setAttribute('d', this.sourceNode.editor.getPathData(x1, y1, x2, y2, 'output'));
     }
 }
 
