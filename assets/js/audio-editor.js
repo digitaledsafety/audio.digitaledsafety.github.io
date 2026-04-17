@@ -260,8 +260,9 @@ class AudioEditor {
             startPort: port,
             path: document.createElementNS('http://www.w3.org/2000/svg', 'path')
         };
-        this.activeConnection.path.setAttribute('stroke', '#4f46e5');
-        this.activeConnection.path.setAttribute('stroke-width', '3');
+        this.activeConnection.path.setAttribute('stroke', '#818cf8'); // Lighter indigo for active drag
+        this.activeConnection.path.setAttribute('stroke-width', '4');
+        this.activeConnection.path.setAttribute('stroke-linecap', 'round');
         this.activeConnection.path.setAttribute('fill', 'none');
         this.activeConnection.path.setAttribute('stroke-dasharray', '5,5');
         this.svg.appendChild(this.activeConnection.path);
@@ -490,30 +491,39 @@ class Node {
         title.textContent = this.label;
         div.appendChild(title);
 
-        // Inputs
-        const inputsContainer = document.createElement('div');
-        inputsContainer.className = 'inputs';
-        for (const key in this.inputs) {
-            inputsContainer.appendChild(this.inputs[key].render());
-        }
-        div.appendChild(inputsContainer);
+        // Ports Area (Inputs & Outputs side-by-side)
+        const hasInputs = Object.keys(this.inputs).length > 0;
+        const hasOutputs = Object.keys(this.outputs).length > 0;
 
-        // Controls
+        if (hasInputs || hasOutputs) {
+            const portsContainer = document.createElement('div');
+            portsContainer.className = 'ports-container flex justify-between gap-4 mb-2';
+
+            const inputsContainer = document.createElement('div');
+            inputsContainer.className = 'inputs flex-1';
+            for (const key in this.inputs) {
+                inputsContainer.appendChild(this.inputs[key].render());
+            }
+            portsContainer.appendChild(inputsContainer);
+
+            const outputsContainer = document.createElement('div');
+            outputsContainer.className = 'outputs flex-1 flex flex-col items-end';
+            for (const key in this.outputs) {
+                outputsContainer.appendChild(this.outputs[key].render());
+            }
+            portsContainer.appendChild(outputsContainer);
+
+            div.appendChild(portsContainer);
+        }
+
+        // Controls Area
         const controlsContainer = document.createElement('div');
-        controlsContainer.className = 'controls';
+        controlsContainer.className = 'controls border-t border-gray-100 pt-2';
         for (const key in this.controls) {
             const controlEl = this.controls[key].render();
             if (controlEl) controlsContainer.appendChild(controlEl);
         }
         div.appendChild(controlsContainer);
-
-        // Outputs
-        const outputsContainer = document.createElement('div');
-        outputsContainer.className = 'outputs mt-2 pt-2 border-t border-gray-100';
-        for (const key in this.outputs) {
-            outputsContainer.appendChild(this.outputs[key].render());
-        }
-        div.appendChild(outputsContainer);
 
         return div;
     }
@@ -573,9 +583,8 @@ class Port {
             div.appendChild(socket);
             div.appendChild(title);
         } else {
+            title.style.textAlign = 'right';
             div.appendChild(title);
-            socket.style.backgroundColor = '#4f46e5';
-            socket.style.borderColor = '#4338ca';
             div.appendChild(socket);
         }
 
@@ -599,8 +608,9 @@ class Connection {
 
     render() {
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        path.setAttribute('stroke', '#666');
-        path.setAttribute('stroke-width', '3');
+        path.setAttribute('stroke', '#4f46e5'); // Indigo cables for established connections
+        path.setAttribute('stroke-width', '4');
+        path.setAttribute('stroke-linecap', 'round');
         path.setAttribute('fill', 'none');
         this.el = path;
         this.update();
