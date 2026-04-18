@@ -5500,8 +5500,6 @@ workspace_data: ${base64Data}
         NodeRegistry.register('Stereo Panner', StereoPannerNode);
 
         window.onload = async () => {
-
-
             // Rete.js v2: Define schemes
             const schemes = {
                 Node: WebAudioNode,
@@ -5517,15 +5515,7 @@ workspace_data: ${base64Data}
             // Rete.js v2: AreaPlugin is instantiated and then other plugins are added to it
             area = new AreaPlugin(reteContainer);
 
-            /*
-            area = new AreaPlugin(reteContainer, { // Pass the config object here
-                pointerdown: (context) => {
-                    console.log(context);
-                    // Allow dragging ONLY if the click was NOT on a socket
-                    return !context.event.target.closest('.socket');
-                }
-            });
-            */
+            let activeConnection = null;
 
             // --- Multiplayer Logic ---
             multiplayer = new Multiplayer();
@@ -5581,9 +5571,6 @@ workspace_data: ${base64Data}
             });               
 
             const connection = new ConnectionPlugin();
-            // Corrected: ContextMenuPlugin is instantiated with the editor instance, and then its preset is added
-            //const contextMenu = new ContextMenuPlugin(editor); 
-
             const reactRender = new ReactRenderPlugin({ createRoot });
 
             const contextMenu = new ContextMenuPlugin({
@@ -5591,18 +5578,18 @@ workspace_data: ${base64Data}
                     ['Tone Generator', () => new ToneGeneratorNode()],
                     ['Noise Generator', () => new NoiseGeneratorNode()],
                     ['Wave Player', () => new WavePlayerNode()],
-                    ['Chord Generator', () => new ChordGeneratorNode()], // Add Chord Generator to Context Menu
+                    ['Chord Generator', () => new ChordGeneratorNode()],
                     ['VCA', () => new VCANode()],
                     ['Master', () => new MasterGainOutputNode()],
                     ['Filter', () => new FilterNode()],
                     ['Delay', () => new DelayNode()],
-                    ['Distortion', () => new DistortionNode()],   // New Context Menu Item
-                    ['Compressor', () => new CompressorNode()],   // New Context Menu Item
-                    ['Reverb', () => new ReverbNode()],            // New Context Menu Item
-                    ['Arpeggiator', () => new ArpeggiatorNode()], // Add Arpeggiator to context menu
-                    ['LFO', () => new LFONode()], // New: LFO
-                    ['ADSR Envelope', () => new ADSREnvelopeNode()], // New: ADSR
-                    ['Bitcrusher', () => new BitcrusherNode()], // New: Bitcrusher
+                    ['Distortion', () => new DistortionNode()],
+                    ['Compressor', () => new CompressorNode()],
+                    ['Reverb', () => new ReverbNode()],
+                    ['Arpeggiator', () => new ArpeggiatorNode()],
+                    ['LFO', () => new LFONode()],
+                    ['ADSR Envelope', () => new ADSREnvelopeNode()],
+                    ['Bitcrusher', () => new BitcrusherNode()],
                     ['Sequencer', () => new SequencerNode()],
                     ['Attenuverter', () => new AttenuverterNode()],
                     ['Master Clock', () => new MasterClockNode()],
@@ -5613,51 +5600,121 @@ workspace_data: ${base64Data}
                 ])
             });
             
-            // Rete.js v2: Add presets to connection and contextMenu plugins
             connection.addPreset(ConnectionPresets.classic.setup());
             
-            // Corrected: ContextMenuPresets.classic.setup expects an object with an 'items' property.
-            /*contextMenu.addPreset(ContextMenuPresets.classic.setup({
-                items: [
-                    ['Tone Generator', () => new ToneGeneratorNode()],
-                    ['Filter', () => new FilterNode()],
-                    ['Delay', () => new DelayNode()]
-                ]
-            }));*/
-
-            // Rete.js v2: Register plugins with the AreaPlugin          
             editor.use(area);
 
             area.use(connection);
             area.use(reactRender);
-            area.use(contextMenu); // Use the instantiated contextMenu plugin
+            area.use(contextMenu);
 
             reactRender.addPreset(ReactPresets.classic.setup({ area }));
             reactRender.addPreset(ReactPresets.contextMenu.setup())
 
-            //AreaExtensions.simpleNodesOrder(area);
-            //AreaExtensions.showInputControl(area)
-
-            //AreaExtensions.selectableNodes(area, AreaExtensions.selector(), {
-            //  accumulating: AreaExtensions.accumulateOnCtrl(),
-            //});
-
-            // Rete.js v2: Register custom node rendering (plain JS DOM manipulation)
             area.addPipe((context) => {
-              //console.log(context);
+                if (context.type === 'pointermove' && activeConnection) {
+                    const threshold = 40;
+                    const { event } = context.data;
+                    const mouseX = event.clientX;
+                    const mouseY = event.clientY;
+
+                    let nearestSocket = null;
+                    let minDistance = threshold;
+
+                    const sockets = document.querySelectorAll('.socket');
+                    sockets.forEach(socketEl => {
+                        const nodeEl = socketEl.closest('.node');
+                        if (nodeEl && nodeEl.getAttribute('data-node-id') === activeConnection.source) return;
+
+                        const rect = socketEl.getBoundingClientRect();
+                        const socketX = rect.left + rect.width / 2;
+                        const socketY = rect.top + rect.height / 2;
+                        const dist = Math.hypot(mouseX - socketX, mouseY - socketY);
+
+                        if (dist < minDistance) {
+                            minDistance = dist;
+                            nearestSocket = socketEl;
+                        }
+                    });
+
+                    if (nearestSocket) {
+                        const rect = nearestSocket.getBoundingClientRect();
+                        const socketX = rect.left + rect.width / 2;
+                        const socketY = rect.top + rect.height / 2;
+
+                        const containerRect = reteContainer.getBoundingClientRect();
+                        const k = area.area.transform.k;
+                        context.data.x = (socketX - containerRect.left - area.area.transform.x) / k;
+                        context.data.y = (socketY - containerRect.top - area.area.transform.y) / k;
+                    }
+                }
+
                 if (_isLocalChange && context.type === 'nodedragged') {
+                    const node = context.data.payload;
+                    const nodeView = area.nodeViews.get(node.id);
+                    if (nodeView) {
+                        const rect = nodeView.element.getBoundingClientRect();
+                        const nodeX = rect.left + rect.width / 2;
+                        const nodeY = rect.top + rect.height / 2;
+
+                        const connections = editor.getConnections();
+                        for (const conn of connections) {
+                            if (conn.source === node.id || conn.target === node.id) continue;
+
+                            const sourceView = area.nodeViews.get(conn.source);
+                            const targetView = area.nodeViews.get(conn.target);
+                            if (!sourceView || !targetView) continue;
+
+                            const sourceSocket = sourceView.element.querySelector(`.socket.output[data-socket-key="${conn.sourceOutput}"]`);
+                            const targetSocket = targetView.element.querySelector(`.socket.input[data-socket-key="${conn.targetInput}"]`);
+                            if (!sourceSocket || !targetSocket) continue;
+
+                            const sRect = sourceSocket.getBoundingClientRect();
+                            const tRect = targetSocket.getBoundingClientRect();
+                            const sx = sRect.left + sRect.width / 2;
+                            const sy = sRect.top + sRect.height / 2;
+                            const tx = tRect.left + tRect.width / 2;
+                            const ty = tRect.top + tRect.height / 2;
+
+                            const l2 = Math.pow(tx - sx, 2) + Math.pow(ty - sy, 2);
+                            if (l2 === 0) continue;
+                            const t = Math.max(0, Math.min(1, ((nodeX - sx) * (tx - sx) + (nodeY - sy) * (ty - sy)) / l2));
+                            const projX = sx + t * (tx - sx);
+                            const projY = sy + t * (ty - sy);
+                            const dist = Math.hypot(nodeX - projX, nodeY - projY);
+
+                            if (dist < 30) {
+                                const inputs = Object.keys(node.inputs);
+                                const outputs = Object.keys(node.outputs);
+                                if (inputs.length > 0 && outputs.length > 0) {
+                                    (async () => {
+                                        const sourceOutput = conn.sourceOutput;
+                                        const targetInput = conn.targetInput;
+                                        const sourceId = conn.source;
+                                        const targetId = conn.target;
+
+                                        await editor.removeConnection(conn.id);
+                                        await editor.addConnection(new WebAudioConnection(editor.getNode(sourceId), sourceOutput, node, inputs[0]));
+                                        await editor.addConnection(new WebAudioConnection(node, outputs[0], editor.getNode(targetId), targetInput));
+
+                                        multiplayer.broadcast(editorToJSON());
+                                        autoSave();
+                                    })();
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
                     const workspaceData = editorToJSON();
                     multiplayer.broadcast(workspaceData);
                     autoSave();
-                }                
+                }
+
                 if (context.type === 'rendered' && context.data.type === 'node') {
-                    // Add a data-node-id attribute to the node's root element for easier DOM selection
                     context.data.element.setAttribute('data-node-id', context.data.payload.id);
 
-                    // Check if node data is valid and it's a known node type
                     if (context.data.payload instanceof WebAudioNode) {
-                        // Guard clause: Rete's React renderer might not have created the child elements yet.
-                        // If so, we skip this render pass. The pipe will be called again.
                         if (!context.data.element.children[0]) {
                             return context;
                         }
@@ -5667,30 +5724,22 @@ workspace_data: ${base64Data}
                           elements[0].parentNode.removeChild(elements[0]);
                         }
                         context.data.element.children[0].style.height = "auto";
-                        context.data.element.children[0].appendChild(nodeView.el); // Append the custom node's DOM element
+                        context.data.element.children[0].appendChild(nodeView.el);
                     }
                 }
-                // Handle socket rendering for custom nodes
                 if (context.type === 'render' && context.data.type === 'socket') {
-                     // Get the parent node's element
                     const nodeEl = context.data.element.closest('.node');
-                    //console.log(nodeEl);
                     if (nodeEl) {
-                        // Find the socket element within the custom node's rendered HTML
                         const socketType = context.data.side === 'input' ? 'input' : 'output';
                         const socketKey = context.data.key;
                         const customSocketEl = nodeEl.querySelector(`.socket.${socketType}[data-socket-key="${socketKey}"]`);
                         if (customSocketEl) {
-                            //console.log(customSocketEl);
-                            // Rete's AreaPlugin expects the actual socket DOM element
-                            // We need to return the custom one so Rete can attach its event listeners and styles
                             context.data.element = customSocketEl;
-                            // Optionally, ensure the custom socket has the correct Rete-generated classes
-                            customSocketEl.classList.add('socket'); // Ensure base socket class is present
-                            customSocketEl.classList.add(socketType); // Ensure input/output class is present
+                            customSocketEl.classList.add('socket');
+                            customSocketEl.classList.add(socketType);
                         } else {
                             console.warn(`Custom socket element not found for ${socketType} ${socketKey}`);
-                            return false; // Prevent Rete from trying to render a missing socket
+                            return false;
                         }
                     }
                 }
@@ -5698,8 +5747,13 @@ workspace_data: ${base64Data}
             });
 
 
-            // Rete.js v2: Events are handled differently via pipes
             editor.addPipe(async (context) => {
+                if (context.type === 'connectionpick') {
+                    activeConnection = context.data;
+                } else if (context.type === 'connectiondrop') {
+                    activeConnection = null;
+                }
+
                 if (_isLocalChange && ['nodecreated', 'noderemoved', 'connectioncreated', 'connectionremoved'].includes(context.type)) {
                     const workspaceData = editorToJSON();
                     multiplayer.broadcast(workspaceData);
@@ -5710,7 +5764,7 @@ workspace_data: ${base64Data}
                         const existingMaster = editor.getNodes().find(n => n.label === 'Master');
                         if (existingMaster) {
                             showMessage('Only one Master Output node is allowed.', 'error');
-                            return; // Stop the creation process by returning nothing
+                            return;
                         }
                     }
                     if(!audioContext) {
@@ -5731,7 +5785,6 @@ workspace_data: ${base64Data}
                         reteAudioNodes.set(reteNode.id, audioNode);
                         showMessage(`${reteNode.label} node added to editor.`, 'info');
                         if (audioContext && audioContext.state === 'running') {
-                            // If the node has a start method (like oscillators), call it.
                             reteNode.start();
                             updateAudioGraphConnections();
                         }
@@ -5742,7 +5795,6 @@ workspace_data: ${base64Data}
                     const node = context.data;
                     const audioNode = reteAudioNodes.get(node.id);
                     if (audioNode) {
-                        // Stop Tone Generators
                         if ((node.label === 'Tone Generator' || node.label === 'Noise Generator') && audioNode.stop && audioNode.started) {
                             try {
                                 audioNode.stop();
@@ -5751,7 +5803,6 @@ workspace_data: ${base64Data}
                                 console.warn(`Oscillator for node ${node.id} already stopped or could not be stopped.`, e);
                             }
                         }
-                        // Stop Arpeggiator
                         if (node.label === 'Arpeggiator' && audioNode.stop && audioNode.started) {
                             try {
                                 audioNode.stop();
@@ -5760,8 +5811,6 @@ workspace_data: ${base64Data}
                                 console.warn(`Arpeggiator for node ${node.id} could not be stopped.`, e);
                             }
                         }
-                        // Disconnect audio nodes (Tone Generator, Gain, Filter, Delay)
-                        // For Arpeggiator, disconnect its main output
                         try {
                             if (audioNode.mainOutput) {
                                 audioNode.mainOutput.disconnect();
@@ -5781,13 +5830,12 @@ workspace_data: ${base64Data}
                     const connection = context.data;
                     if (audioContext && audioContext.state === 'running') {
                         updateAudioGraphConnections();
-                        // If a clock was just connected to a running sequencer/arpeggiator, stop its internal timer.
                         if (connection.targetInput === 'clock') {
                             const targetReteNode = editor.getNode(connection.target);
                             const targetAudioNode = reteAudioNodes.get(connection.target);
                             if (targetAudioNode && ['Arpeggiator', 'Sequencer'].includes(targetReteNode.label) && targetAudioNode.started) {
-                                targetAudioNode.stop(); // Stop internal timer
-                                targetAudioNode.start(); // Restart in external mode
+                                targetAudioNode.stop();
+                                targetAudioNode.start();
                             }
                         }
                     }
@@ -5796,7 +5844,6 @@ workspace_data: ${base64Data}
                     const connection = context.data;
                     if (audioContext && audioContext.state === 'running') {
                         updateAudioGraphConnections();
-                        // If a clock was just disconnected, restart the node to use its internal timer.
                         if (connection.targetInput === 'clock') {
                             const targetReteNode = editor.getNode(connection.target);
                             const targetAudioNode = reteAudioNodes.get(connection.target);
@@ -5808,38 +5855,25 @@ workspace_data: ${base64Data}
                     }
                     showMessage('Connection removed.', 'info');
                 } else if (context.type === 'nodeeditorrendered') {
-                     // This event fires after the initial editor rendering
                     AreaExtensions.zoomAt(area, editor.getNodes());
                 }      
                        
                 return context;
             });
 
-            // Set initial position for new nodes
             const addNode = async (node) => {
                 const existingNodesCount = editor.getNodes().length;
                 node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
                 await editor.addNode(node);
             };
 
-            // Rete.js v2: Zoom at all nodes after editor is rendered
-            AreaExtensions.simpleNodesOrder(area); // Ensure nodes are ordered correctly for rendering
-
-            // Initial setup for empty editor (e.g., zoom to fit an empty area or default view)
+            AreaExtensions.simpleNodesOrder(area);
             AreaExtensions.zoomAt(area, editor.getNodes());
-
-            // Process the graph on changes (optional, for engine processing if needed)
-            // For Web Audio, we manually manage connections, so engine is less critical for "processing"
-            // editor.addPipe(async (context) => {
-            //     if (['nodecreate', 'noderemove', 'connectioncreate', 'connectionremove'].includes(context.type)) {
-            //         await engine.abort();
-            //         await engine.process(editor.toJSON());
-            //     }
-            //     return context;
-            // });
 
             populateWorkspacesDropdown();
             showMessage('Editor ready. Add nodes and then click "Record" or "Play" to start audio.', 'info');
+
+        };
 
             // --- Dropdown Logic ---
             const setupDropdown = (toggleId, dropdownId) => {
@@ -6245,7 +6279,7 @@ workspace_data: ${base64Data}
                     visualize();
                 }
             });
-        };
+        ;
     </script>
 <script id="vertex-shader" type="x-shader/x-vertex">
     // Set precision for the vertex shader to match the fragment shader
