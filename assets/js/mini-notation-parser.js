@@ -33,7 +33,7 @@ class MiniNotationParser {
 
         while (tokens.length > 0) {
             const token = tokens.shift();
-            const euclideanMatch = token.match(/^([A-Ga-g#?0-9~_@]+)\*(\d+)\/(\d+)$/);
+            const euclideanMatch = token.match(/^([A-Ga-g#?0-9~_@kshc]+)\*(\d+)\/(\d+)$/i);
             if (euclideanMatch) {
                 const note = euclideanMatch[1];
                 const pulses = parseInt(euclideanMatch[2], 10);
@@ -130,8 +130,8 @@ class MiniNotationParser {
             return eventString.flatMap(s => this.parseNoteEvent(s));
         }
 
-        // Updated regex to include drum notation 'k', 's', 'h'
-        let noteName = eventString.match(/[A-Ga-g]#?[0-9]|k|s|h/i)?.[0] || (eventString.includes('~') ? '~' : null);
+        // Updated regex to include drum notation 'k', 's', 'h', 'c'
+        let noteName = eventString.match(/[A-Ga-g]#?[0-9]|k|s|h|c/i)?.[0] || (eventString.includes('~') ? '~' : null);
         let speed = 1;
         let duration = 1;
         let elongation = 1;
