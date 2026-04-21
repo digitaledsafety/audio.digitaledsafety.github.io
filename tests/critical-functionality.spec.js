@@ -52,4 +52,41 @@ test.describe('Critical Functionality', () => {
     await workspaceTab.click();
     await expect(visualizerView).not.toHaveClass(/active/);
   });
+
+  test('should save and load workspace', async ({ page }) => {
+    await page.locator('#cta-button').click();
+
+    // Add a node to make workspace non-empty
+    await page.locator('#addNodeToggle').click();
+    await page.locator('#addToneGeneratorNodeBtn').click();
+
+    // Open settings
+    await page.locator('#settingsToggle').click();
+
+    // Set workspace name
+    const workspaceNameInput = page.locator('#workspaceName');
+    const testName = 'Test-Workspace-' + Date.now();
+    await workspaceNameInput.fill(testName);
+
+    // Save workspace
+    await page.locator('#saveWorkspaceBtn').click();
+
+    // Verify success message (optional but good)
+    await expect(page.locator('#messageBox')).toContainText('saved');
+
+    // Reload page to clear editor state (in-memory)
+    await page.reload();
+    await page.locator('#cta-button').click();
+
+    // Open settings again
+    await page.locator('#settingsToggle').click();
+
+    // Select workspace and load
+    const selector = page.locator('#workspaceSelector');
+    await selector.selectOption(testName);
+    await page.locator('#loadWorkspaceBtn').click();
+
+    // Verify node is restored
+    await expect(page.locator('text=Tone Generator').first()).toBeVisible();
+  });
 });
