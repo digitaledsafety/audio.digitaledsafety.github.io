@@ -352,6 +352,8 @@ layout: none
                                 <button id="addVocoderNodeBtn" class="button button-secondary w-full text-xs">🗣️ Vocoder</button>
                                 <button id="addGranularSynthesizerNodeBtn" class="button button-secondary w-full text-xs">✨ Granular</button>
                                 <button id="addStereoPannerNodeBtn" class="button button-secondary w-full text-xs">↔️ Stereo Panner</button>
+                                <button id="addDTSEnhancerNodeBtn" class="button button-secondary w-full text-xs">🔊 DTS Enhancer</button>
+                                <button id="addVectorPannerNodeBtn" class="button button-secondary w-full text-xs">🧭 Vector Panner</button>
                             </div>
                         </div>
 
@@ -578,6 +580,8 @@ layout: none
         const addDrumMachineNodeBtn = document.getElementById('addDrumMachineNodeBtn');
         const addMixerNodeBtn = document.getElementById('addMixerNodeBtn');
         const addVisualizerNodeBtn = document.getElementById('addVisualizerNodeBtn');
+        const addDTSEnhancerNodeBtn = document.getElementById('addDTSEnhancerNodeBtn');
+        const addVectorPannerNodeBtn = document.getElementById('addVectorPannerNodeBtn');
         const clearEditorBtn = document.getElementById('clearEditorBtn');
         const reteContainer = document.getElementById('rete-container');
         const messageBox = document.getElementById('messageBox');
@@ -1521,7 +1525,7 @@ workspace_data: ${base64Data}
                     const strategy = getDisconnectionStrategy(targetReteNode, connection.targetInput, connection.sourceOutput);
                     try {
                         // Pass the Rete nodes directly, as strategies need them.
-                        strategy.disconnect(sourceReteNode, targetReteNode, connection.targetInput);
+                        strategy.disconnect(sourceReteNode, targetReteNode, connection.targetInput, connection.sourceOutput);
                     } catch (e) {
                         // Ignore errors, connection might already be broken
                     }
@@ -1540,7 +1544,7 @@ workspace_data: ${base64Data}
                     if (strategy) {
                         try {
                             // Pass the Rete nodes directly to the connect method.
-                            strategy.connect(sourceReteNode, targetReteNode, connection.targetInput);
+                            strategy.connect(sourceReteNode, targetReteNode, connection.targetInput, connection.sourceOutput);
                             console.log(`Connected: ${sourceReteNode.label} to ${targetReteNode.label} via ${connection.targetInput}`);
                         } catch (e) {
                             console.error(`Error connecting ${sourceReteNode.label} to ${targetReteNode.label}:`, e);
@@ -1553,18 +1557,18 @@ workspace_data: ${base64Data}
         // --- Rete.js v2 Setup ---
 
         class ConnectionStrategy {
-            connect(sourceNode, targetNode, targetInputKey) {
+            connect(sourceNode, targetNode, targetInputKey, sourceOutputKey) {
                 throw new Error("Connect method must be implemented by subclass.");
             }
 
-            disconnect(sourceNode, targetNode, targetInputKey) {
-                throw new Error("Disconnect method must be inplemented by subclass.");
+            disconnect(sourceNode, targetNode, targetInputKey, sourceOutputKey) {
+                throw new Error("Disconnect method must be implemented by subclass.");
             }
         }
 
         
         class MidiConnectionStrategy extends ConnectionStrategy {
-            connect(sourceReteNode, targetReteNode) {
+            connect(sourceReteNode, targetReteNode, targetInputKey, sourceOutputKey) {
                 const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
                 const targetAudioNode = reteAudioNodes.get(targetReteNode.id);
 
@@ -1580,7 +1584,7 @@ workspace_data: ${base64Data}
                 }
             }
 
-            disconnect(sourceReteNode, targetReteNode) {
+            disconnect(sourceReteNode, targetReteNode, targetInputKey, sourceOutputKey) {
                 const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
                 const targetAudioNode = reteAudioNodes.get(targetReteNode.id);
 
@@ -1602,12 +1606,12 @@ workspace_data: ${base64Data}
                 this.clockThreshold = 0.1;
             }
 
-            connect(sourceReteNode, targetReteNode, targetInputKey) {
+            connect(sourceReteNode, targetReteNode, targetInputKey, sourceOutputKey) {
                 const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
                 const targetAudioNode = reteAudioNodes.get(targetReteNode.id);
                 if (!sourceAudioNode || !targetAudioNode) return;
 
-                const sourceToConnect = sourceAudioNode.mainOutput || sourceAudioNode;
+                const sourceToConnect = sourceAudioNode[sourceOutputKey + 'Output'] || sourceAudioNode.mainOutput || sourceAudioNode;
 
                 // Check for specifically named inputs (e.g., carrierInput, in1Input)
                 const namedInput = targetAudioNode[targetInputKey + 'Input'];
@@ -1654,7 +1658,7 @@ workspace_data: ${base64Data}
                 }
             }
 
-            disconnect(sourceReteNode, targetReteNode, targetInputKey) {
+            disconnect(sourceReteNode, targetReteNode, targetInputKey, sourceOutputKey) {
                 const sourceAudioNode = reteAudioNodes.get(sourceReteNode.id);
                 const targetAudioNode = reteAudioNodes.get(targetReteNode.id);
                 if (!sourceAudioNode || !targetAudioNode) return;
@@ -1677,7 +1681,7 @@ workspace_data: ${base64Data}
                     }
                 }
 
-                const sourceToDisconnect = sourceAudioNode.mainOutput || sourceAudioNode;
+                const sourceToDisconnect = sourceAudioNode[sourceOutputKey + 'Output'] || sourceAudioNode.mainOutput || sourceAudioNode;
 
                 // Check for specifically named inputs
                 const namedInput = targetAudioNode[targetInputKey + 'Input'];
@@ -1762,6 +1766,10 @@ workspace_data: ${base64Data}
                         return targetNode.frequency;
                     case 'pan_cv':
                         return targetNode.pan;
+                    case 'x_cv':
+                        return targetNode.panner ? targetNode.panner.positionX : null;
+                    case 'y_cv':
+                        return targetNode.panner ? targetNode.panner.positionZ : null;
                     case 'q_cv':
                         return targetNode.Q;
                     case 'delay_cv':
@@ -2427,6 +2435,163 @@ workspace_data: ${base64Data}
                     audioNode.mainOutput.gain.value = this.data.gain;
                 }
                 return audioNode;
+            }
+        }
+
+        class DTSEnhancer {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+
+                this.mainInput = this.audioContext.createGain();
+
+                // Punch: Low Shelf
+                this.punchFilter = this.audioContext.createBiquadFilter();
+                this.punchFilter.type = 'lowshelf';
+                this.punchFilter.frequency.value = 200;
+                this.punchFilter.gain.value = this.data.punch || 0;
+
+                // Clarity: High Shelf
+                this.clarityFilter = this.audioContext.createBiquadFilter();
+                this.clarityFilter.type = 'highshelf';
+                this.clarityFilter.frequency.value = 3000;
+                this.clarityFilter.gain.value = this.data.clarity || 0;
+
+                // LFE: Low Pass
+                this.lfeFilter = this.audioContext.createBiquadFilter();
+                this.lfeFilter.type = 'lowpass';
+                this.lfeFilter.frequency.value = this.data.lfeFrequency || 80;
+
+                this.lfeGainNode = this.audioContext.createGain();
+                this.lfeGainNode.gain.value = this.data.lfeGain || 1.0;
+
+                // Routing
+                this.mainInput.connect(this.punchFilter);
+                this.punchFilter.connect(this.clarityFilter);
+                this.mainInput.connect(this.lfeFilter);
+                this.lfeFilter.connect(this.lfeGainNode);
+
+                this.audioOutput = this.clarityFilter;
+                this.lfeOutput = this.lfeGainNode;
+            }
+
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+                const now = this.audioContext.currentTime;
+                if (paramName === 'punch') {
+                    this.punchFilter.gain.setTargetAtTime(value, now, 0.01);
+                } else if (paramName === 'clarity') {
+                    this.clarityFilter.gain.setTargetAtTime(value, now, 0.01);
+                } else if (paramName === 'lfeGain') {
+                    this.lfeGainNode.gain.setTargetAtTime(value, now, 0.01);
+                } else if (paramName === 'lfeFrequency') {
+                    this.lfeFilter.frequency.setTargetAtTime(value, now, 0.01);
+                }
+            }
+
+            start() {}
+            stop() {}
+        }
+
+        class DTSEnhancerNode extends WebAudioNode {
+            constructor() {
+                super('DTS Enhancer');
+                this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
+                this.addOutput('lfe', new Classic.Output(voltageSocket, 'LFE Out'));
+
+                this.data.punch = 0;
+                this.addControl('punch', new SliderControl('punch', 'Punch (dB)', -20, 20, 0.1, this.data.punch, (val) => {
+                    this.data.punch = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('punch', val);
+                }));
+
+                this.data.clarity = 0;
+                this.addControl('clarity', new SliderControl('clarity', 'Clarity (dB)', -20, 20, 0.1, this.data.clarity, (val) => {
+                    this.data.clarity = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('clarity', val);
+                }));
+
+                this.data.lfeFrequency = 80;
+                this.addControl('lfeFrequency', new SliderControl('lfeFreq', 'LFE Cutoff (Hz)', 20, 500, 1, this.data.lfeFrequency, (val) => {
+                    this.data.lfeFrequency = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('lfeFrequency', val);
+                }));
+
+                this.data.lfeGain = 1.0;
+                this.addControl('lfeGain', new SliderControl('lfeGain', 'LFE Gain', 0, 2, 0.01, this.data.lfeGain, (val) => {
+                    this.data.lfeGain = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('lfeGain', val);
+                }));
+            }
+
+            build() {
+                return new DTSEnhancer(audioContext, this.id, this.data);
+            }
+        }
+
+        class VectorPanner {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+
+                this.panner = this.audioContext.createPanner();
+                this.panner.panningModel = 'HRTF';
+                this.panner.distanceModel = 'inverse';
+
+                this.updateParameter('x', this.data.x || 0);
+                this.updateParameter('y', this.data.y || 0);
+
+                this.mainInput = this.panner;
+                this.mainOutput = this.panner;
+            }
+
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+                const now = this.audioContext.currentTime;
+                if (paramName === 'x') {
+                    this.panner.positionX.setTargetAtTime(value, now, 0.01);
+                } else if (paramName === 'y') {
+                    // Map Y to Z axis for 2D plane spatialization (X, Z)
+                    this.panner.positionZ.setTargetAtTime(-value, now, 0.01);
+                }
+            }
+
+            start() {}
+            stop() {}
+        }
+
+        class VectorPannerNode extends WebAudioNode {
+            constructor() {
+                super('Vector Panner');
+                this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addInput('x_cv', new Classic.Input(voltageSocket, 'X CV'));
+                this.addInput('y_cv', new Classic.Input(voltageSocket, 'Y CV'));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
+
+                this.data.x = 0;
+                this.addControl('x', new SliderControl('vectorX', 'X (Left/Right)', -5, 5, 0.1, this.data.x, (val) => {
+                    this.data.x = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('x', val);
+                }));
+
+                this.data.y = 0;
+                this.addControl('y', new SliderControl('vectorY', 'Y (Front/Back)', -5, 5, 0.1, this.data.y, (val) => {
+                    this.data.y = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('y', val);
+                }));
+            }
+
+            build() {
+                return new VectorPanner(audioContext, this.id, this.data);
             }
         }
 
@@ -5681,6 +5846,16 @@ workspace_data: ${base64Data}
             clearEditorBtn.disabled = false;
         });
 
+        addDTSEnhancerNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new DTSEnhancerNode());
+            clearEditorBtn.disabled = false;
+        });
+
+        addVectorPannerNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new VectorPannerNode());
+            clearEditorBtn.disabled = false;
+        });
+
         // Initialize editor on window load
         NodeRegistry.register('Tone Generator', ToneGeneratorNode);
         NodeRegistry.register('Noise Generator', NoiseGeneratorNode);
@@ -5710,6 +5885,8 @@ workspace_data: ${base64Data}
         NodeRegistry.register('Mixer', MixerNode);
         NodeRegistry.register('Visualizer', VisualizerNode);
         NodeRegistry.register('Stereo Panner', StereoPannerNode);
+        NodeRegistry.register('DTS Enhancer', DTSEnhancerNode);
+        NodeRegistry.register('Vector Panner', VectorPannerNode);
 
         window.onload = async () => {
             // Rete.js v2: Define schemes
@@ -5796,6 +5973,8 @@ workspace_data: ${base64Data}
                     ['Probability', () => new ProbabilityNode()],
                     ['Mixer', () => new MixerNode()],
                     ['Visualizer', () => new VisualizerNode()],
+                    ['DTS Enhancer', () => new DTSEnhancerNode()],
+                    ['Vector Panner', () => new VectorPannerNode()],
 
                 ])
             });
