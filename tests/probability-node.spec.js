@@ -16,7 +16,7 @@ test.describe('Probability Node', () => {
     await page.click('#addProbabilityNodeBtn');
 
     // Check if the node is added to the editor
-    const probabilityNode = page.locator('.node[data-node-label="Probability"]');
+    const probabilityNode = page.locator('.node').filter({ hasText: 'Probability' });
     await expect(probabilityNode).toBeVisible();
 
     // Check if the probability slider is visible
@@ -32,12 +32,16 @@ test.describe('Probability Node', () => {
     await page.click('#addNodeToggle');
     await page.click('#addProbabilityNodeBtn');
 
-    const probabilityNode = page.locator('.node[data-node-label="Probability"]');
+    // Use a more robust locator
+    const probabilityNode = page.locator('.node').filter({ hasText: 'Probability' });
     const slider = probabilityNode.locator('input[type="range"]');
     const valueDisplay = probabilityNode.locator('.value-display');
 
-    // Move the slider (Note: range is 0-100)
-    await slider.fill('75');
+    // Setting value directly via evaluate since fill() can be flaky on range inputs
+    await slider.evaluate((node, val) => {
+      node.value = val;
+      node.dispatchEvent(new Event('input', { bubbles: true }));
+    }, '75');
 
     // Wait for the value display to update
     await expect(valueDisplay).toHaveText('75.00');

@@ -2863,7 +2863,7 @@ workspace_data: ${base64Data}
                 this.tickAccumulator += 1;
 
                 if (this.tickAccumulator >= ticksPerStep) {
-                    this.tickAccumulator -= ticksPerStep;
+                    this.tickAccumulator = (this.tickAccumulator > 500) ? 0 : this.tickAccumulator - ticksPerStep;
 
                     const notes = this.getArpeggioNotes();
                     if (notes.length > 0) {
@@ -3054,6 +3054,7 @@ workspace_data: ${base64Data}
                 if (this.started || !this.audioContext) return;
                 this.started = true;
                 this.currentNoteIndex = 0;
+                this.tickAccumulator = 9999;
                 this.nextStepTime = this.audioContext.currentTime;
                 this.schedule();
             }
@@ -3319,7 +3320,7 @@ workspace_data: ${base64Data}
                     this.tickAccumulator += 1;
 
                     if (this.tickAccumulator >= ticksForThisStep) {
-                        this.tickAccumulator -= ticksForThisStep;
+                        this.tickAccumulator = (this.tickAccumulator > 500) ? 0 : this.tickAccumulator - ticksForThisStep;
 
                         const stepDuration = tickDuration * ticksForThisStep;
                         if (Array.isArray(event)) {
@@ -3439,7 +3440,7 @@ workspace_data: ${base64Data}
                 if (this.started || !this.audioContext) return;
                 this.started = true;
                 this.currentStep = 0;
-                this.tickAccumulator = 999999; // Ensure immediate trigger on next tick
+                this.tickAccumulator = 9999;
                 this.sequenceEvents = this.parseSequence();
                 this.nextStepTime = this.audioContext.currentTime;
                 this.schedule();
@@ -3593,7 +3594,7 @@ workspace_data: ${base64Data}
                     this.tickAccumulator += 1;
 
                     if (this.tickAccumulator >= ticksForThisStep) {
-                        this.tickAccumulator -= ticksForThisStep;
+                        this.tickAccumulator = (this.tickAccumulator > 500) ? 0 : this.tickAccumulator - ticksForThisStep;
 
                         const stepDuration = tickDuration * ticksForThisStep;
                         const midiNotesToBroadcast = [];
@@ -3668,6 +3669,7 @@ workspace_data: ${base64Data}
                 if (this.started || !this.audioContext) return;
                 this.started = true;
                 this.currentStep = 0;
+                this.tickAccumulator = 9999;
                 this.sequenceEvents = this.parseSequence();
                 this.nextStepTime = this.audioContext.currentTime;
                 this.schedule();
