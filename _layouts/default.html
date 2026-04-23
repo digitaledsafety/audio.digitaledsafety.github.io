@@ -2857,6 +2857,143 @@ workspace_data: ${base64Data}
             }
         }
 
+        class MSWidener {
+            constructor(audioContext) {
+                this.audioContext = audioContext;
+                this.input = this.audioContext.createGain();
+                this.output = this.audioContext.createGain();
+                this.splitter = this.audioContext.createChannelSplitter(2);
+                this.merger = this.audioContext.createChannelMerger(2);
+                this.midSum = this.audioContext.createGain();
+                this.sideDiff = this.audioContext.createGain();
+                this.midGain = this.audioContext.createGain();
+                this.sideGain = this.audioContext.createGain();
+                this.input.connect(this.splitter);
+                this.splitter.connect(this.midSum, 0);
+                this.splitter.connect(this.midSum, 1);
+                this.midSum.gain.value = 0.5;
+                const invert = this.audioContext.createGain();
+                invert.gain.value = -1;
+                this.splitter.connect(this.sideDiff, 0);
+                this.splitter.connect(invert, 1);
+                invert.connect(this.sideDiff);
+                this.sideDiff.gain.value = 0.5;
+                this.midSum.connect(this.midGain);
+                this.sideDiff.connect(this.sideGain);
+                this.midGain.connect(this.merger, 0, 0);
+                this.sideGain.connect(this.merger, 0, 0);
+                this.midGain.connect(this.merger, 0, 1);
+                const sideInvert = this.audioContext.createGain();
+                sideInvert.gain.value = -1;
+                this.sideGain.connect(sideInvert);
+                sideInvert.connect(this.merger, 0, 1);
+                this.merger.connect(this.output);
+            }
+            setWidth(width) {
+                this.sideGain.gain.setTargetAtTime(width, this.audioContext.currentTime, 0.01);
+            }
+        }
+
+        class MasteringProcessor {
+            constructor(audioContext, finalDestination) {
+                this.audioContext = audioContext;
+                this.mainInput = this.audioContext.createGain();
+                this.input = this.mainInput; // Alias for internal use
+                this.lowLP = this.audioContext.createBiquadFilter();
+                this.lowLP.type = 'lowpass';
+                this.lowLP.frequency.value = 200;
+                this.midHP = this.audioContext.createBiquadFilter();
+                this.midHP.type = 'highpass';
+                this.midHP.frequency.value = 200;
+                this.midLP = this.audioContext.createBiquadFilter();
+                this.midLP.type = 'lowpass';
+                this.midLP.frequency.value = 3000;
+                this.highHP = this.audioContext.createBiquadFilter();
+                this.highHP.type = 'highpass';
+                this.highHP.frequency.value = 3000;
+                this.input.connect(this.lowLP);
+                this.input.connect(this.midHP);
+                this.midHP.connect(this.midLP);
+                this.input.connect(this.highHP);
+                this.lowComp = this.audioContext.createDynamicsCompressor();
+                this.midComp = this.audioContext.createDynamicsCompressor();
+                this.highComp = this.audioContext.createDynamicsCompressor();
+                this.lowLP.connect(this.lowComp);
+                this.midLP.connect(this.midComp);
+                this.highHP.connect(this.highComp);
+                this.midWidener = new MSWidener(this.audioContext);
+                this.highWidener = new MSWidener(this.audioContext);
+                this.midComp.connect(this.midWidener.input);
+                this.highComp.connect(this.highWidener.input);
+                this.lowGain = this.audioContext.createGain();
+                this.midGain = this.audioContext.createGain();
+                this.highGain = this.audioContext.createGain();
+                this.lowComp.connect(this.lowGain);
+                this.midWidener.output.connect(this.midGain);
+                this.highWidener.output.connect(this.highGain);
+                this.summer = this.audioContext.createGain();
+                this.lowGain.connect(this.summer);
+                this.midGain.connect(this.summer);
+                this.highGain.connect(this.summer);
+                this.limiter = this.audioContext.createDynamicsCompressor();
+                this.limiter.threshold.value = -0.5;
+                this.limiter.ratio.value = 20;
+                this.limiter.attack.value = 0.001;
+                this.limiter.release.value = 0.1;
+                this.summer.connect(this.limiter);
+                this.limiter.connect(finalDestination);
+                this.finalDestination = finalDestination;
+            }
+
+            // Framework compatibility methods
+            connect(destination) {
+                this.finalDestination.connect(destination);
+            }
+            disconnect(destination) {
+                this.finalDestination.disconnect(destination);
+            }
+            get gain() {
+                return this.finalDestination.gain;
+            }
+            get numberOfInputs() { return 1; }
+            get numberOfOutputs() { return 1; }
+            get channelCount() { return this.mainInput.channelCount; }
+            set channelCount(v) { this.mainInput.channelCount = v; }
+            update(data) {
+                const now = this.audioContext.currentTime;
+                this.lowGain.gain.setTargetAtTime(Math.pow(10, (data.lowGainDB || 0) / 20), now, 0.01);
+                this.midGain.gain.setTargetAtTime(Math.pow(10, (data.midGainDB || 0) / 20), now, 0.01);
+                this.highGain.gain.setTargetAtTime(Math.pow(10, (data.highGainDB || 0) / 20), now, 0.01);
+                this.lowComp.threshold.setTargetAtTime(data.lowThreshold !== undefined ? data.lowThreshold : -12, now, 0.01);
+                this.midComp.threshold.setTargetAtTime(data.midThreshold !== undefined ? data.midThreshold : -12, now, 0.01);
+                this.highComp.threshold.setTargetAtTime(data.highThreshold !== undefined ? data.highThreshold : -12, now, 0.01);
+                this.lowComp.ratio.setTargetAtTime(data.lowRatio || 2, now, 0.01);
+                this.midComp.ratio.setTargetAtTime(data.midRatio || 2, now, 0.01);
+                this.highComp.ratio.setTargetAtTime(data.highRatio || 2, now, 0.01);
+                this.midWidener.setWidth(data.midWidth !== undefined ? data.midWidth : 1);
+                this.highWidener.setWidth(data.highWidth !== undefined ? data.highWidth : 1);
+                this.limiter.threshold.setTargetAtTime(data.limiterThreshold !== undefined ? data.limiterThreshold : -0.5, now, 0.01);
+                this.limiter.release.setTargetAtTime(data.limiterRelease !== undefined ? data.limiterRelease : 0.1, now, 0.01);
+            }
+            disconnect() {
+                this.input.disconnect();
+                this.lowLP.disconnect();
+                this.midHP.disconnect();
+                this.midLP.disconnect();
+                this.highHP.disconnect();
+                this.lowComp.disconnect();
+                this.midComp.disconnect();
+                this.highComp.disconnect();
+                this.midWidener.input.disconnect();
+                this.highWidener.input.disconnect();
+                this.lowGain.disconnect();
+                this.midGain.disconnect();
+                this.highGain.disconnect();
+                this.summer.disconnect();
+                this.limiter.disconnect();
+            }
+        }
+
         class MasterGainOutputNode extends WebAudioNode {
             constructor() {
                 super('Master');
@@ -2864,20 +3001,178 @@ workspace_data: ${base64Data}
                 this.addInput('gain_cv', new Classic.Input(voltageSocket, 'Gain CV'));
 
                 this.data.gain = 0.5;
-                this.addControl('gain', new SliderControl('gainSlider', 'Gain', 0, 1, 0.01, this.data.gain, (val) => {
+                this.addControl('gain', new SliderControl('gainSlider', 'Master Gain', 0, 1, 0.01, this.data.gain, (val) => {
                     this.data.gain = val;
                     if (masterGain) {
-                        masterGain.gain.value = val;
+                        masterGain.gain.setTargetAtTime(val, audioContext.currentTime, 0.01);
                     }
+                }));
+
+                this.data.optimal = this.data.optimal !== undefined ? this.data.optimal : 0;
+                this.addControl('optimal', new SliderControl('optimalSlider', 'Optimal Enhancer', 0, 1, 0.01, this.data.optimal, (val) => {
+                    this.data.optimal = val;
+                    this.applyOptimal(val);
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && audioNode.update) audioNode.update(this.data);
+                    area.update('node', this.id);
+                }));
+
+                this.data.showAdvanced = false;
+                this.addControl('advancedToggle', new ButtonControl('advBtn', 'Advanced Settings', () => {
+                    this.data.showAdvanced = !this.data.showAdvanced;
+                    this.toggleAdvancedControls();
+                    area.update('node', this.id);
+                }));
+
+                // Advanced Controls (initially hidden)
+                this.initAdvancedControls();
+                this.applyOptimal(this.data.optimal);
+                this.toggleAdvancedControls();
+            }
+
+            onDataLoaded() {
+                this.applyOptimal(this.data.optimal);
+                this.toggleAdvancedControls();
+            }
+
+            initAdvancedControls() {
+                // EQ
+                this.data.lowGainDB = this.data.lowGainDB || 0;
+                this.addControl('lowGain', new SliderControl('lowGain', 'Low Gain (dB)', -12, 12, 0.1, this.data.lowGainDB, (val) => {
+                    this.data.lowGainDB = val;
+                    this.updateProcessor();
+                }));
+                this.data.midGainDB = this.data.midGainDB || 0;
+                this.addControl('midGain', new SliderControl('midGain', 'Mid Gain (dB)', -12, 12, 0.1, this.data.midGainDB, (val) => {
+                    this.data.midGainDB = val;
+                    this.updateProcessor();
+                }));
+                this.data.highGainDB = this.data.highGainDB || 0;
+                this.addControl('highGain', new SliderControl('highGain', 'High Gain (dB)', -12, 12, 0.1, this.data.highGainDB, (val) => {
+                    this.data.highGainDB = val;
+                    this.updateProcessor();
+                }));
+
+                // Compression Thresholds
+                this.data.lowThreshold = this.data.lowThreshold || -12;
+                this.addControl('lowThreshold', new SliderControl('lowThresh', 'Low Thresh (dB)', -60, 0, 1, this.data.lowThreshold, (val) => {
+                    this.data.lowThreshold = val;
+                    this.updateProcessor();
+                }));
+                this.data.midThreshold = this.data.midThreshold || -12;
+                this.addControl('midThreshold', new SliderControl('midThresh', 'Mid Thresh (dB)', -60, 0, 1, this.data.midThreshold, (val) => {
+                    this.data.midThreshold = val;
+                    this.updateProcessor();
+                }));
+                this.data.highThreshold = this.data.highThreshold || -12;
+                this.addControl('highThreshold', new SliderControl('highThresh', 'High Thresh (dB)', -60, 0, 1, this.data.highThreshold, (val) => {
+                    this.data.highThreshold = val;
+                    this.updateProcessor();
+                }));
+
+                // Compression Ratios
+                this.data.lowRatio = this.data.lowRatio || 2;
+                this.addControl('lowRatio', new SliderControl('lowRatio', 'Low Ratio', 1, 20, 0.1, this.data.lowRatio, (val) => {
+                    this.data.lowRatio = val;
+                    this.updateProcessor();
+                }));
+                this.data.midRatio = this.data.midRatio || 2;
+                this.addControl('midRatio', new SliderControl('midRatio', 'Mid Ratio', 1, 20, 0.1, this.data.midRatio, (val) => {
+                    this.data.midRatio = val;
+                    this.updateProcessor();
+                }));
+                this.data.highRatio = this.data.highRatio || 2;
+                this.addControl('highRatio', new SliderControl('highRatio', 'High Ratio', 1, 20, 0.1, this.data.highRatio, (val) => {
+                    this.data.highRatio = val;
+                    this.updateProcessor();
+                }));
+
+                // Stereo Width
+                this.data.midWidth = this.data.midWidth !== undefined ? this.data.midWidth : 1;
+                this.addControl('midWidth', new SliderControl('midWidth', 'Mid Width', 0, 2, 0.01, this.data.midWidth, (val) => {
+                    this.data.midWidth = val;
+                    this.updateProcessor();
+                }));
+                this.data.highWidth = this.data.highWidth !== undefined ? this.data.highWidth : 1;
+                this.addControl('highWidth', new SliderControl('highWidth', 'High Width', 0, 2, 0.01, this.data.highWidth, (val) => {
+                    this.data.highWidth = val;
+                    this.updateProcessor();
+                }));
+
+                // Limiter
+                this.data.limiterThreshold = this.data.limiterThreshold !== undefined ? this.data.limiterThreshold : -0.5;
+                this.addControl('limiterThreshold', new SliderControl('limiterThresh', 'Limit Thresh (dB)', -24, 0, 0.1, this.data.limiterThreshold, (val) => {
+                    this.data.limiterThreshold = val;
+                    this.updateProcessor();
+                }));
+                this.data.limiterRelease = this.data.limiterRelease !== undefined ? this.data.limiterRelease : 0.1;
+                this.addControl('limiterRelease', new SliderControl('limiterRel', 'Limit Release (s)', 0.01, 1, 0.01, this.data.limiterRelease, (val) => {
+                    this.data.limiterRelease = val;
+                    this.updateProcessor();
                 }));
             }
 
+            toggleAdvancedControls() {
+                const show = this.data.showAdvanced;
+                const advancedKeys = ['lowGain', 'midGain', 'highGain', 'lowThreshold', 'midThreshold', 'highThreshold', 'lowRatio', 'midRatio', 'highRatio', 'midWidth', 'highWidth', 'limiterThreshold', 'limiterRelease'];
+                advancedKeys.forEach(key => {
+                    if (this.controls[key]) this.controls[key].hidden = !show;
+                });
+            }
+
+            applyOptimal(val) {
+                // At val=0, we want it to be fairly transparent.
+                // As val increases, we add typical "mastering" curves.
+                this.data.lowGainDB = val * 4;
+                this.data.midGainDB = val * -2;
+                this.data.highGainDB = val * 3;
+
+                // Compression: start subtle (threshold high, ratio low) and get more aggressive
+                this.data.lowThreshold = -6 - (val * 24);
+                this.data.midThreshold = -6 - (val * 18);
+                this.data.highThreshold = -6 - (val * 20);
+
+                this.data.lowRatio = 1.2 + (val * 2.8); // 1.2 to 4.0
+                this.data.midRatio = 1.2 + (val * 1.8); // 1.2 to 3.0
+                this.data.highRatio = 1.2 + (val * 1.8); // 1.2 to 3.0
+
+                this.data.midWidth = 1 + (val * 0.2);
+                this.data.highWidth = 1 + (val * 0.5);
+
+                // Update control values for UI
+                if (this.controls.lowGain) this.controls.lowGain.value = this.data.lowGainDB;
+                if (this.controls.midGain) this.controls.midGain.value = this.data.midGainDB;
+                if (this.controls.highGain) this.controls.highGain.value = this.data.highGainDB;
+                if (this.controls.lowThreshold) this.controls.lowThreshold.value = this.data.lowThreshold;
+                if (this.controls.midThreshold) this.controls.midThreshold.value = this.data.midThreshold;
+                if (this.controls.highThreshold) this.controls.highThreshold.value = this.data.highThreshold;
+                if (this.controls.lowRatio) this.controls.lowRatio.value = this.data.lowRatio;
+                if (this.controls.midRatio) this.controls.midRatio.value = this.data.midRatio;
+                if (this.controls.highRatio) this.controls.highRatio.value = this.data.highRatio;
+                if (this.controls.midWidth) this.controls.midWidth.value = this.data.midWidth;
+                if (this.controls.highWidth) this.controls.highWidth.value = this.data.highWidth;
+            }
+
+            updateProcessor() {
+                const audioNode = reteAudioNodes.get(this.id);
+                if (audioNode && audioNode.update) audioNode.update(this.data);
+            }
+
             build() {
-                // This node doesn't create a new audio node, it controls the global masterGain
                 if (masterGain) {
-                    masterGain.gain.value = this.data.gain;
+                    // Reuse existing processor if available to avoid stacking and resource leaks
+                    let processor = reteAudioNodes.get(this.id);
+                    if (processor && processor instanceof MasteringProcessor) {
+                        processor.update(this.data);
+                        return processor;
+                    }
+
+                    masterGain.gain.setTargetAtTime(this.data.gain, audioContext.currentTime, 0.01);
+                    processor = new MasteringProcessor(audioContext, masterGain);
+                    processor.update(this.data);
+                    return processor;
                 }
-                return masterGain; // Return the existing masterGain
+                return masterGain;
             }
         }
 
