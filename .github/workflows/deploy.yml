@@ -9,9 +9,6 @@ on:
 
 jobs:
   call-jekyll-deployment:
-    # Use the path to your reusable workflow file
-    # Example: ./.github/workflows/reusable-jekyll.yml
-    # Or if in another repo: owner/repo/.github/workflows/reusable-jekyll.yml@main
     uses: digitaledsafety/workflows/.github/workflows/reusable-jekyll-playwright-deploy.yml@main
     with:
       ruby-version: '3.2'
