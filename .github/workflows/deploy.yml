@@ -7,11 +7,6 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
-# Maintain concurrency at the caller level to prevent race conditions
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
 jobs:
   call-jekyll-deployment:
     # Use the path to your reusable workflow file
@@ -21,4 +16,3 @@ jobs:
     with:
       ruby-version: '3.2'
       node-version: '20'
-    secrets: inherit # Pass secrets if the reusable workflow ever needs them
