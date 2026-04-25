@@ -1475,6 +1475,36 @@ workspace_data: ${base64Data}
                             { id: 'c6', source: '6', sourceOutput: 'audio', target: '7', targetInput: 'audio' }
                         ]
                     };
+                },
+                stochastic: () => {
+                    return {
+                        nodes: [
+                            { id: '1', label: 'Master Clock', data: { bpm: 110 }, position: { x: 50, y: 300 } },
+                            { id: '2', label: 'Turing Machine', data: { probability: 0.1 }, position: { x: 300, y: 100 } },
+                            { id: '3', label: 'Quantizer', data: { rootNote: 'C3', scaleType: 'Pentatonic Minor' }, position: { x: 550, y: 100 } },
+                            { id: '4', label: 'Tone Generator', data: { waveform: 'sawtooth', frequency: 220 }, position: { x: 800, y: 100 } },
+                            { id: '5', label: 'Bernoulli Gate', data: { probability: 0.5 }, position: { x: 300, y: 400 } },
+                            { id: '6', label: 'Drum Machine', data: { sequence: 'k ~ ~ ~', noteDuration: '1/4' }, position: { x: 550, y: 400 } },
+                            { id: '7', label: 'Drum Machine', data: { sequence: 's ~ ~ ~', noteDuration: '1/4' }, position: { x: 550, y: 600 } },
+                            { id: '8', label: 'Random Voltage', data: { smoothness: 0.5 }, position: { x: 300, y: 800 } },
+                            { id: '9', label: 'Filter', data: { frequency: 1000, q: 5 }, position: { x: 1050, y: 100 } },
+                            { id: '10', label: 'Master', data: { gain: 0.4 }, position: { x: 1300, y: 250 } }
+                        ],
+                        connections: [
+                            { id: 'c1', source: '1', sourceOutput: 'clock', target: '2', targetInput: 'clock' },
+                            { id: 'c2', source: '2', sourceOutput: 'cv', target: '3', targetInput: 'in' },
+                            { id: 'c3', source: '3', sourceOutput: 'out', target: '4', targetInput: 'freq' },
+                            { id: 'c4', source: '4', sourceOutput: 'audio', target: '9', targetInput: 'audio' },
+                            { id: 'c5', source: '1', sourceOutput: 'clock', target: '5', targetInput: 'in' },
+                            { id: 'c6', source: '5', sourceOutput: 'outA', target: '6', targetInput: 'clock' },
+                            { id: 'c7', source: '5', sourceOutput: 'outB', target: '7', targetInput: 'clock' },
+                            { id: 'c8', source: '1', sourceOutput: 'clock', target: '8', targetInput: 'clock' },
+                            { id: 'c9', source: '8', sourceOutput: 'out', target: '9', targetInput: 'freq' },
+                            { id: 'c10', source: '9', sourceOutput: 'audio', target: '10', targetInput: 'audio' },
+                            { id: 'c11', source: '6', sourceOutput: 'audio', target: '10', targetInput: 'audio' },
+                            { id: 'c12', source: '7', sourceOutput: 'audio', target: '10', targetInput: 'audio' }
+                        ]
+                    };
                 }
             },
 
