@@ -2612,7 +2612,7 @@ workspace_data: ${base64Data}
                 super('Chord Generator');
 
                 this.addInput('midi', new Classic.Input(midiSocket, 'MIDI In'));
-                this.addInput('transpose_cv', new Classic.Input(voltageSocket, 'Transpose CV'), true);
+                this.addInput('transpose_cv', new Classic.Input(voltageSocket, 'Transpose CV', true));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio'));
 
                 // Initialize default data values for the new controls
@@ -3555,7 +3555,7 @@ workspace_data: ${base64Data}
                 super('Arpeggiator');
                 this.addInput('clock', new Classic.Input(voltageSocket, 'Clock In'));
                 this.addInput('midi', new Classic.Input(midiSocket, 'MIDI In'));
-                this.addInput('transpose_cv', new Classic.Input(voltageSocket, 'Transpose CV'), true);
+                this.addInput('transpose_cv', new Classic.Input(voltageSocket, 'Transpose CV', true));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio'));
                 this.addOutput('midi', new Classic.Output(midiSocket, 'MIDI Out'));
 
@@ -4271,7 +4271,7 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Sequencer');
                 this.addInput('clock', new Classic.Input(voltageSocket, 'Clock In'));
-                this.addInput('transpose_cv', new Classic.Input(voltageSocket, 'Transpose CV'), true);
+                this.addInput('transpose_cv', new Classic.Input(voltageSocket, 'Transpose CV', true));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio'));
                 this.addOutput('midi', new Classic.Output(midiSocket, 'MIDI Out'));
 
