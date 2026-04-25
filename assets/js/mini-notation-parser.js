@@ -159,6 +159,15 @@ class MiniNotationParser {
         if (elongationMatch) {
             elongation = 1.5;
         }
+
+        // Probability support (e.g., C4?0.5)
+        let probability = 1.0;
+        const probabilityMatch = eventString.match(/\?([0-9.]+)/);
+        if (probabilityMatch) {
+            probability = parseFloat(probabilityMatch[1]);
+        } else if (eventString.includes('?')) {
+            probability = 0.5; // Default if only ? is present
+        }
  
         let midi = null;
         if (noteName && noteName !== '~') {
@@ -175,7 +184,8 @@ class MiniNotationParser {
             speed: speed,
             duration: duration,
             elongation: elongation,
-            noteName: noteName
+            noteName: noteName,
+            probability: probability
         };
     }
 }
