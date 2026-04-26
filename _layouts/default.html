@@ -3400,6 +3400,9 @@ workspace_data: ${base64Data}
                         }
 
                         this.currentNoteIndex = (this.currentNoteIndex + 1) % notes.length;
+                        if (this.currentNoteIndex === 0) {
+                            // Opportunity for future re-randomization or pattern updates if needed
+                        }
                     }
                 }
                 this.tickCount++;
@@ -3860,6 +3863,12 @@ workspace_data: ${base64Data}
             onTick(tickTime, tickDuration) {
                 const noteDurationMap = { '1': 96, '1/2': 48, '1/4': 24, '1/8': 12, '1/16': 6, '1/32': 3, '1/64': 1.5, '1/128': 0.75 };
                 const baseTicks = noteDurationMap[this.data.noteDuration] || 6;
+
+                if (!this.sequenceEvents) {
+                    this.sequenceEvents = this.parseSequence();
+                }
+                if (!this.sequenceEvents || this.sequenceEvents.length === 0) return;
+
                 const event = this.sequenceEvents[this.currentStep];
                 const representativeEvent = Array.isArray(event) ? event[0] : event;
 
@@ -3879,6 +3888,9 @@ workspace_data: ${base64Data}
                             }
                         }
                         this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
+                        if (this.currentStep === 0) {
+                            this.sequenceEvents = null;
+                        }
                     }
                 }
                 this.tickCount++;
@@ -4141,46 +4153,46 @@ workspace_data: ${base64Data}
             }
 
             onTick(tickTime, tickDuration) {
-                // The note duration control on the UI will determine how many ticks pass before the next step is triggered.
                 const noteDurationMap = { '1': 96, '1/2': 48, '1/4': 24, '1/8': 12, '1/16': 6, '1/32': 3, '1/64': 1.5, '1/128': 0.75 };
-                const ticksPerStep = noteDurationMap[this.data.noteDuration] || 6;
+                const baseTicks = noteDurationMap[this.data.noteDuration] || 6;
 
-                if (this.tickCount % ticksPerStep === 0) {
-                    if (!this.sequenceEvents) {
-                         this.sequenceEvents = this.parseSequence();
-                    }
-                    if (!this.sequenceEvents || this.sequenceEvents.length === 0) return;
+                if (!this.sequenceEvents) {
+                    this.sequenceEvents = this.parseSequence();
+                }
+                if (!this.sequenceEvents || this.sequenceEvents.length === 0) return;
 
-                    const event = this.sequenceEvents[this.currentStep];
-                    if (!event) {
-                         this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
-                        return;
-                    }
+                const event = this.sequenceEvents[this.currentStep];
+                const representativeEvent = Array.isArray(event) ? event[0] : event;
 
-                    // For external clock, we ignore the sequence's own timing modifiers and just use the UI control.
-                    // The note duration is one step long.
-                    const stepDuration = tickDuration * ticksPerStep;
+                if (representativeEvent) {
+                    const ticksForThisStep = baseTicks * (1 / representativeEvent.speed) * representativeEvent.duration;
+                    if (this.tickCount % ticksForThisStep === 0) {
+                        const stepDuration = tickDuration * ticksForThisStep;
 
-                    const midiNotesToBroadcast = [];
-                     if (Array.isArray(event)) {
-                        for (const note of event) {
-                            if (note.midi !== null && Math.random() < (note.probability !== undefined ? note.probability : 1.0)) {
-                                this.scheduleNote(note.midi, stepDuration * 0.9, tickTime);
-                                midiNotesToBroadcast.push(note.midi);
+                        const midiNotesToBroadcast = [];
+                        if (Array.isArray(event)) {
+                            for (const note of event) {
+                                if (note.midi !== null && Math.random() < (note.probability !== undefined ? note.probability : 1.0)) {
+                                    this.scheduleNote(note.midi, stepDuration * (note.elongation || 1.0) * 0.9, tickTime);
+                                    midiNotesToBroadcast.push(note.midi);
+                                }
+                            }
+                        } else {
+                            if (event.midi !== null && Math.random() < (event.probability !== undefined ? event.probability : 1.0)) {
+                                this.scheduleNote(event.midi, stepDuration * (event.elongation || 1.0) * 0.9, tickTime);
+                                midiNotesToBroadcast.push(event.midi);
                             }
                         }
-                    } else {
-                        if (event.midi !== null && Math.random() < (event.probability !== undefined ? event.probability : 1.0)) {
-                            this.scheduleNote(event.midi, stepDuration * 0.9, tickTime);
-                            midiNotesToBroadcast.push(event.midi);
+
+                        if (this.midiListeners.length > 0 && midiNotesToBroadcast.length > 0) {
+                            this.midiListeners.forEach(callback => callback(midiNotesToBroadcast));
+                        }
+
+                        this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
+                        if (this.currentStep === 0) {
+                            this.sequenceEvents = null;
                         }
                     }
-
-                    if (this.midiListeners.length > 0 && midiNotesToBroadcast.length > 0) {
-                        this.midiListeners.forEach(callback => callback(midiNotesToBroadcast));
-                    }
-
-                    this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
                 }
 
                 this.tickCount++;

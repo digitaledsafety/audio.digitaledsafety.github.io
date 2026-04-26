@@ -4,9 +4,12 @@ test.describe('DTS Enhancer and Vector Panner Nodes', () => {
   test.beforeEach(async ({ page }) => {
     // Go to the local server
     await page.goto('http://localhost:8000');
+    await page.waitForLoadState('networkidle');
     // Enter the studio
     const ctaButton = page.locator('#cta-button');
+    await expect(ctaButton).toBeVisible({ timeout: 10000 });
     await ctaButton.click();
+    await expect(page.locator('.rete-container')).toBeVisible();
   });
 
   test('should add a DTS Enhancer node and show its controls', async ({ page }) => {
