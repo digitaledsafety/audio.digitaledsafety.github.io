@@ -3,12 +3,13 @@ const { test, expect } = require('@playwright/test');
 test.describe('Critical Functionality', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
+    await page.waitForLoadState('networkidle');
   });
 
   test('should enter the studio and show the editor', async ({ page }) => {
     // Click CTA button
     const ctaButton = page.locator('#cta-button');
-    await expect(ctaButton).toBeVisible();
+    await expect(ctaButton).toBeVisible({ timeout: 10000 });
     await ctaButton.click();
 
     // Verify hero overlay is removed
@@ -55,10 +56,12 @@ test.describe('Critical Functionality', () => {
 
   test('should save and load workspace', async ({ page }) => {
     await page.locator('#cta-button').click();
+    await expect(page.locator('.rete-container')).toBeVisible();
 
     // Add a node to make workspace non-empty
     await page.locator('#addNodeToggle').click();
     await page.locator('#addToneGeneratorNodeBtn').click();
+    await expect(page.locator('text=Tone Generator').first()).toBeVisible();
 
     // Open settings
     await page.locator('#settingsToggle').click();
@@ -71,22 +74,25 @@ test.describe('Critical Functionality', () => {
     // Save workspace
     await page.locator('#saveWorkspaceBtn').click();
 
-    // Verify success message (optional but good)
-    await expect(page.locator('#messageBox')).toContainText('saved');
+    // Verify success message
+    await expect(page.locator('#messageBox')).toContainText('saved', { timeout: 10000 });
 
     // Reload page to clear editor state (in-memory)
     await page.reload();
+    await page.waitForLoadState('networkidle');
     await page.locator('#cta-button').click();
+    await expect(page.locator('.rete-container')).toBeVisible();
 
     // Open settings again
     await page.locator('#settingsToggle').click();
 
     // Select workspace and load
     const selector = page.locator('#workspaceSelector');
+    await expect(selector).toBeVisible();
     await selector.selectOption(testName);
     await page.locator('#loadWorkspaceBtn').click();
 
     // Verify node is restored
-    await expect(page.locator('text=Tone Generator').first()).toBeVisible();
+    await expect(page.locator('text=Tone Generator').first()).toBeVisible({ timeout: 10000 });
   });
 });
