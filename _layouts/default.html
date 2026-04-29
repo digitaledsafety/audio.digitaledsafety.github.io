@@ -348,6 +348,7 @@ layout: none
                                 <button id="addDistortionNodeBtn" class="button button-secondary w-full text-xs">🎸 Distortion</button>
                                 <button id="addCompressorNodeBtn" class="button button-secondary w-full text-xs">📊 Compressor</button>
                                 <button id="addReverbNodeBtn" class="button button-secondary w-full text-xs">🏞️ Reverb</button>
+                                <button id="addPingPongDelayNodeBtn" class="button button-secondary w-full text-xs">🏓 Ping Pong</button>
                                 <button id="addBitcrusherNodeBtn" class="button button-secondary w-full text-xs">👾 Bitcrusher</button>
                                 <button id="addVocoderNodeBtn" class="button button-secondary w-full text-xs">🗣️ Vocoder</button>
                                 <button id="addGranularSynthesizerNodeBtn" class="button button-secondary w-full text-xs">✨ Granular</button>
@@ -996,7 +997,7 @@ workspace_data: ${base64Data}
             const releaseDuration = Math.max(0.001, adsrData.release || 0.1);
 
             gainParam.cancelScheduledValues(now);
-            gainParam.setValueAtTime(0, now); // Start from silence
+            gainParam.setTargetAtTime(0, now, 0.001); // Start from silence with a tiny fade to avoid clicks
 
             // Attack
             gainParam.linearRampToValueAtTime(maxGain, now + attackDuration);
@@ -3315,6 +3316,103 @@ workspace_data: ${base64Data}
             }
         }
 
+        class PingPongDelay {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+
+                this.mainInput = this.audioContext.createGain();
+                this.mainOutput = this.audioContext.createGain();
+
+                this.delayL = this.audioContext.createDelay(5.0);
+                this.delayR = this.audioContext.createDelay(5.0);
+
+                this.feedbackL = this.audioContext.createGain();
+                this.feedbackR = this.audioContext.createGain();
+
+                this.pannerL = this.audioContext.createStereoPanner();
+                this.pannerR = this.audioContext.createStereoPanner();
+                this.pannerL.pan.value = -1;
+                this.pannerR.pan.value = 1;
+
+                this.dryGain = this.audioContext.createGain();
+                this.wetGain = this.audioContext.createGain();
+
+                // --- Routing ---
+                this.mainInput.connect(this.dryGain);
+                this.dryGain.connect(this.mainOutput);
+
+                this.mainInput.connect(this.delayL);
+                this.delayL.connect(this.feedbackL);
+                this.feedbackL.connect(this.delayR); // Cross-feedback
+
+                this.delayR.connect(this.feedbackR);
+                this.feedbackR.connect(this.delayL); // Cross-feedback
+
+                this.delayL.connect(this.pannerL);
+                this.delayR.connect(this.pannerR);
+
+                this.pannerL.connect(this.wetGain);
+                this.pannerR.connect(this.wetGain);
+                this.wetGain.connect(this.mainOutput);
+
+                this.updateParameter('delayTime', this.data.delayTime || 0.5);
+                this.updateParameter('feedback', this.data.feedback || 0.4);
+                this.updateParameter('mix', this.data.mix || 0.5);
+            }
+
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+                const now = this.audioContext.currentTime;
+                if (paramName === 'delayTime') {
+                    this.delayL.delayTime.setTargetAtTime(value, now, 0.01);
+                    this.delayR.delayTime.setTargetAtTime(value, now, 0.01);
+                } else if (paramName === 'feedback') {
+                    this.feedbackL.gain.setTargetAtTime(value, now, 0.01);
+                    this.feedbackR.gain.setTargetAtTime(value, now, 0.01);
+                } else if (paramName === 'mix') {
+                    this.dryGain.gain.setTargetAtTime(1 - value, now, 0.01);
+                    this.wetGain.gain.setTargetAtTime(value, now, 0.01);
+                }
+            }
+            start() {}
+            stop() {}
+        }
+
+        class PingPongDelayNode extends WebAudioNode {
+            constructor() {
+                super('Ping Pong Delay');
+                this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
+
+                this.data.delayTime = 0.5;
+                this.addControl('delayTime', new SliderControl('ppDelayTime', 'Delay Time (s)', 0, 5, 0.01, this.data.delayTime, (val) => {
+                    this.data.delayTime = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('delayTime', val);
+                }));
+
+                this.data.feedback = 0.4;
+                this.addControl('feedback', new SliderControl('ppFeedback', 'Feedback', 0, 0.95, 0.01, this.data.feedback, (val) => {
+                    this.data.feedback = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('feedback', val);
+                }));
+
+                this.data.mix = 0.5;
+                this.addControl('mix', new SliderControl('ppMix', 'Mix', 0, 1, 0.01, this.data.mix, (val) => {
+                    this.data.mix = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('mix', val);
+                }));
+            }
+
+            build() {
+                return new PingPongDelay(audioContext, this.id, this.data);
+            }
+        }
+
         // --- New Arpeggiator Node ---
         // Internal class to manage the Web Audio API aspects of the Arpeggiator
         class Arpeggiator {
@@ -3381,11 +3479,11 @@ workspace_data: ${base64Data}
                 }
             }
 
-            onTick(tickTime, tickDuration) {
-                const noteDurationMap = { '1': 96, '1/2': 48, '1/4': 24, '1/8': 12, '1/16': 6, '1/32': 3, '1/64': 1.5, '1/128': 0.75 };
-                const ticksPerStep = noteDurationMap[this.data.noteDuration] || 6;
+            onTick(tickTime, tickDuration, tickIndex) {
+                const noteDurationMap = { '1': 384, '1/2': 192, '1/4': 96, '1/8': 48, '1/16': 24, '1/32': 12, '1/64': 6, '1/128': 3 };
+                const ticksPerStep = noteDurationMap[this.data.noteDuration] || 24;
 
-                if (this.tickCount % ticksPerStep === 0) {
+                if (tickIndex % ticksPerStep === 0) {
                     const notes = this.getArpeggioNotes();
                     if (notes.length > 0) {
                         const currentStep = notes[this.currentNoteIndex];
@@ -3857,15 +3955,15 @@ workspace_data: ${base64Data}
                 // Not typically used for a drum machine
             }
 
-            onTick(tickTime, tickDuration) {
-                const noteDurationMap = { '1': 96, '1/2': 48, '1/4': 24, '1/8': 12, '1/16': 6, '1/32': 3, '1/64': 1.5, '1/128': 0.75 };
-                const baseTicks = noteDurationMap[this.data.noteDuration] || 6;
+            onTick(tickTime, tickDuration, tickIndex) {
+                const noteDurationMap = { '1': 384, '1/2': 192, '1/4': 96, '1/8': 48, '1/16': 24, '1/32': 12, '1/64': 6, '1/128': 3 };
+                const baseTicks = noteDurationMap[this.data.noteDuration] || 24;
                 const event = this.sequenceEvents[this.currentStep];
                 const representativeEvent = Array.isArray(event) ? event[0] : event;
 
                 if (representativeEvent) {
                     const ticksForThisStep = baseTicks * (1 / representativeEvent.speed) * representativeEvent.duration;
-                    if (this.tickCount % ticksForThisStep === 0) {
+                    if (tickIndex % ticksForThisStep === 0) {
                         const stepDuration = tickDuration * ticksForThisStep;
                         if (Array.isArray(event)) {
                             for (const note of event) {
@@ -4140,12 +4238,12 @@ workspace_data: ${base64Data}
                 }
             }
 
-            onTick(tickTime, tickDuration) {
+            onTick(tickTime, tickDuration, tickIndex) {
                 // The note duration control on the UI will determine how many ticks pass before the next step is triggered.
-                const noteDurationMap = { '1': 96, '1/2': 48, '1/4': 24, '1/8': 12, '1/16': 6, '1/32': 3, '1/64': 1.5, '1/128': 0.75 };
-                const ticksPerStep = noteDurationMap[this.data.noteDuration] || 6;
+                const noteDurationMap = { '1': 384, '1/2': 192, '1/4': 96, '1/8': 48, '1/16': 24, '1/32': 12, '1/64': 6, '1/128': 3 };
+                const ticksPerStep = noteDurationMap[this.data.noteDuration] || 24;
 
-                if (this.tickCount % ticksPerStep === 0) {
+                if (tickIndex % ticksPerStep === 0) {
                     if (!this.sequenceEvents) {
                          this.sequenceEvents = this.parseSequence();
                     }
@@ -4655,7 +4753,7 @@ workspace_data: ${base64Data}
                 if (!this.started) return;
 
                 const bpm = this.data.bpm || 120;
-                const ppqn = 24; // Pulses per quarter note
+                const ppqn = 96; // Pulses per quarter note for higher resolution
                 const ticksPerMeasure = ppqn * 4; // Assuming 4/4 time
                 const secondsPerBeat = 60.0 / bpm;
                 const tickDuration = secondsPerBeat / ppqn;
@@ -4668,7 +4766,8 @@ workspace_data: ${base64Data}
 
                     // The MasterClockNode will now handle its own visual updates.
                     // This MasterClock class is only responsible for the audio-rate scheduling.
-                    this.tickListeners.forEach(listener => listener(this.nextStepTime, tickDuration));
+                    // Now passing beatCount (tickIndex) for robust synchronization
+                    this.tickListeners.forEach(listener => listener(this.nextStepTime, tickDuration, this.beatCount));
                     this.nextStepTime += tickDuration;
                     this.beatCount++;
                 }
@@ -5141,7 +5240,7 @@ workspace_data: ${base64Data}
                 const sustainLevel = this.data.sustain;
 
                 gainParam.cancelScheduledValues(now);
-                gainParam.setValueAtTime(gainParam.value, now);
+                gainParam.setTargetAtTime(gainParam.value, now, 0.001);
                 gainParam.linearRampToValueAtTime(1.0, now + attackDuration);
                 gainParam.linearRampToValueAtTime(sustainLevel, now + attackDuration + decayDuration);
             }
@@ -5152,7 +5251,7 @@ workspace_data: ${base64Data}
                 const releaseDuration = Math.max(0.001, this.data.release);
 
                 gainParam.cancelScheduledValues(now);
-                gainParam.setValueAtTime(gainParam.value, now);
+                gainParam.setTargetAtTime(gainParam.value, now, 0.001);
                 gainParam.linearRampToValueAtTime(0, now + releaseDuration);
             }
 
@@ -6044,6 +6143,15 @@ workspace_data: ${base64Data}
             clearEditorBtn.disabled = false;
         });
 
+        const addPingPongDelayNodeBtn = document.getElementById('addPingPongDelayNodeBtn');
+        addPingPongDelayNodeBtn.addEventListener('click', async () => {
+            const node = new PingPongDelayNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false;
+        });
+
         addDistortionNodeBtn.addEventListener('click', async () => {
             const node = new DistortionNode();
             const existingNodesCount = editor.getNodes().length;
@@ -6198,6 +6306,7 @@ workspace_data: ${base64Data}
         NodeRegistry.register('Master', MasterGainOutputNode);
         NodeRegistry.register('Filter', FilterNode);
         NodeRegistry.register('Delay', DelayNode);
+        NodeRegistry.register('Ping Pong Delay', PingPongDelayNode);
         NodeRegistry.register('Distortion', DistortionNode);
         NodeRegistry.register('Compressor', CompressorNode);
         NodeRegistry.register('Reverb', ReverbNode);
@@ -6294,6 +6403,7 @@ workspace_data: ${base64Data}
                     ['Master', () => new MasterGainOutputNode()],
                     ['Filter', () => new FilterNode()],
                     ['Delay', () => new DelayNode()],
+                    ['Ping Pong Delay', () => new PingPongDelayNode()],
                     ['Distortion', () => new DistortionNode()],
                     ['Compressor', () => new CompressorNode()],
                     ['Reverb', () => new ReverbNode()],
