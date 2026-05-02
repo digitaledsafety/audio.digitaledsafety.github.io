@@ -6,10 +6,10 @@ on:
   pull_request:
     branches: ["main"]
   workflow_dispatch:
-
+  
 jobs:
   call-jekyll-deployment:
-    uses: digitaledsafety/workflows/.github/workflows/reusable-jekyll-playwright-deploy.yml@main
+    uses: digitaledsafety/workflows/.github/workflows/reusable-jekyll-playwright-deploy.yml@feat/android-packaging-workflow-6836131131318068523
     with:
       ruby-version: '3.2'
       node-version: '20'
