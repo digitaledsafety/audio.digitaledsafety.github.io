@@ -3748,6 +3748,18 @@ workspace_data: ${base64Data}
                     this.start();
                 }
             }
+
+            generateRandomSequence() {
+                const chordOffsets = CHORD_TYPES[this.data.chordType] || CHORD_TYPES['Major Triad'];
+                const octaveRange = this.data.octaveRange || 1;
+                const numNotes = chordOffsets.length * octaveRange;
+
+                let indices = [];
+                for (let i = 0; i < 16; i++) {
+                    indices.push(Math.floor(Math.random() * numNotes));
+                }
+                return indices.join(' ');
+            }
         }
 
 
@@ -3875,15 +3887,7 @@ workspace_data: ${base64Data}
             randomize() {
                 const audioNode = reteAudioNodes.get(this.id);
                 if (audioNode) {
-                    const chordOffsets = CHORD_TYPES[this.data.chordType] || CHORD_TYPES['Major Triad'];
-                    const octaveRange = this.data.octaveRange || 1;
-                    const numNotes = chordOffsets.length * octaveRange;
-
-                    let indices = [];
-                    for (let i = 0; i < 16; i++) {
-                        indices.push(Math.floor(Math.random() * numNotes));
-                    }
-                    const newPattern = indices.join(' ');
+                    const newPattern = audioNode.generateRandomSequence();
                     this.controls.pattern.value = newPattern;
                     this.data.pattern = newPattern;
                     audioNode.updateParameter('pattern', newPattern);
@@ -3932,6 +3936,19 @@ workspace_data: ${base64Data}
                 this.parser = new MiniNotationParser(drumNoteMap);
                 this.sequenceEvents = this.parseSequence();
                 this.tickListeners = [];
+
+                // Pre-generate noise buffers for performance
+                this.snareNoiseBuffer = this.audioContext.createBuffer(1, this.audioContext.sampleRate * 0.2, this.audioContext.sampleRate);
+                const snareData = this.snareNoiseBuffer.getChannelData(0);
+                for (let i = 0; i < this.snareNoiseBuffer.length; i++) {
+                    snareData[i] = Math.random() * 2 - 1;
+                }
+
+                this.hihatNoiseBuffer = this.audioContext.createBuffer(1, this.audioContext.sampleRate * 0.1, this.audioContext.sampleRate);
+                const hihatData = this.hihatNoiseBuffer.getChannelData(0);
+                for (let i = 0; i < this.hihatNoiseBuffer.length; i++) {
+                    hihatData[i] = Math.random() * 2 - 1;
+                }
             }
 
             addTickListener(callback, outputKey) {
@@ -4004,12 +4021,7 @@ workspace_data: ${base64Data}
 
             createSnare(now) {
                 const noise = this.audioContext.createBufferSource();
-                const noiseBuffer = this.audioContext.createBuffer(1, this.audioContext.sampleRate * 0.2, this.audioContext.sampleRate);
-                const output = noiseBuffer.getChannelData(0);
-                for (let i = 0; i < noiseBuffer.length; i++) {
-                    output[i] = Math.random() * 2 - 1;
-                }
-                noise.buffer = noiseBuffer;
+                noise.buffer = this.snareNoiseBuffer;
 
                 const noiseFilter = this.audioContext.createBiquadFilter();
                 noiseFilter.type = 'highpass';
@@ -4040,12 +4052,7 @@ workspace_data: ${base64Data}
 
             createHiHat(now) {
                 const noise = this.audioContext.createBufferSource();
-                const noiseBuffer = this.audioContext.createBuffer(1, this.audioContext.sampleRate * 0.1, this.audioContext.sampleRate);
-                const output = noiseBuffer.getChannelData(0);
-                for (let i = 0; i < noiseBuffer.length; i++) {
-                    output[i] = Math.random() * 2 - 1;
-                }
-                noise.buffer = noiseBuffer;
+                noise.buffer = this.hihatNoiseBuffer;
 
                 const noiseFilter = this.audioContext.createBiquadFilter();
                 noiseFilter.type = 'highpass';
