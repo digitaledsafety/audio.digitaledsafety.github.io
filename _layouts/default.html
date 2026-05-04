@@ -2239,9 +2239,6 @@ workspace_data: ${base64Data}
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio'));
 
                 this.addControl('mic', new ButtonControl('micButton', '🎤 Activate Mic', async () => {
-                    if (!audioContext || audioContext.state !== 'running') {
-                        await startAudio();
-                    }
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode) {
                         try {
@@ -2500,10 +2497,7 @@ workspace_data: ${base64Data}
                     }
                 }));
 
-                this.addControl('play', new ButtonControl('playButton', 'Play', async () => {
-                    if (!audioContext || audioContext.state !== 'running') {
-                        await startAudio();
-                    }
+                this.addControl('play', new ButtonControl('playButton', 'Play', () => {
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode instanceof WavePlayer) {
                         audioNode.play();
@@ -4738,13 +4732,9 @@ workspace_data: ${base64Data}
 
                 // Update the UI toggle control to reflect the stopped state
                 const reteNode = editor.getNode(this.reteNodeId);
-                if (reteNode) {
-                    if (reteNode.controls.running) {
-                        reteNode.controls.running.value = false;
-                        reteNode.controls.running.label = 'Start';
-                    }
+                if (reteNode && reteNode.controls.running) {
+                    reteNode.controls.running.value = false;
                     reteNode.data.running = false;
-                    reteNode.stopBlinker();
                     area.update('node', this.reteNodeId);
                 }
             }
@@ -4793,17 +4783,10 @@ workspace_data: ${base64Data}
                     this.data.bpm = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode) audioNode.updateParameter('bpm', val);
-                    if (this.data.running) {
-                        this.startBlinker();
-                    }
                 }));
 
                 this.data.running = false;
-                this.addControl('running', new ButtonControl('runningBtn', 'Start', async () => {
-                    if (!audioContext || audioContext.state !== 'running') {
-                        await startAudio();
-                    }
-
+                this.addControl('running', new ButtonControl('runningBtn', 'Start', () => {
                     this.data.running = !this.data.running;
                     this.controls.running.label = this.data.running ? 'Stop' : 'Start';
                     if (this.data.running) {
@@ -4819,49 +4802,39 @@ workspace_data: ${base64Data}
                 return new MasterClock(audioContext, this.id, this.data);
             }
 
-            startBlinker() {
-                this.stopBlinker();
-                this.blinkInterval = setInterval(() => {
+            start() {
+                if (this.data.running) {
                     const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode && audioNode.started) {
-                        const indicator = document.querySelector(`[data-node-id='${this.id}'] .clock-indicator`);
-                        if (indicator) {
-                            indicator.classList.add('blinking');
-                            setTimeout(() => indicator.classList.remove('blinking'), 50);
-                        }
+                    if (audioNode && !audioNode.started) {
+                        audioNode.start();
                     }
-                }, 1000 / ((this.data.bpm || 120) / 60));
+                    // Start visual blinking
+                    if (!this.blinkInterval) {
+                        this.blinkInterval = setInterval(() => {
+                            const audioNode = reteAudioNodes.get(this.id);
+                            if (audioNode && audioNode.started) {
+                                const beatsPerSecond = (this.data.bpm || 120) / 60;
+                                const indicator = document.querySelector(`[data-node-id='${this.id}'] .clock-indicator`);
+                                if (indicator) {
+                                    indicator.classList.add('blinking');
+                                    setTimeout(() => indicator.classList.remove('blinking'), 50);
+                                }
+                            }
+                        }, 1000 / ((this.data.bpm || 120) / 60));
+                    }
+                }
             }
 
-            stopBlinker() {
+            stop() {
+                // This is a hard stop from the main transport control
+                const audioNode = reteAudioNodes.get(this.id);
+                if (audioNode && audioNode.started) {
+                    audioNode._internalStop(); // Use internal stop for immediate halt
+                }
                 if (this.blinkInterval) {
                     clearInterval(this.blinkInterval);
                     this.blinkInterval = null;
                 }
-            }
-
-            start() {
-                this.data.running = true;
-                this.controls.running.label = 'Stop';
-                area.update('node', this.id);
-
-                const audioNode = reteAudioNodes.get(this.id);
-                if (audioNode && !audioNode.started) {
-                    audioNode.start();
-                }
-                this.startBlinker();
-            }
-
-            stop() {
-                this.data.running = false;
-                this.controls.running.label = 'Start';
-                area.update('node', this.id);
-
-                const audioNode = reteAudioNodes.get(this.id);
-                if (audioNode && audioNode.started) {
-                    audioNode._internalStop();
-                }
-                this.stopBlinker();
             }
         }
 
@@ -6818,9 +6791,8 @@ workspace_data: ${base64Data}
 
             recordBtn.addEventListener('click', async () => {
                 if (!audioContext || audioContext.state !== 'running') {
-                    await startAudio();
-                    audioState = 'playing';
-                    playStopBtn.textContent = '⏹️';
+                    showMessage('Please start audio before recording.', 'error');
+                    return;
                 }
 
                 if (mediaRecorder && mediaRecorder.state === 'recording') {
