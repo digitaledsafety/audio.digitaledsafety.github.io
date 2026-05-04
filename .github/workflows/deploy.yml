@@ -8,8 +8,18 @@ on:
   workflow_dispatch:
 
 jobs:
+  setup-env:
+    runs-on: ubuntu-latest
+    outputs:
+      url: ${{ steps.pages.outputs.base_url }}
+    steps:
+      - id: pages
+        uses: actions/configure-pages@v5
+
   call-jekyll-deployment:
-    uses: digitaledsafety/workflows/.github/workflows/reusable-jekyll-playwright-deploy.yml@main
+    needs: setup-env
+    uses: digitaledsafety/workflows/.github/workflows/reusable-jekyll-playwright-deploy.yml@android-packaging-support-16705636402519762902
     with:
       ruby-version: '3.2'
       node-version: '20'
+      pwa-url: "${{ needs.setup-env.outputs.url }}"
