@@ -3229,8 +3229,16 @@ workspace_data: ${base64Data}
                 this.data.gain = 0.5;
                 this.addControl('gain', new SliderControl('gainSlider', 'Gain', 0, 1, 0.01, this.data.gain, (val) => {
                     this.data.gain = val;
+                    if (masterGain && !this.data.mute) {
+                        masterGain.gain.setTargetAtTime(val, audioContext.currentTime, 0.01);
+                    }
+                }));
+
+                this.data.mute = this.data.mute !== undefined ? this.data.mute : false;
+                this.addControl('mute', new ToggleControl('muteToggle', 'Mute', this.data.mute, (val) => {
+                    this.data.mute = val;
                     if (masterGain) {
-                        masterGain.gain.value = val;
+                        masterGain.gain.setTargetAtTime(val ? 0 : this.data.gain, audioContext.currentTime, 0.01);
                     }
                 }));
             }
@@ -3238,7 +3246,7 @@ workspace_data: ${base64Data}
             build() {
                 // This node doesn't create a new audio node, it controls the global masterGain
                 if (masterGain) {
-                    masterGain.gain.value = this.data.gain;
+                    masterGain.gain.setTargetAtTime(this.data.mute ? 0 : this.data.gain, audioContext.currentTime, 0.01);
                 }
                 return masterGain; // Return the existing masterGain
             }
@@ -5441,14 +5449,14 @@ workspace_data: ${base64Data}
                 this.addControl('formantShift', new SliderControl('formantSlider', 'Formant Shift (cents)', -1200, 1200, 1, this.data.formantShift, (val) => {
                     this.data.formantShift = val;
                     const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode && audioNode.formantShift) audioNode.formantShift.setTargetAtTime(val, audioContext.currentTime, 0.01);
+                    if (audioNode) audioNode.updateParameter('formantShift', val);
                 }));
 
                 this.data.unvoicedLevel = 0.5;
                 this.addControl('unvoicedLevel', new SliderControl('unvoicedSlider', 'Unvoiced Level', 0, 1, 0.01, this.data.unvoicedLevel, (val) => {
                     this.data.unvoicedLevel = val;
                     const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode && audioNode.unvoicedLevel) audioNode.unvoicedLevel.setTargetAtTime(val, audioContext.currentTime, 0.01);
+                    if (audioNode) audioNode.updateParameter('unvoicedLevel', val);
                 }));
 
                 this.data.modulatorGain = 1;
@@ -5680,6 +5688,15 @@ workspace_data: ${base64Data}
                         break;
                     case 'modulatorGain':
                         this.modulatorInput.gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
+                        break;
+                    case 'numBands':
+                        if (this.numBands) this.numBands.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
+                        break;
+                    case 'formantShift':
+                        if (this.formantShift) this.formantShift.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
+                        break;
+                    case 'unvoicedLevel':
+                        if (this.unvoicedLevel) this.unvoicedLevel.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
                         break;
                 }
             }
