@@ -673,7 +673,7 @@ layout: none
             };
         }
 
-        async function editorFromJSON(json) {
+        async function editorFromJSON(json, shouldZoom = true) {
             try
             {                
                 console.log('Loading editor from JSON:', json);
@@ -738,9 +738,11 @@ layout: none
                 }
                 
                 // Stage 4: Zoom to fit all nodes.
-                requestAnimationFrame(async () => {
-                    await AreaExtensions.zoomAt(area, editor.getNodes());
-                });   
+                if (shouldZoom) {
+                    requestAnimationFrame(async () => {
+                        await AreaExtensions.zoomAt(area, editor.getNodes());
+                    });
+                }
             }
             catch (error) {
                 showMessage('Error syncing workspace: ' + error.message, 'error');
@@ -6361,7 +6363,7 @@ workspace_data: ${base64Data}
             
             multiplayer.on('data-received', async (data) => {
                 _isLocalChange = false;
-                await editorFromJSON(data);
+                await editorFromJSON(data, false);
                 _isLocalChange = true;
                 autoSave();
             });
@@ -6477,8 +6479,14 @@ workspace_data: ${base64Data}
                     }
                 }
 
-                if (_isLocalChange && context.type === 'nodedragged') {
-                    const node = context.data.payload;
+                if (_isLocalChange && (context.type === "nodedragged" || context.type === "nodetranslated")) {
+                    const node = (context.data && context.data.id) ? editor.getNode(context.data.id) : context.data.payload;
+
+                    if (node && context.type === "nodetranslated") {
+                        const data = editorToJSON();
+                        multiplayer.broadcast(data);
+                    }
+
                     const nodeView = area.nodeViews.get(node.id);
                     if (nodeView) {
                         const rect = nodeView.element.getBoundingClientRect();
@@ -6534,8 +6542,6 @@ workspace_data: ${base64Data}
                         }
                     }
 
-                    const workspaceData = editorToJSON();
-                    multiplayer.broadcast(workspaceData);
                     autoSave();
                 }
 
@@ -6584,8 +6590,7 @@ workspace_data: ${base64Data}
                 }
 
                 if (_isLocalChange && ['nodecreated', 'noderemoved', 'connectioncreated', 'connectionremoved'].includes(context.type)) {
-                    const workspaceData = editorToJSON();
-                    multiplayer.broadcast(workspaceData);
+                    multiplayer.broadcast(editorToJSON());
                     autoSave();
                 }
                 if (context.type === 'nodecreate' && context.data instanceof WebAudioNode) {
