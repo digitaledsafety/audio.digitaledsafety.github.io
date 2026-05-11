@@ -674,22 +674,27 @@ layout: none
         }
 
         async function editorFromJSON(json, shouldZoom = true) {
-            try
-            {                
+            try {
                 console.log('Loading editor from JSON:', json);
-                await editor.clear();
 
-                // Stage 1: Create and add all nodes to the editor's data model.
+                const currentNodes = editor.getNodes();
+                const incomingNodeIds = new Set(json.nodes.map(n => n.id));
+
+                // 1. Remove nodes that are no longer present
+                for (const node of currentNodes) {
+                    if (!incomingNodeIds.has(node.id)) {
+                        await editor.removeNode(node.id);
+                    }
+                }
+
+                // 2. Add or update nodes
                 for (const nodeData of json.nodes) {
-                    const Constructor = NodeRegistry.getConstructor(nodeData.label);
-                    if (Constructor) {
-                        const node = new Constructor();
-                        node.id = nodeData.id;
-
-                        // Overwrite default data with saved data.
+                    let node = editor.getNode(nodeData.id);
+                    if (node) {
+                        // Update existing node data
                         node.data = { ...node.data, ...nodeData.data };
 
-                        // Re-apply control values from data to the control objects.
+                        // Re-apply control values
                         for (const key in node.controls) {
                             if (node.data.hasOwnProperty(key)) {
                                 if(node.controls[key]) {
@@ -702,53 +707,93 @@ layout: none
                             node.onDataLoaded();
                         }
 
-                        await editor.addNode(node);
-                    } else {
-                        console.warn(`Node type "${nodeData.label}" not found.`);
-                    }
-                }
+                        // Update position
+                        if (nodeData.position) {
+                            await area.translate(node.id, nodeData.position);
+                        }
+                        area.update('node', node.id);
 
-                // Stage 2: Create all connections now that all nodes exist in the model.
-                for (const connData of json.connections) {
-                    const sourceNode = editor.getNode(connData.source);
-                    const targetNode = editor.getNode(connData.target);
-
-                    if (sourceNode && targetNode) {
-                        const sourceOutput = connData.sourceOutput;
-                        const targetInput = connData.targetInput;
-                        
-                        if (sourceNode.outputs[sourceOutput] && targetNode.inputs[targetInput]) {
-                             await editor.addConnection(new Classic.Connection(sourceNode, sourceOutput, targetNode, targetInput));
-                        } else {
-                            console.warn(`Could not find socket for connection:`, connData, `Source sockets:`, Object.keys(sourceNode.outputs), `Target sockets:`, Object.keys(targetNode.inputs));
+                        // Sync audio node parameters
+                        const audioNode = reteAudioNodes.get(node.id);
+                        if (audioNode && typeof audioNode.updateParameter === 'function') {
+                            for (const [key, value] of Object.entries(node.data)) {
+                                try {
+                                    audioNode.updateParameter(key, value);
+                                } catch (e) {
+                                    // Some data might not be direct audio parameters
+                                }
+                            }
                         }
                     } else {
-                        console.warn(`Could not find nodes for connection:`, connData);
+                        // Create new node
+                        const Constructor = NodeRegistry.getConstructor(nodeData.label);
+                        if (Constructor) {
+                            node = new Constructor();
+                            node.id = nodeData.id;
+                            node.data = { ...node.data, ...nodeData.data };
+
+                            for (const key in node.controls) {
+                                if (node.data.hasOwnProperty(key)) {
+                                    if(node.controls[key]) {
+                                        node.controls[key].value = node.data[key];
+                                    }
+                                }
+                            }
+
+                            if (typeof node.onDataLoaded === 'function') {
+                                node.onDataLoaded();
+                            }
+
+                            await editor.addNode(node);
+
+                            if (nodeData.position) {
+                                await area.translate(node.id, nodeData.position);
+                            }
+                            area.update('node', node.id);
+                        }
                     }
                 }
 
-                // Stage 3: Set positions and trigger UI updates now that the model is complete.
-                for (const nodeData of json.nodes) {
-                    const node = editor.getNode(nodeData.id);
-                    if (node && nodeData.position) {
-                        await area.translate(node.id, nodeData.position);
+                // 3. Sync connections
+                const currentConnections = editor.getConnections();
+                const incomingConnections = json.connections;
+
+                const isSameConnection = (c1, c2) =>
+                    c1.source === c2.source &&
+                    c1.sourceOutput === c2.sourceOutput &&
+                    c1.target === c2.target &&
+                    c1.targetInput === c2.targetInput;
+
+                // Remove connections not in incoming
+                for (const conn of currentConnections) {
+                    if (!incomingConnections.find(ic => isSameConnection(ic, conn))) {
+                        await editor.removeConnection(conn.id);
                     }
-                    // Manually trigger a render update for each node.
-                    area.update('node', nodeData.id);
                 }
-                
-                // Stage 4: Zoom to fit all nodes.
+
+                // Add incoming connections not in current
+                for (const connData of incomingConnections) {
+                    if (!currentConnections.find(cc => isSameConnection(cc, connData))) {
+                        const sourceNode = editor.getNode(connData.source);
+                        const targetNode = editor.getNode(connData.target);
+                        if (sourceNode && targetNode) {
+                             if (sourceNode.outputs[connData.sourceOutput] && targetNode.inputs[connData.targetInput]) {
+                                await editor.addConnection(new Classic.Connection(sourceNode, connData.sourceOutput, targetNode, connData.targetInput));
+                             }
+                        }
+                    }
+                }
+
                 if (shouldZoom) {
                     requestAnimationFrame(async () => {
                         await AreaExtensions.zoomAt(area, editor.getNodes());
                     });
                 }
-            }
-            catch (error) {
+            } catch (error) {
+                console.error('Error syncing workspace:', error);
                 showMessage('Error syncing workspace: ' + error.message, 'error');
             }
-
-        }          
+        }
 
         function getWorkspaces() {
             const workspaces = localStorage.getItem('rete-workspaces');
@@ -5868,8 +5913,11 @@ workspace_data: ${base64Data}
                 this.connections.set(conn.peer, conn);
 
                 if (this.isHost) {
-                    const workspaceData = editorToJSON();
-                    this.sendInitialWorkspace(conn.peer, workspaceData);
+                    // Small delay to ensure client is ready to receive
+                    setTimeout(() => {
+                        const workspaceData = editorToJSON();
+                        this.sendInitialWorkspace(conn.peer, { type: 'workspace', data: workspaceData });
+                    }, 500);
                 }
                 this.emit('connection-opened', conn.peer);
                 this.emit('connections-updated', Array.from(this.connections.values()));
@@ -5974,7 +6022,10 @@ workspace_data: ${base64Data}
                             valueDisplay.textContent = finalValue.toFixed(2);
                             control.onValueChange(finalValue); // Trigger custom callback
                             autoSave();
-                            multiplayer.broadcast(editorToJSON());
+                            multiplayer.broadcast({
+                                type: 'control-update',
+                                data: { nodeId: this.node.id, key, value: finalValue }
+                            });
                         };
 
                         valueDisplay.textContent = control.value.toFixed(2);
@@ -5993,7 +6044,10 @@ workspace_data: ${base64Data}
                             control.onValueChange(newValue);
                             // The onValueChange already calls area.update('node', this.node.id); in the node classes
                             autoSave();
-                            multiplayer.broadcast(editorToJSON());
+                            multiplayer.broadcast({
+                                type: 'control-update',
+                                data: { nodeId: this.node.id, key, value: newValue }
+                            });
                         };
                     } else if (control instanceof ButtonControl) {
                         controlEl.innerHTML = `<button class="button button-secondary w-full">${control.label}</button>`;
@@ -6001,7 +6055,11 @@ workspace_data: ${base64Data}
                         button.onclick = () => {
                             control.onClick();
                             autoSave();
-                            multiplayer.broadcast(editorToJSON());
+                            // Buttons don't always represent a single value change,
+                            // but some (like 'Randomize') change the whole sequence.
+                            // For simplicity, we broadcast the full workspace after a button click
+                            // until we have more granular button event synchronization.
+                            multiplayer.broadcast({ type: 'workspace', data: editorToJSON() });
                         };
                     } else if (control instanceof IndicatorControl) {
                         controlEl.innerHTML = `<div class="clock-indicator" title="${control.label}"></div>`;
@@ -6021,7 +6079,10 @@ workspace_data: ${base64Data}
                             control.value = newValue;
                             control.onValueChange(newValue);
                             autoSave();
-                            multiplayer.broadcast(editorToJSON());
+                            multiplayer.broadcast({
+                                type: 'control-update',
+                                data: { nodeId: this.node.id, key, value: newValue }
+                            });
                         };
                     } else if (control instanceof TextControl) {
                         controlEl.innerHTML = `
@@ -6034,7 +6095,10 @@ workspace_data: ${base64Data}
                             control.value = newValue;
                             control.onValueChange(newValue);
                             autoSave();
-                            multiplayer.broadcast(editorToJSON());
+                            multiplayer.broadcast({
+                                type: 'control-update',
+                                data: { nodeId: this.node.id, key, value: newValue }
+                            });
                         };
                     } else if (control instanceof CanvasControl) {
                         controlEl.classList.add('canvas-control');
@@ -6361,12 +6425,12 @@ workspace_data: ${base64Data}
             };
 
             // NodeEditor is correctly destructured from window.Rete
-            editor = new NodeEditor(schemes);
+            window.editor = editor = new NodeEditor(schemes);
             // DataflowEngine is correctly destructured from window.ReteEngine
-            engine = new DataflowEngine(schemes); 
+            window.engine = engine = new DataflowEngine(schemes);
 
             // Rete.js v2: AreaPlugin is instantiated and then other plugins are added to it
-            area = new AreaPlugin(reteContainer);
+            window.area = area = new AreaPlugin(reteContainer);
 
             let activeConnection = null;
 
@@ -6378,11 +6442,67 @@ workspace_data: ${base64Data}
                 document.getElementById('peerIdDisplay').textContent = id;
             });
             
-            multiplayer.on('data-received', async (data) => {
+            multiplayer.on('data-received', async (msg) => {
                 _isLocalChange = false;
-                await editorFromJSON(data, false);
-                _isLocalChange = true;
-                autoSave();
+                try {
+                    switch (msg.type) {
+                        case 'workspace': {
+                            await editorFromJSON(msg.data, false);
+                            break;
+                        }
+                        case 'node-move': {
+                            const node = editor.getNode(msg.data.id);
+                            if (node && msg.data.position) {
+                                const nodeView = area.nodeViews.get(node.id);
+                                if (nodeView) {
+                                    const currentPos = nodeView.position;
+                                    const dist = Math.hypot(currentPos.x - msg.data.position.x, currentPos.y - msg.data.position.y);
+                                    if (dist > 0.1) {
+                                        await area.translate(node.id, msg.data.position);
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                        case 'control-update': {
+                            const targetNode = editor.getNode(msg.data.nodeId);
+                            if (targetNode) {
+                                if (targetNode.data[msg.data.key] !== msg.data.value) {
+                                    targetNode.data[msg.data.key] = msg.data.value;
+                                    if (targetNode.controls[msg.data.key]) {
+                                        targetNode.controls[msg.data.key].value = msg.data.value;
+                                    }
+                                    area.update('node', targetNode.id);
+
+                                    const audioNode = reteAudioNodes.get(targetNode.id);
+                                    if (audioNode && typeof audioNode.updateParameter === 'function') {
+                                        audioNode.updateParameter(msg.data.key, msg.data.value);
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                        case 'transport':
+                            if (msg.data.action === 'start') {
+                                await startAudio();
+                                audioState = 'playing';
+                                playStopBtn.textContent = '⏹️';
+                            } else if (msg.data.action === 'stop') {
+                                await stopAudio();
+                                audioState = 'stopped';
+                                playStopBtn.textContent = '▶️';
+                            }
+                            break;
+                    }
+                } catch (error) {
+                    console.error('Error handling multiplayer message:', error);
+                } finally {
+                    // Use a slightly longer delay to be safe and ensure all Rete events are processed
+                    setTimeout(() => {
+                        _isLocalChange = true;
+                    }, 100);
+                    autoSave();
+                }
             });
     
             multiplayer.on('connections-updated', (connections) => {
@@ -6497,11 +6617,16 @@ workspace_data: ${base64Data}
                 }
 
                 if (_isLocalChange && (context.type === "nodedragged" || context.type === "nodetranslated")) {
-                    const node = (context.data && context.data.id) ? editor.getNode(context.data.id) : context.data.payload;
+                    const node = (context.data && context.data.id) ? editor.getNode(context.data.id) : (context.data ? context.data.payload : null);
 
                     if (node && context.type === "nodetranslated") {
-                        const data = editorToJSON();
-                        multiplayer.broadcast(data);
+                        const nodeView = area.nodeViews.get(node.id);
+                        if (nodeView) {
+                            multiplayer.broadcast({
+                                type: 'node-move',
+                                data: { id: node.id, position: nodeView.position }
+                            });
+                        }
                     }
 
                     const nodeView = area.nodeViews.get(node.id);
@@ -6550,7 +6675,7 @@ workspace_data: ${base64Data}
                                         await editor.addConnection(new WebAudioConnection(editor.getNode(sourceId), sourceOutput, node, inputs[0]));
                                         await editor.addConnection(new WebAudioConnection(node, outputs[0], editor.getNode(targetId), targetInput));
 
-                                        multiplayer.broadcast(editorToJSON());
+                                        multiplayer.broadcast({ type: 'workspace', data: editorToJSON() });
                                         autoSave();
                                     })();
                                     break;
@@ -6607,7 +6732,7 @@ workspace_data: ${base64Data}
                 }
 
                 if (_isLocalChange && ['nodecreated', 'noderemoved', 'connectioncreated', 'connectionremoved'].includes(context.type)) {
-                    multiplayer.broadcast(editorToJSON());
+                    multiplayer.broadcast({ type: 'workspace', data: editorToJSON() });
                     autoSave();
                 }
                 if (context.type === 'nodecreate' && context.data instanceof WebAudioNode) {
@@ -6829,12 +6954,14 @@ workspace_data: ${base64Data}
                     await startAudio(); // This is async, so we await its completion
                     audioState = 'playing';
                     playStopBtn.textContent = '⏹️';
+                    multiplayer.broadcast({ type: 'transport', data: { action: 'start' } });
                 } else { // 'playing'
                     if (mediaRecorder && mediaRecorder.state === 'recording') {
                         mediaRecorder.stop();
                     }
                     await stopAudio(); // stopAudio is also async
                     // stopAudio now correctly sets the state and button text
+                    multiplayer.broadcast({ type: 'transport', data: { action: 'stop' } });
                 }
             });
 
