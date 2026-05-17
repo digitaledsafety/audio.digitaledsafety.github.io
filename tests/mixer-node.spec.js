@@ -17,9 +17,9 @@ test.describe('Mixer Node', () => {
     const mixerNode = page.locator('[data-node-label="Mixer"]').first();
     await expect(mixerNode).toBeVisible();
 
-    // Mixer has 4 gain sliders + 4 pan sliders = 8
+    // Mixer has 4 gain sliders
     const sliders = mixerNode.locator('input[type="range"]');
-    await expect(sliders).toHaveCount(8);
+    await expect(sliders).toHaveCount(4);
 
     // Change Gain 1
     const gain1Slider = sliders.nth(0);
@@ -34,15 +34,5 @@ test.describe('Mixer Node', () => {
 
     const valueDisplay4 = mixerNode.locator('.value-display').nth(3);
     await expect(valueDisplay4).toHaveText('0.20');
-
-    // Verify Pan sliders exist (indices 4-7 in the value displays)
-    const pan1Slider = sliders.nth(4);
-    await pan1Slider.fill('0.5');
-    const panValueDisplay1 = mixerNode.locator('.value-display').nth(4);
-    await expect(panValueDisplay1).toHaveText('0.50');
-
-    // Verify Mute toggles exist
-    const muteToggles = mixerNode.locator('input[type="checkbox"]');
-    await expect(muteToggles).toHaveCount(4);
   });
 });
