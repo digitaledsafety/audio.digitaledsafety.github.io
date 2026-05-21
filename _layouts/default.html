@@ -2064,6 +2064,92 @@ workspace_data: ${base64Data}
         const midiSocket = new Classic.Socket('midi');
 
         // --- New ChordGenerator Internal Class ---
+        class ToneGenerator {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+                this.started = false;
+
+                this.mainOutput = this.audioContext.createGain();
+
+                // Frequency proxy to keep CV connections alive during oscillator recreation
+                this.frequencyProxy = this.audioContext.createConstantSource();
+                this.frequencyProxy.offset.value = this.data.frequency || 440;
+                this.frequencyProxy.start();
+
+                this.frequency = this.frequencyProxy.offset; // Expose for CV
+
+                this.setupOscillator();
+            }
+
+            setupOscillator() {
+                this.oscillator = this.audioContext.createOscillator();
+                this.oscillator.type = this.data.waveform || 'sine';
+                this.oscillator.frequency.value = 0; // Use proxy for frequency
+                this.frequencyProxy.connect(this.oscillator.frequency);
+                this.oscillator.connect(this.mainOutput);
+            }
+
+            receiveMidiNotes(notes) {
+                if (notes && notes.length > 0) {
+                    const midiNote = notes[0];
+                    const frequency = midiToFrequency(midiNote);
+                    this.updateParameter('frequency', frequency);
+
+                    // Update UI if it's a manual change
+                    const reteNode = editor.getNode(this.reteNodeId);
+                    if (reteNode && reteNode.controls.frequency) {
+                        reteNode.controls.frequency.value = frequency;
+                        area.update('node', this.reteNodeId);
+                    }
+                }
+            }
+
+            start() {
+                if (this.started) return;
+                try {
+                    this.oscillator.start(0);
+                    this.started = true;
+                } catch (e) {
+                    console.warn(`Could not start ToneGenerator for node ${this.reteNodeId}:`, e);
+                }
+            }
+
+            stop() {
+                if (!this.started) return;
+                try {
+                    this.oscillator.stop(0);
+                    this.oscillator.disconnect();
+                    this.setupOscillator();
+                    this.started = false;
+                } catch (e) {
+                    console.warn(`Could not stop ToneGenerator for node ${this.reteNodeId}:`, e);
+                }
+            }
+
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+                if (paramName === 'frequency') {
+                    this.frequencyProxy.offset.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
+                } else if (paramName === 'waveform' && this.oscillator) {
+                    this.oscillator.type = value;
+                }
+            }
+
+            connect(dest) {
+                this.mainOutput.connect(dest);
+            }
+
+            disconnect(dest) {
+                if (dest) {
+                    this.mainOutput.disconnect(dest);
+                } else {
+                    this.mainOutput.disconnect();
+                }
+            }
+        }
+
         class ChordGenerator {
             constructor(audioContext, reteNodeId, data) {
                 this.audioContext = audioContext;
@@ -2320,14 +2406,15 @@ workspace_data: ${base64Data}
                 super('Tone Generator');
 
                 this.addInput('freq', new Classic.Input(voltageSocket, 'Freq CV'));
+                this.addInput('midi', new Classic.Input(midiSocket, 'MIDI In'));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio'));
 
                 this.data.frequency = 440;
                 this.addControl('frequency', new SliderControl('freqSlider', 'Frequency (Hz)', 20, 20000, 1, this.data.frequency, (val) => {
                     this.data.frequency = val;
                     const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode && audioNode.frequency) {
-                        audioNode.frequency.setTargetAtTime(val, audioContext.currentTime, 0.01);
+                    if (audioNode) {
+                        audioNode.updateParameter('frequency', val);
                     }
                 }, true));
 
@@ -2335,19 +2422,14 @@ workspace_data: ${base64Data}
                 this.addControl('waveform', new SelectControl('waveformSelect', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveform, (val) => {
                     this.data.waveform = val;
                     const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode && audioNode.type) {
-                        audioNode.type = val;
+                    if (audioNode) {
+                        audioNode.updateParameter('waveform', val);
                     }
-                    //area.update('node', this.id); // Trigger re-render
                 }));
             }
 
             build() {
-                const audioNode = audioContext.createOscillator();
-                audioNode.frequency.value = this.data.frequency !== undefined ? this.data.frequency : 440;
-                audioNode.type = this.data.waveform || 'sine';
-                audioNode.started = false;
-                return audioNode;
+                return new ToneGenerator(audioContext, this.id, this.data);
             }
 
             start() {
@@ -2355,7 +2437,6 @@ workspace_data: ${base64Data}
                 if (audioNode && audioNode.start && !audioNode.started) {
                     try {
                         audioNode.start();
-                        audioNode.started = true;
                     } catch (e) {
                         console.warn(`Could not start ${this.label} for node ${this.id}:`, e);
                     }
@@ -5145,9 +5226,26 @@ workspace_data: ${base64Data}
 
                 this.oscillator.connect(this.mainOutput);
 
+                this.updateParameter('sync', this.data.sync || false);
+                this.updateParameter('division', this.data.division || '1/4');
                 this.updateParameter('frequency', this.data.frequency || 5, false);
                 this.updateParameter('waveform', this.data.waveform || 'sine', false);
                 this.updateParameter('amount', this.data.amount || 0.5, false); // Initialize amount
+            }
+
+            onTick(tickTime, tickDuration) {
+                if (!this.data.sync) return;
+
+                const divisionMultipliers = {
+                    '1': 4, '1/2': 2, '1/4': 1, '1/8': 0.5, '1/16': 0.25, '1/32': 0.125
+                };
+                const multiplier = divisionMultipliers[this.data.division] || 1;
+                const ppqn = 96;
+                const frequency = 1 / (multiplier * ppqn * tickDuration);
+
+                if (this.oscillator && Math.abs(this.oscillator.frequency.value - frequency) > 0.01) {
+                    this.oscillator.frequency.setTargetAtTime(frequency, tickTime, 0.01);
+                }
             }
 
             start() {
@@ -5182,8 +5280,8 @@ workspace_data: ${base64Data}
 
             updateParameter(paramName, value) {
                 this.data[paramName] = value;
-                if (paramName === 'frequency' && this.oscillator) {
-                    this.oscillator.frequency.value = value;
+                if (paramName === 'frequency' && this.oscillator && !this.data.sync) {
+                    this.oscillator.frequency.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
                 } else if (paramName === 'waveform' && this.oscillator) {
                     this.oscillator.type = value;
                 } else if (paramName === 'amount' && this.mainOutput) {
@@ -5200,7 +5298,26 @@ workspace_data: ${base64Data}
         class LFONode extends ModulatorNode {
             constructor() {
                 super('LFO');
+                this.addInput('clock', new Classic.Input(voltageSocket, 'Clock In'));
                 this.addOutput('cv', new Classic.Output(voltageSocket, 'CV Out')); // Can be used for modulation
+
+                this.data.sync = false;
+                this.addControl('sync', new ToggleControl('lfoSync', 'Sync to Clock', this.data.sync, (val) => {
+                    this.data.sync = val;
+                    this.controls.frequency.hidden = val;
+                    this.controls.division.hidden = !val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof LFOGenerator) audioNode.updateParameter('sync', val);
+                    area.update('node', this.id);
+                }));
+
+                this.data.division = '1/4';
+                this.addControl('division', new SelectControl('lfoDivision', 'Division', ['1', '1/2', '1/4', '1/8', '1/16', '1/32'], this.data.division, (val) => {
+                    this.data.division = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof LFOGenerator) audioNode.updateParameter('division', val);
+                }));
+                this.controls.division.hidden = true;
 
                 this.data.frequency = 5;
                 this.addControl('frequency', new SliderControl('lfoFreq', 'Frequency (Hz)', 0.1, 20, 0.1, this.data.frequency, (val) => {

@@ -25,6 +25,11 @@ test.describe('Multiplayer Synchronization', () => {
 
     // Start hosting
     await page1.click('#settingsToggle');
+    // Wait for Peer ID to be ready (not "...")
+    await page1.waitForFunction(() => {
+      const display = document.getElementById('peerIdDisplay');
+      return display && display.textContent !== '...';
+    }, { timeout: 15000 });
     await page1.click('#createSessionBtn');
 
     // Wait for the session URL to be available in the input

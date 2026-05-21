@@ -20,6 +20,11 @@ test.describe('Extended Multiplayer Synchronization', () => {
 
     // Start hosting
     await page1.click('#settingsToggle');
+    // Wait for Peer ID to be ready (not "...")
+    await page1.waitForFunction(() => {
+      const display = document.getElementById('peerIdDisplay');
+      return display && display.textContent !== '...';
+    }, { timeout: 15000 });
     await page1.click('#createSessionBtn');
     const sessionUrlInput = page1.locator('#shareLinkInput');
     await expect(sessionUrlInput).not.toHaveValue('', { timeout: 10000 });

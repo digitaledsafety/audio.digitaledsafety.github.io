@@ -3,12 +3,13 @@ const { test, expect } = require('@playwright/test');
 test.describe('Critical Functionality', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
+    await page.waitForLoadState('networkidle');
   });
 
   test('should enter the studio and show the editor', async ({ page }) => {
     // Click CTA button
     const ctaButton = page.locator('#cta-button');
-    await expect(ctaButton).toBeVisible();
+    await expect(ctaButton).toBeVisible({ timeout: 15000 });
     await ctaButton.click();
 
     // Verify hero overlay is removed
