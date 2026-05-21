@@ -5301,23 +5301,14 @@ workspace_data: ${base64Data}
                 this.addInput('clock', new Classic.Input(voltageSocket, 'Clock In'));
                 this.addOutput('cv', new Classic.Output(voltageSocket, 'CV Out')); // Can be used for modulation
 
-                this.data.sync = false;
-                this.addControl('sync', new ToggleControl('lfoSync', 'Sync to Clock', this.data.sync, (val) => {
-                    this.data.sync = val;
-                    this.controls.frequency.hidden = val;
-                    this.controls.division.hidden = !val;
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode instanceof LFOGenerator) audioNode.updateParameter('sync', val);
-                    area.update('node', this.id);
-                }));
-
+                this.data.sync = this.data.sync || false;
                 this.data.division = '1/4';
                 this.addControl('division', new SelectControl('lfoDivision', 'Division', ['1', '1/2', '1/4', '1/8', '1/16', '1/32'], this.data.division, (val) => {
                     this.data.division = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode instanceof LFOGenerator) audioNode.updateParameter('division', val);
                 }));
-                this.controls.division.hidden = true;
+                this.controls.division.hidden = !this.data.sync;
 
                 this.data.frequency = 5;
                 this.addControl('frequency', new SliderControl('lfoFreq', 'Frequency (Hz)', 0.1, 20, 0.1, this.data.frequency, (val) => {
@@ -5325,6 +5316,7 @@ workspace_data: ${base64Data}
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode instanceof LFOGenerator) audioNode.updateParameter('frequency', val);
                 }));
+                this.controls.frequency.hidden = this.data.sync;
 
                 this.data.waveform = 'sine';
                 this.addControl('waveform', new SelectControl('lfoWaveform', 'Waveform', ['sine', 'square', 'sawtooth', 'triangle'], this.data.waveform, (val) => {
@@ -6923,10 +6915,18 @@ workspace_data: ${base64Data}
                     }
                 } else if (context.type === 'connectioncreate') {
                     const connection = context.data;
+                    const targetReteNode = editor.getNode(connection.target);
+                    if (connection.targetInput === 'clock' && targetReteNode.label === 'LFO') {
+                        targetReteNode.data.sync = true;
+                        targetReteNode.controls.frequency.hidden = true;
+                        targetReteNode.controls.division.hidden = false;
+                        area.update('node', targetReteNode.id);
+                        const audioNode = reteAudioNodes.get(targetReteNode.id);
+                        if (audioNode) audioNode.updateParameter('sync', true);
+                    }
                     if (audioContext && audioContext.state === 'running') {
                         updateAudioGraphConnections();
                         if (connection.targetInput === 'clock') {
-                            const targetReteNode = editor.getNode(connection.target);
                             const targetAudioNode = reteAudioNodes.get(connection.target);
                             if (targetAudioNode && ['Arpeggiator', 'Sequencer'].includes(targetReteNode.label) && targetAudioNode.started) {
                                 targetAudioNode.stop();
@@ -6937,10 +6937,18 @@ workspace_data: ${base64Data}
                     showMessage('Connection created.', 'info');
                 } else if (context.type === 'connectionremove') {
                     const connection = context.data;
+                    const targetReteNode = editor.getNode(connection.target);
+                    if (connection.targetInput === 'clock' && targetReteNode.label === 'LFO') {
+                        targetReteNode.data.sync = false;
+                        targetReteNode.controls.frequency.hidden = false;
+                        targetReteNode.controls.division.hidden = true;
+                        area.update('node', targetReteNode.id);
+                        const audioNode = reteAudioNodes.get(targetReteNode.id);
+                        if (audioNode) audioNode.updateParameter('sync', false);
+                    }
                     if (audioContext && audioContext.state === 'running') {
                         updateAudioGraphConnections();
                         if (connection.targetInput === 'clock') {
-                            const targetReteNode = editor.getNode(connection.target);
                             const targetAudioNode = reteAudioNodes.get(connection.target);
                             if (targetAudioNode && ['Arpeggiator', 'Sequencer'].includes(targetReteNode.label) && targetAudioNode.started) {
                                 targetAudioNode.stop();
