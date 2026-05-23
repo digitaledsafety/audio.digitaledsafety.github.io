@@ -349,6 +349,8 @@ layout: none
                                 <button id="addCompressorNodeBtn" class="button button-secondary w-full text-xs">📊 Compressor</button>
                                 <button id="addReverbNodeBtn" class="button button-secondary w-full text-xs">🏞️ Reverb</button>
                                 <button id="addPingPongDelayNodeBtn" class="button button-secondary w-full text-xs">🏓 Ping Pong</button>
+                                <button id="addChorusNodeBtn" class="button button-secondary w-full text-xs">🌀 Chorus</button>
+                                <button id="addPhaserNodeBtn" class="button button-secondary w-full text-xs">💫 Phaser</button>
                                 <button id="addBitcrusherNodeBtn" class="button button-secondary w-full text-xs">👾 Bitcrusher</button>
                                 <button id="addVocoderNodeBtn" class="button button-secondary w-full text-xs">🗣️ Vocoder</button>
                                 <button id="addGranularSynthesizerNodeBtn" class="button button-secondary w-full text-xs">✨ Granular</button>
@@ -3034,28 +3036,39 @@ workspace_data: ${base64Data}
 
                 this.mainOutput = this.audioContext.createGain();
 
-                this.in1Input = this.audioContext.createGain();
-                this.in2Input = this.audioContext.createGain();
-                this.in3Input = this.audioContext.createGain();
-                this.in4Input = this.audioContext.createGain();
+                this.channels = [];
+                for (let i = 1; i <= 4; i++) {
+                    const gain = this.audioContext.createGain();
+                    const panner = this.audioContext.createStereoPanner();
+                    gain.connect(panner);
+                    panner.connect(this.mainOutput);
+                    this[`in${i}Input`] = gain;
+                    this.channels.push({ gain, panner });
+                }
 
-                this.in1Input.connect(this.mainOutput);
-                this.in2Input.connect(this.mainOutput);
-                this.in3Input.connect(this.mainOutput);
-                this.in4Input.connect(this.mainOutput);
-
-                this.updateParameter('gain1', this.data.gain1 !== undefined ? this.data.gain1 : 0.8);
-                this.updateParameter('gain2', this.data.gain2 !== undefined ? this.data.gain2 : 0.8);
-                this.updateParameter('gain3', this.data.gain3 !== undefined ? this.data.gain3 : 0.8);
-                this.updateParameter('gain4', this.data.gain4 !== undefined ? this.data.gain4 : 0.8);
+                for (let i = 1; i <= 4; i++) {
+                    this.updateParameter(`gain${i}`, this.data[`gain${i}`] !== undefined ? this.data[`gain${i}`] : 0.8);
+                    this.updateParameter(`pan${i}`, this.data[`pan${i}`] !== undefined ? this.data[`pan${i}`] : 0);
+                    this.updateParameter(`mute${i}`, this.data[`mute${i}`] !== undefined ? this.data[`mute${i}`] : false);
+                }
             }
 
             updateParameter(paramName, value) {
                 this.data[paramName] = value;
-                if (paramName === 'gain1') this.in1Input.gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
-                if (paramName === 'gain2') this.in2Input.gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
-                if (paramName === 'gain3') this.in3Input.gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
-                if (paramName === 'gain4') this.in4Input.gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
+                const now = this.audioContext.currentTime;
+                const channelMatch = paramName.match(/(gain|pan|mute)(\d)/);
+                if (channelMatch) {
+                    const type = channelMatch[1];
+                    const index = parseInt(channelMatch[2]) - 1;
+                    const channel = this.channels[index];
+
+                    if (type === 'gain' || type === 'mute') {
+                        const actualGain = this.data[`mute${index + 1}`] ? 0 : this.data[`gain${index + 1}`];
+                        channel.gain.gain.setTargetAtTime(actualGain, now, 0.01);
+                    } else if (type === 'pan') {
+                        channel.panner.pan.setTargetAtTime(value, now, 0.01);
+                    }
+                }
             }
 
             start() {}
@@ -3343,33 +3356,28 @@ workspace_data: ${base64Data}
                 this.addInput('in4', new Classic.Input(voltageSocket, 'In 4'));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
-                this.data.gain1 = 0.8;
-                this.addControl('gain1', new SliderControl('gain1', 'Gain 1', 0, 1, 0.01, this.data.gain1, (val) => {
-                    this.data.gain1 = val;
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode) audioNode.updateParameter('gain1', val);
-                }));
+                for (let i = 1; i <= 4; i++) {
+                    this.data[`gain${i}`] = 0.8;
+                    this.addControl(`gain${i}`, new SliderControl(`gain${i}`, `Gain ${i}`, 0, 1, 0.01, this.data[`gain${i}`], (val) => {
+                        this.data[`gain${i}`] = val;
+                        const audioNode = reteAudioNodes.get(this.id);
+                        if (audioNode) audioNode.updateParameter(`gain${i}`, val);
+                    }));
 
-                this.data.gain2 = 0.8;
-                this.addControl('gain2', new SliderControl('gain2', 'Gain 2', 0, 1, 0.01, this.data.gain2, (val) => {
-                    this.data.gain2 = val;
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode) audioNode.updateParameter('gain2', val);
-                }));
+                    this.data[`pan${i}`] = 0;
+                    this.addControl(`pan${i}`, new SliderControl(`pan${i}`, `Pan ${i}`, -1, 1, 0.01, this.data[`pan${i}`], (val) => {
+                        this.data[`pan${i}`] = val;
+                        const audioNode = reteAudioNodes.get(this.id);
+                        if (audioNode) audioNode.updateParameter(`pan${i}`, val);
+                    }));
 
-                this.data.gain3 = 0.8;
-                this.addControl('gain3', new SliderControl('gain3', 'Gain 3', 0, 1, 0.01, this.data.gain3, (val) => {
-                    this.data.gain3 = val;
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode) audioNode.updateParameter('gain3', val);
-                }));
-
-                this.data.gain4 = 0.8;
-                this.addControl('gain4', new SliderControl('gain4', 'Gain 4', 0, 1, 0.01, this.data.gain4, (val) => {
-                    this.data.gain4 = val;
-                    const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode) audioNode.updateParameter('gain4', val);
-                }));
+                    this.data[`mute${i}`] = false;
+                    this.addControl(`mute${i}`, new ToggleControl(`mute${i}`, `Mute ${i}`, this.data[`mute${i}`], (val) => {
+                        this.data[`mute${i}`] = val;
+                        const audioNode = reteAudioNodes.get(this.id);
+                        if (audioNode) audioNode.updateParameter(`mute${i}`, val);
+                    }));
+                }
             }
 
             build() {
@@ -3575,6 +3583,221 @@ workspace_data: ${base64Data}
 
             build() {
                 return new PingPongDelay(audioContext, this.id, this.data);
+            }
+        }
+
+        class Chorus {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+
+                this.mainInput = this.audioContext.createGain();
+                this.mainOutput = this.audioContext.createGain();
+
+                this.delayNode = this.audioContext.createDelay(0.1);
+                this.lfo = this.audioContext.createOscillator();
+                this.lfoGain = this.audioContext.createGain();
+
+                this.lfo.connect(this.lfoGain);
+                this.lfoGain.connect(this.delayNode.delayTime);
+
+                this.dryGain = this.audioContext.createGain();
+                this.wetGain = this.audioContext.createGain();
+
+                this.mainInput.connect(this.dryGain);
+                this.dryGain.connect(this.mainOutput);
+
+                this.mainInput.connect(this.delayNode);
+                this.delayNode.connect(this.wetGain);
+                this.wetGain.connect(this.mainOutput);
+
+                this.lfo.start();
+
+                this.updateParameter('rate', this.data.rate || 1.5);
+                this.updateParameter('depth', this.data.depth || 0.002);
+                this.updateParameter('delay', this.data.delay || 0.030);
+                this.updateParameter('mix', this.data.mix || 0.5);
+            }
+
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+                const now = this.audioContext.currentTime;
+                if (paramName === 'rate') {
+                    this.lfo.frequency.setTargetAtTime(value, now, 0.01);
+                } else if (paramName === 'depth') {
+                    this.lfoGain.gain.setTargetAtTime(value, now, 0.01);
+                } else if (paramName === 'delay') {
+                    this.delayNode.delayTime.setTargetAtTime(value, now, 0.01);
+                } else if (paramName === 'mix') {
+                    this.dryGain.gain.setTargetAtTime(1 - value, now, 0.01);
+                    this.wetGain.gain.setTargetAtTime(value, now, 0.01);
+                }
+            }
+            start() {}
+            stop() {
+                try {
+                    this.lfo.stop();
+                } catch(e) {}
+            }
+        }
+
+        class ChorusNode extends WebAudioNode {
+            constructor() {
+                super('Chorus');
+                this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
+
+                this.data.rate = 1.5;
+                this.addControl('rate', new SliderControl('chorusRate', 'Rate (Hz)', 0.1, 10, 0.01, this.data.rate, (val) => {
+                    this.data.rate = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('rate', val);
+                }));
+
+                this.data.depth = 0.002;
+                this.addControl('depth', new SliderControl('chorusDepth', 'Depth (s)', 0, 0.01, 0.0001, this.data.depth, (val) => {
+                    this.data.depth = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('depth', val);
+                }));
+
+                this.data.delay = 0.030;
+                this.addControl('delay', new SliderControl('chorusDelay', 'Delay (s)', 0.01, 0.1, 0.001, this.data.delay, (val) => {
+                    this.data.delay = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('delay', val);
+                }));
+
+                this.data.mix = 0.5;
+                this.addControl('mix', new SliderControl('chorusMix', 'Mix', 0, 1, 0.01, this.data.mix, (val) => {
+                    this.data.mix = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('mix', val);
+                }));
+            }
+
+            build() {
+                return new Chorus(audioContext, this.id, this.data);
+            }
+        }
+
+        class Phaser {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+
+                this.mainInput = this.audioContext.createGain();
+                this.mainOutput = this.audioContext.createGain();
+
+                this.lfo = this.audioContext.createOscillator();
+                this.lfoGain = this.audioContext.createGain();
+                this.lfo.connect(this.lfoGain);
+
+                this.filters = [];
+                for (let i = 0; i < 4; i++) {
+                    const filter = this.audioContext.createBiquadFilter();
+                    filter.type = 'allpass';
+                    this.lfoGain.connect(filter.frequency);
+                    this.filters.push(filter);
+                }
+
+                for (let i = 0; i < this.filters.length - 1; i++) {
+                    this.filters[i].connect(this.filters[i+1]);
+                }
+
+                this.feedbackGain = this.audioContext.createGain();
+                this.filters[this.filters.length - 1].connect(this.feedbackGain);
+                this.feedbackGain.connect(this.filters[0]);
+
+                this.dryGain = this.audioContext.createGain();
+                this.wetGain = this.audioContext.createGain();
+
+                this.mainInput.connect(this.dryGain);
+                this.dryGain.connect(this.mainOutput);
+
+                this.mainInput.connect(this.filters[0]);
+                this.filters[this.filters.length - 1].connect(this.wetGain);
+                this.wetGain.connect(this.mainOutput);
+
+                this.lfo.start();
+
+                this.updateParameter('rate', this.data.rate || 0.5);
+                this.updateParameter('depth', this.data.depth || 1000);
+                this.updateParameter('baseFreq', this.data.baseFreq || 700);
+                this.updateParameter('feedback', this.data.feedback || 0.5);
+                this.updateParameter('mix', this.data.mix || 0.5);
+            }
+
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+                const now = this.audioContext.currentTime;
+                if (paramName === 'rate') {
+                    this.lfo.frequency.setTargetAtTime(value, now, 0.01);
+                } else if (paramName === 'depth') {
+                    this.lfoGain.gain.setTargetAtTime(value, now, 0.01);
+                } else if (paramName === 'baseFreq') {
+                    this.filters.forEach(f => f.frequency.setTargetAtTime(value, now, 0.01));
+                } else if (paramName === 'feedback') {
+                    this.feedbackGain.gain.setTargetAtTime(value, now, 0.01);
+                } else if (paramName === 'mix') {
+                    this.dryGain.gain.setTargetAtTime(1 - value, now, 0.01);
+                    this.wetGain.gain.setTargetAtTime(value, now, 0.01);
+                }
+            }
+            start() {}
+            stop() {
+                try {
+                    this.lfo.stop();
+                } catch(e) {}
+            }
+        }
+
+        class PhaserNode extends WebAudioNode {
+            constructor() {
+                super('Phaser');
+                this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
+
+                this.data.rate = 0.5;
+                this.addControl('rate', new SliderControl('phaserRate', 'Rate (Hz)', 0.01, 10, 0.01, this.data.rate, (val) => {
+                    this.data.rate = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('rate', val);
+                }));
+
+                this.data.depth = 1000;
+                this.addControl('depth', new SliderControl('phaserDepth', 'Depth', 0, 2000, 1, this.data.depth, (val) => {
+                    this.data.depth = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('depth', val);
+                }));
+
+                this.data.baseFreq = 700;
+                this.addControl('baseFreq', new SliderControl('phaserBaseFreq', 'Base Freq (Hz)', 20, 2000, 1, this.data.baseFreq, (val) => {
+                    this.data.baseFreq = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('baseFreq', val);
+                }));
+
+                this.data.feedback = 0.5;
+                this.addControl('feedback', new SliderControl('phaserFeedback', 'Feedback', 0, 0.95, 0.01, this.data.feedback, (val) => {
+                    this.data.feedback = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('feedback', val);
+                }));
+
+                this.data.mix = 0.5;
+                this.addControl('mix', new SliderControl('phaserMix', 'Mix', 0, 1, 0.01, this.data.mix, (val) => {
+                    this.data.mix = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('mix', val);
+                }));
+            }
+
+            build() {
+                return new Phaser(audioContext, this.id, this.data);
             }
         }
 
@@ -6364,6 +6587,24 @@ workspace_data: ${base64Data}
             clearEditorBtn.disabled = false;
         });
 
+        const addChorusNodeBtn = document.getElementById('addChorusNodeBtn');
+        addChorusNodeBtn.addEventListener('click', async () => {
+            const node = new ChorusNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false;
+        });
+
+        const addPhaserNodeBtn = document.getElementById('addPhaserNodeBtn');
+        addPhaserNodeBtn.addEventListener('click', async () => {
+            const node = new PhaserNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false;
+        });
+
         const addPingPongDelayNodeBtn = document.getElementById('addPingPongDelayNodeBtn');
         addPingPongDelayNodeBtn.addEventListener('click', async () => {
             const node = new PingPongDelayNode();
@@ -6528,6 +6769,8 @@ workspace_data: ${base64Data}
         NodeRegistry.register('Filter', FilterNode);
         NodeRegistry.register('Delay', DelayNode);
         NodeRegistry.register('Ping Pong Delay', PingPongDelayNode);
+        NodeRegistry.register('Chorus', ChorusNode);
+        NodeRegistry.register('Phaser', PhaserNode);
         NodeRegistry.register('Distortion', DistortionNode);
         NodeRegistry.register('Compressor', CompressorNode);
         NodeRegistry.register('Reverb', ReverbNode);
@@ -6681,6 +6924,8 @@ workspace_data: ${base64Data}
                     ['Filter', () => new FilterNode()],
                     ['Delay', () => new DelayNode()],
                     ['Ping Pong Delay', () => new PingPongDelayNode()],
+                    ['Chorus', () => new ChorusNode()],
+                    ['Phaser', () => new PhaserNode()],
                     ['Distortion', () => new DistortionNode()],
                     ['Compressor', () => new CompressorNode()],
                     ['Reverb', () => new ReverbNode()],

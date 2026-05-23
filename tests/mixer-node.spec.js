@@ -17,22 +17,31 @@ test.describe('Mixer Node', () => {
     const mixerNode = page.locator('[data-node-label="Mixer"]').first();
     await expect(mixerNode).toBeVisible();
 
-    // Mixer has 4 gain sliders
+    // Mixer now has 4 channels, each with Gain, Pan, Mute
+    // 4 gains + 4 pans = 8 sliders
     const sliders = mixerNode.locator('input[type="range"]');
-    await expect(sliders).toHaveCount(4);
+    await expect(sliders).toHaveCount(8);
+
+    // 4 mutes = 4 checkboxes (ToggleControl)
+    const toggles = mixerNode.locator('input[type="checkbox"]');
+    await expect(toggles).toHaveCount(4);
 
     // Change Gain 1
     const gain1Slider = sliders.nth(0);
     await gain1Slider.fill('0.5');
+    await expect(mixerNode.locator('.value-display').nth(0)).toHaveText('0.50');
 
-    const valueDisplay1 = mixerNode.locator('.value-display').nth(0);
-    await expect(valueDisplay1).toHaveText('0.50');
+    // Change Pan 1
+    const pan1Slider = sliders.nth(1);
+    await pan1Slider.fill('0.7');
+    await expect(mixerNode.locator('.value-display').nth(1)).toHaveText('0.70');
 
-    // Change Gain 4
-    const gain4Slider = sliders.nth(3);
-    await gain4Slider.fill('0.2');
+    // Toggle Mute 1
+    // Click the toggle container/parent instead of the hidden checkbox
+    const mute1ToggleLabel = mixerNode.locator('label').filter({ hasText: 'Mute 1' });
+    await mute1ToggleLabel.click();
 
-    const valueDisplay4 = mixerNode.locator('.value-display').nth(3);
-    await expect(valueDisplay4).toHaveText('0.20');
+    const mute1Checkbox = toggles.nth(0);
+    await expect(mute1Checkbox).toBeChecked();
   });
 });
