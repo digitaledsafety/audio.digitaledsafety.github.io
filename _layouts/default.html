@@ -3167,7 +3167,9 @@ workspace_data: ${base64Data}
 
             start() {}
             stop() {}
-            updateParameter() {}
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+            }
         }
 
         class BernoulliGateNode extends ModulatorNode {
@@ -3180,6 +3182,8 @@ workspace_data: ${base64Data}
                 this.data.probability = 0.5;
                 this.addControl('probability', new SliderControl('probSlider', 'Probability (B)', 0, 1, 0.01, this.data.probability, (val) => {
                     this.data.probability = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('probability', val);
                 }));
             }
 
@@ -3218,6 +3222,7 @@ workspace_data: ${base64Data}
 
             onTick(tickTime, tickDuration) {
                 const probability = this.data.probability !== undefined ? this.data.probability : 0.0;
+                const steps = this.data.steps !== undefined ? this.data.steps : 16;
 
                 // Shift register logic
                 let lastBit = this.register & 1;
@@ -3226,8 +3231,8 @@ workspace_data: ${base64Data}
                     lastBit = 1 - lastBit;
                 }
 
-                this.register = (this.register >> 1) | (lastBit << 15);
-                this.register &= 0xFFFF;
+                this.register = (this.register >> 1) | (lastBit << (steps - 1));
+                this.register &= (1 << steps) - 1;
 
                 // CV Output (normalized 0-1)
                 const cvValue = (this.register & 0xFF) / 255.0;
@@ -3242,7 +3247,9 @@ workspace_data: ${base64Data}
 
             start() {}
             stop() {}
-            updateParameter() {}
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+            }
         }
 
         class TuringMachineNode extends ModulatorNode {
@@ -3255,6 +3262,15 @@ workspace_data: ${base64Data}
                 this.data.probability = 0.0;
                 this.addControl('probability', new SliderControl('probSlider', 'Evolution Prob', 0, 1, 0.01, this.data.probability, (val) => {
                     this.data.probability = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('probability', val);
+                }));
+
+                this.data.steps = 16;
+                this.addControl('steps', new SliderControl('stepsSlider', 'Steps', 2, 16, 1, this.data.steps, (val) => {
+                    this.data.steps = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('steps', val);
                 }));
             }
 
@@ -5473,16 +5489,26 @@ workspace_data: ${base64Data}
                 this.started = false;
 
                 this.oscillator = this.audioContext.createOscillator();
-                this.mainOutput = this.audioContext.createGain(); // Output for modulation or audible signal
-                this.mainOutput.gain.value = this.data.amount || 0.5; // Modulation amount / amplitude
+                this.amountGain = this.audioContext.createGain();
+                this.amountGain.gain.value = this.data.amount !== undefined ? this.data.amount : 500;
 
-                this.oscillator.connect(this.mainOutput);
+                this.offsetSource = this.audioContext.createConstantSource();
+                this.offsetSource.offset.value = this.data.offset !== undefined ? this.data.offset : 0;
+                this.offsetSource.start();
+
+                this.mainOutput = this.audioContext.createGain();
+                this.mainOutput.gain.value = 1.0;
+
+                this.oscillator.connect(this.amountGain);
+                this.amountGain.connect(this.mainOutput);
+                this.offsetSource.connect(this.mainOutput);
 
                 this.updateParameter('sync', this.data.sync || false);
                 this.updateParameter('division', this.data.division || '1/4');
                 this.updateParameter('frequency', this.data.frequency || 5, false);
                 this.updateParameter('waveform', this.data.waveform || 'sine', false);
-                this.updateParameter('amount', this.data.amount || 0.5, false); // Initialize amount
+                this.updateParameter('amount', this.data.amount !== undefined ? this.data.amount : 500, false);
+                this.updateParameter('offset', this.data.offset !== undefined ? this.data.offset : 0, false);
             }
 
             onTick(tickTime, tickDuration) {
@@ -5516,10 +5542,9 @@ workspace_data: ${base64Data}
                 try {
                     this.oscillator.stop(0);
                     this.oscillator.disconnect();
-                    this.mainOutput.disconnect();
                     // Recreate oscillator if it needs to be started again later
                     this.oscillator = this.audioContext.createOscillator();
-                    this.oscillator.connect(this.mainOutput);
+                    this.oscillator.connect(this.amountGain);
                     this.oscillator.type = this.data.waveform;
                     this.oscillator.frequency.value = this.data.frequency;
                     
@@ -5536,8 +5561,10 @@ workspace_data: ${base64Data}
                     this.oscillator.frequency.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
                 } else if (paramName === 'waveform' && this.oscillator) {
                     this.oscillator.type = value;
-                } else if (paramName === 'amount' && this.mainOutput) {
-                    this.mainOutput.gain.value = value;
+                } else if (paramName === 'amount' && this.amountGain) {
+                    this.amountGain.gain.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
+                } else if (paramName === 'offset' && this.offsetSource) {
+                    this.offsetSource.offset.setTargetAtTime(value, this.audioContext.currentTime, 0.01);
                 }
                 // If LFO is running and waveform type changes, it needs to be stopped and restarted
                 if (paramName === 'waveform' && this.started) {
@@ -5582,6 +5609,13 @@ workspace_data: ${base64Data}
                     this.data.amount = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode instanceof LFOGenerator) audioNode.updateParameter('amount', val);
+                }));
+
+                this.data.offset = 0;
+                this.addControl('offset', new SliderControl('lfoOffset', 'Offset', -1000, 1000, 1, this.data.offset, (val) => {
+                    this.data.offset = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode instanceof LFOGenerator) audioNode.updateParameter('offset', val);
                 }));
             }
 
@@ -6809,6 +6843,7 @@ workspace_data: ${base64Data}
             window.editor = editor = new NodeEditor(schemes);
             // DataflowEngine is correctly destructured from window.ReteEngine
             window.engine = engine = new DataflowEngine(schemes);
+            window.AreaExtensions = AreaExtensions;
 
             // Rete.js v2: AreaPlugin is instantiated and then other plugins are added to it
             window.area = area = new AreaPlugin(reteContainer);
