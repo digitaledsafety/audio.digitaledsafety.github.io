@@ -2407,7 +2407,7 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Tone Generator');
 
-                this.addInput('freq', new Classic.Input(voltageSocket, 'Freq CV'));
+                this.addInput('freq', new Classic.Input(voltageSocket, 'Freq CV', true));
                 this.addInput('midi', new Classic.Input(midiSocket, 'MIDI In'));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio'));
 
@@ -2790,8 +2790,8 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Vector Panner');
                 this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
-                this.addInput('x_cv', new Classic.Input(voltageSocket, 'X CV'));
-                this.addInput('y_cv', new Classic.Input(voltageSocket, 'Y CV'));
+                this.addInput('x_cv', new Classic.Input(voltageSocket, 'X CV', true));
+                this.addInput('y_cv', new Classic.Input(voltageSocket, 'Y CV', true));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
                 this.data.x = 0;
@@ -2958,8 +2958,8 @@ workspace_data: ${base64Data}
                 super('VCA');
 
                 this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
-                this.addInput('gain_cv', new Classic.Input(voltageSocket, 'Gain CV'));
-                this.addInput('gate', new Classic.Input(voltageSocket, 'Gate In'));
+                this.addInput('gain_cv', new Classic.Input(voltageSocket, 'Gain CV', true));
+                this.addInput('gate', new Classic.Input(voltageSocket, 'Gate In', true));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
                 if (this.data.gain !== undefined && this.data.gain < 0) {
@@ -3399,9 +3399,9 @@ workspace_data: ${base64Data}
         class SampleAndHoldNode extends ModulatorNode {
             constructor() {
                 super('Sample & Hold');
-                this.addInput('in', new Classic.Input(voltageSocket, 'Signal In'));
-                this.addInput('trigger', new Classic.Input(voltageSocket, 'Trigger'));
-                this.addOutput('out', new Classic.Output(voltageSocket, 'CV Out'));
+                this.addInput('in', new Classic.Input(voltageSocket, 'Signal In', true));
+                this.addInput('trigger', new Classic.Input(voltageSocket, 'Trigger', true));
+                this.addOutput('out', new Classic.Output(voltageSocket, 'CV Out', true));
             }
 
             build() {
@@ -3495,7 +3495,7 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Master');
                 this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
-                this.addInput('gain_cv', new Classic.Input(voltageSocket, 'Gain CV'));
+                this.addInput('gain_cv', new Classic.Input(voltageSocket, 'Gain CV', true));
 
                 this.data.gain = 0.5;
                 this.addControl('gain', new SliderControl('gainSlider', 'Gain', 0, 1, 0.01, this.data.gain, (val) => {
@@ -3528,8 +3528,8 @@ workspace_data: ${base64Data}
                 super('Filter');
 
                 this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
-                this.addInput('freq', new Classic.Input(voltageSocket, 'Freq CV'));
-                this.addInput('q_cv', new Classic.Input(voltageSocket, 'Q CV'));
+                this.addInput('freq', new Classic.Input(voltageSocket, 'Freq CV', true));
+                this.addInput('q_cv', new Classic.Input(voltageSocket, 'Q CV', true));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
                 this.data.frequency = 5000;
@@ -3575,7 +3575,7 @@ workspace_data: ${base64Data}
                 super('Delay');
 
                 this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
-                this.addInput('delay_cv', new Classic.Input(voltageSocket, 'Delay CV'));
+                this.addInput('delay_cv', new Classic.Input(voltageSocket, 'Delay CV', true));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
                 this.data.delayTime = 0.5;
@@ -5366,7 +5366,7 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Stereo Panner');
                 this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
-                this.addInput('pan_cv', new Classic.Input(voltageSocket, 'Pan CV'));
+                this.addInput('pan_cv', new Classic.Input(voltageSocket, 'Pan CV', true));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
                 this.data.pan = 0;
@@ -5858,7 +5858,7 @@ workspace_data: ${base64Data}
         class ADSREnvelopeNode extends ModulatorNode {
             constructor() {
                 super('ADSR Envelope');
-                this.addInput('gate', new Classic.Input(voltageSocket, 'Gate In'));
+                this.addInput('gate', new Classic.Input(voltageSocket, 'Gate In', true));
                 this.addOutput('cv', new Classic.Output(voltageSocket, 'CV Out')); // This outputs a control signal
 
                 this.data.mode = 'EG';
@@ -5949,11 +5949,11 @@ workspace_data: ${base64Data}
         class VocoderNode extends WebAudioNode {
             constructor() {
                 super('Vocoder');
-                this.addInput('carrier', new Classic.Input(voltageSocket, 'Carrier In'));
-                this.addInput('modulator', new Classic.Input(voltageSocket, 'Modulator In'));
-                this.addInput('bands_cv', new Classic.Input(voltageSocket, 'Bands CV'));
-                this.addInput('formant_cv', new Classic.Input(voltageSocket, 'Formant CV'));
-                this.addInput('unvoiced_cv', new Classic.Input(voltageSocket, 'Unvoiced CV'));
+                this.addInput('carrier', new Classic.Input(voltageSocket, 'Carrier In', true));
+                this.addInput('modulator', new Classic.Input(voltageSocket, 'Modulator In', true));
+                this.addInput('bands_cv', new Classic.Input(voltageSocket, 'Bands CV', true));
+                this.addInput('formant_cv', new Classic.Input(voltageSocket, 'Formant CV', true));
+                this.addInput('unvoiced_cv', new Classic.Input(voltageSocket, 'Unvoiced CV', true));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
                 this.data.frequency = 110;
@@ -6021,7 +6021,7 @@ workspace_data: ${base64Data}
         class AttenuverterNode extends WebAudioNode {
             constructor() {
                 super('Attenuverter');
-                this.addInput('in', new Classic.Input(voltageSocket, 'In'));
+                this.addInput('in', new Classic.Input(voltageSocket, 'In', true));
                 this.addOutput('out', new Classic.Output(voltageSocket, 'Out'));
 
                 this.data.level = 1;
@@ -6077,7 +6077,7 @@ workspace_data: ${base64Data}
         class QuantizerNode extends WebAudioNode {
             constructor() {
                 super('Quantizer');
-                this.addInput('in', new Classic.Input(voltageSocket, 'CV In'), true);
+                this.addInput('in', new Classic.Input(voltageSocket, 'CV In', true));
                 this.addOutput('out', new Classic.Output(voltageSocket, 'CV Out'));
 
                 this.data.rootNote = 'C4';
@@ -6103,11 +6103,11 @@ workspace_data: ${base64Data}
         class GranularSynthesizerNode extends WebAudioNode {
             constructor() {
                 super('Granular Synthesizer');
-                this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In'));
-                this.addInput('grainSizeCV', new Classic.Input(voltageSocket, 'Grain Size CV'));
-                this.addInput('grainDensityCV', new Classic.Input(voltageSocket, 'Grain Density CV'));
-                this.addInput('pitchShiftCV', new Classic.Input(voltageSocket, 'Pitch Shift CV'));
-                this.addInput('positionJitterCV', new Classic.Input(voltageSocket, 'Jitter CV'));
+                this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addInput('grainSizeCV', new Classic.Input(voltageSocket, 'Grain Size CV', true));
+                this.addInput('grainDensityCV', new Classic.Input(voltageSocket, 'Grain Density CV', true));
+                this.addInput('pitchShiftCV', new Classic.Input(voltageSocket, 'Pitch Shift CV', true));
+                this.addInput('positionJitterCV', new Classic.Input(voltageSocket, 'Jitter CV', true));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
                 this.data.grainSize = 0.1;
