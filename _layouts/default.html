@@ -387,10 +387,14 @@ layout: none
                                 <button id="addVisualizerNodeBtn" class="button button-secondary w-full text-xs">👁️ Visualizer</button>
                                 <button id="addAttenuverterNodeBtn" class="button button-secondary w-full text-xs">🔄 Attenuverter</button>
                                 <button id="addMasterClockNodeBtn" class="button button-secondary w-full text-xs">⏱️ Master Clock</button>
-                                <button id="addMasterGainOutputNodeBtn" class="button button-secondary w-full text-xs">🔊 Master</button>
+                                <button id="addOutputNodeBtn" class="button button-secondary w-full text-xs">🔊 Output</button>
                             </div>
                         </div>
                     </div>
+                </div>
+                <div class="flex items-center gap-2 bg-gray-100 rounded-md px-2 py-1 mr-1">
+                    <span class="text-xs">🔊</span>
+                    <input type="range" id="globalVolumeSlider" min="0" max="1" step="0.01" value="0.5" class="w-20 h-1.5 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-indigo-600">
                 </div>
                 <button id="playStopBtn" class="button button-primary">▶️</button>
                 <!-- Settings Menu -->
@@ -498,7 +502,8 @@ layout: none
 
         const legacyNameMap = {
             nodes: {
-                'LFO': 'VCA'
+                'LFO': 'VCA',
+                'Master': 'Output'
             },
             sockets: {
                 'fm': 'cv'
@@ -567,7 +572,7 @@ layout: none
         const addWavePlayerNodeBtn = document.getElementById('addWavePlayerNodeBtn');
         const addChordGeneratorNodeBtn = document.getElementById('addChordGeneratorNodeBtn');
         const addVCANodeBtn = document.getElementById('addVCANodeBtn');
-        const addMasterGainOutputNodeBtn = document.getElementById('addMasterGainOutputNodeBtn');
+        const addOutputNodeBtn = document.getElementById('addOutputNodeBtn');
         const addFilterNodeBtn = document.getElementById('addFilterNodeBtn');
         const addDelayNodeBtn = document.getElementById('addDelayNodeBtn');
         const addArpeggiatorNodeBtn = document.getElementById('addArpeggiatorNodeBtn');
@@ -691,6 +696,7 @@ layout: none
 
                 // 2. Add or update nodes
                 for (const nodeData of json.nodes) {
+                    nodeData.label = legacyNameMap.nodes[nodeData.label] || nodeData.label;
                     let node = editor.getNode(nodeData.id);
                     if (node) {
                         // Update existing node data
@@ -945,6 +951,7 @@ layout: none
             const primaryInputMap = {
                 'VCA': 'audio',
                 'Master': 'audio',
+                'Output': 'audio',
                 'Filter': 'audio',
                 'Delay': 'audio',
                 'Distortion': 'audio',
@@ -1135,6 +1142,13 @@ workspace_data: ${base64Data}
             }
 
             masterGain = audioContext.createGain();
+            const globalVolumeSlider = document.getElementById('globalVolumeSlider');
+            if (globalVolumeSlider) {
+                masterGain.gain.value = parseFloat(globalVolumeSlider.value);
+                globalVolumeSlider.oninput = (e) => {
+                    masterGain.gain.setTargetAtTime(parseFloat(e.target.value), audioContext.currentTime, 0.01);
+                };
+            }
             analyser = audioContext.createAnalyser();
             analyser.fftSize = 2048;
             masterGain.connect(analyser);
@@ -1367,7 +1381,7 @@ workspace_data: ${base64Data}
                             { id: '3', label: 'LFO', data: { frequency: RandomWorkspaceGenerator.getRandomFloat(0.1, 0.5), amount: 1000, waveform: 'sine' }, position: { x: 50, y: 500 } },
                             { id: '4', label: 'Filter', data: { frequency: 1000, q: 1 }, position: { x: 550, y: 100 } },
                             { id: '5', label: 'Reverb', data: { mix: 0.7, duration: 4, decay: 4 }, position: { x: 800, y: 100 } },
-                            { id: '6', label: 'Master', data: { gain: 0.4 }, position: { x: 1050, y: 100 } }
+                            { id: '6', label: 'Output', data: { gain: 0.4 }, position: { x: 1050, y: 100 } }
                         ],
                         connections: [
                             { id: 'c1', source: '1', sourceOutput: 'clock', target: '2', targetInput: 'clock' },
@@ -1387,7 +1401,7 @@ workspace_data: ${base64Data}
                             { id: '3', label: 'Filter', data: { frequency: 400, q: 15, filterType: 'lowpass' }, position: { x: 550, y: 100 } },
                             { id: '4', label: 'ADSR Envelope', data: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.1, mode: 'EG' }, position: { x: 300, y: 400 } },
                             { id: '5', label: 'Distortion', data: { drive: 70, amount: 50 }, position: { x: 800, y: 100 } },
-                            { id: '6', label: 'Master', data: { gain: 0.3 }, position: { x: 1050, y: 100 } }
+                            { id: '6', label: 'Output', data: { gain: 0.3 }, position: { x: 1050, y: 100 } }
                         ],
                         connections: [
                             { id: 'c1', source: '1', sourceOutput: 'clock', target: '2', targetInput: 'clock' },
@@ -1405,7 +1419,7 @@ workspace_data: ${base64Data}
                             { id: '2', label: 'Drum Machine', data: { sequence: 'k ~ h ~ k ~ h s', bpm: 130 }, position: { x: 300, y: 100 } },
                             { id: '3', label: 'Sequencer', data: { sequence: 'C1 ~ C1 ~ C2 ~ C1 G1', waveform: 'square', noteDuration: '1/16' }, position: { x: 300, y: 400 } },
                             { id: '4', label: 'Filter', data: { frequency: 500, q: 5 }, position: { x: 550, y: 400 } },
-                            { id: '5', label: 'Master', data: { gain: 0.5 }, position: { x: 850, y: 250 } }
+                            { id: '5', label: 'Output', data: { gain: 0.5 }, position: { x: 850, y: 250 } }
                         ],
                         connections: [
                             { id: 'c1', source: '1', sourceOutput: 'clock', target: '2', targetInput: 'clock' },
@@ -1426,7 +1440,7 @@ workspace_data: ${base64Data}
                             { id: '2', label: 'Sequencer', data: { sequence, waveform: 'sine', noteDuration: '1/8' }, position: { x: 300, y: 100 } },
                             { id: '3', label: 'Delay', data: { delayTime: 0.3, feedback: 0.4 }, position: { x: 550, y: 100 } },
                             { id: '4', label: 'Reverb', data: { mix: 0.4 }, position: { x: 800, y: 100 } },
-                            { id: '5', label: 'Master', data: { gain: 0.4 }, position: { x: 1050, y: 100 } }
+                            { id: '5', label: 'Output', data: { gain: 0.4 }, position: { x: 1050, y: 100 } }
                         ],
                         connections: [
                             { id: 'c1', source: '1', sourceOutput: 'clock', target: '2', targetInput: 'clock' },
@@ -1443,7 +1457,7 @@ workspace_data: ${base64Data}
                             { id: '2', label: 'Drum Machine', data: { sequence: 'k ~ ~ h s ~ k h', noteDuration: '1/16' }, position: { x: 300, y: 100 } },
                             { id: '3', label: 'Sequencer', data: { sequence: 'C1 ~ ~ ~ ~ ~ ~ ~', waveform: 'sine', noteDuration: '1/4' }, position: { x: 300, y: 400 } },
                             { id: '4', label: 'Distortion', data: { drive: 30, amount: 20 }, position: { x: 550, y: 400 } },
-                            { id: '5', label: 'Master', data: { gain: 0.6 }, position: { x: 850, y: 250 } }
+                            { id: '5', label: 'Output', data: { gain: 0.6 }, position: { x: 850, y: 250 } }
                         ],
                         connections: [
                             { id: 'c1', source: '1', sourceOutput: 'clock', target: '2', targetInput: 'clock' },
@@ -1460,7 +1474,7 @@ workspace_data: ${base64Data}
                             { id: '1', label: 'Master Clock', data: { bpm: RandomWorkspaceGenerator.getRandomInt(120, 150) }, position: { x: 50, y: 300 } },
                             { id: '2', label: 'Arpeggiator', data: { chordType: 'Major Triad', rootNote: 'C4', arpeggioPattern: 'Random', octaveRange: 2, noteDuration: '1/16', waveform: 'square' }, position: { x: 300, y: 100 } },
                             { id: '3', label: 'Bitcrusher', data: { bits: 4, sampleRateReduction: 4 }, position: { x: 550, y: 100 } },
-                            { id: '4', label: 'Master', data: { gain: 0.3 }, position: { x: 800, y: 100 } }
+                            { id: '4', label: 'Output', data: { gain: 0.3 }, position: { x: 800, y: 100 } }
                         ],
                         connections: [
                             { id: 'c1', source: '1', sourceOutput: 'clock', target: '2', targetInput: 'clock' },
@@ -1476,7 +1490,7 @@ workspace_data: ${base64Data}
                             { id: '2', label: 'Filter', data: { frequency: 400, q: 8, filterType: 'bandpass' }, position: { x: 300, y: 100 } },
                             { id: '3', label: 'LFO', data: { frequency: 0.05, amount: 200, waveform: 'sine' }, position: { x: 50, y: 300 } },
                             { id: '4', label: 'Reverb', data: { mix: 0.6, duration: 5 }, position: { x: 550, y: 100 } },
-                            { id: '5', label: 'Master', data: { gain: 0.4 }, position: { x: 800, y: 100 } }
+                            { id: '5', label: 'Output', data: { gain: 0.4 }, position: { x: 800, y: 100 } }
                         ],
                         connections: [
                             { id: 'c1', source: '1', sourceOutput: 'audio', target: '2', targetInput: 'audio' },
@@ -1494,7 +1508,7 @@ workspace_data: ${base64Data}
                             { id: '3', label: 'LFO', data: { frequency: 0.1, amount: 0.3, waveform: 'triangle' }, position: { x: 50, y: 400 } },
                             { id: '4', label: 'Delay', data: { delayTime: 0.4, feedback: 0.6 }, position: { x: 550, y: 100 } },
                             { id: '5', label: 'Reverb', data: { mix: 0.5, duration: 3 }, position: { x: 800, y: 100 } },
-                            { id: '6', label: 'Master', data: { gain: 0.3 }, position: { x: 1050, y: 100 } }
+                            { id: '6', label: 'Output', data: { gain: 0.3 }, position: { x: 1050, y: 100 } }
                         ],
                         connections: [
                             { id: 'c1', source: '1', sourceOutput: 'audio', target: '2', targetInput: 'audio' },
@@ -1514,7 +1528,7 @@ workspace_data: ${base64Data}
                             { id: '4', label: 'LFO', data: { frequency: 0.03, amount: 0.5, waveform: 'sine' }, position: { x: 50, y: 400 } },
                             { id: '5', label: 'LFO', data: { frequency: 0.07, amount: 500, waveform: 'sine' }, position: { x: 300, y: 400 } },
                             { id: '6', label: 'Reverb', data: { mix: 0.8, duration: 8 }, position: { x: 800, y: 100 } },
-                            { id: '7', label: 'Master', data: { gain: 0.3 }, position: { x: 1050, y: 100 } }
+                            { id: '7', label: 'Output', data: { gain: 0.3 }, position: { x: 1050, y: 100 } }
                         ],
                         connections: [
                             { id: 'c1', source: '1', sourceOutput: 'audio', target: '2', targetInput: 'audio' },
@@ -1538,7 +1552,7 @@ workspace_data: ${base64Data}
                             { id: '7', label: 'Drum Machine', data: { sequence: 's ~ ~ ~', noteDuration: '1/4' }, position: { x: 550, y: 600 } },
                             { id: '8', label: 'Random Voltage', data: { smoothness: 0.5 }, position: { x: 300, y: 800 } },
                             { id: '9', label: 'Filter', data: { frequency: 1000, q: 5 }, position: { x: 1050, y: 100 } },
-                            { id: '10', label: 'Master', data: { gain: 0.4 }, position: { x: 1300, y: 250 } }
+                            { id: '10', label: 'Output', data: { gain: 0.4 }, position: { x: 1300, y: 250 } }
                         ],
                         connections: [
                             { id: 'c1', source: '1', sourceOutput: 'clock', target: '2', targetInput: 'clock' },
@@ -1570,7 +1584,7 @@ workspace_data: ${base64Data}
                             { id: '9', label: 'Noise Generator', data: { gainValue: 1.0 }, position: { x: 250, y: 700 } },
                             { id: '10', label: 'Filter', data: { filterType: 'bandpass', frequency: 1000, q: 20 }, position: { x: 750, y: 600 } },
                             { id: '11', label: 'Reverb', data: { mix: 0.5, duration: 4 }, position: { x: 1250, y: 100 } },
-                            { id: '12', label: 'Master', data: { gain: 0.4 }, position: { x: 1500, y: 100 } }
+                            { id: '12', label: 'Output', data: { gain: 0.4 }, position: { x: 1500, y: 100 } }
                         ],
                         connections: [
                             { id: 'c1', source: '1', sourceOutput: 'clock', target: '2', targetInput: 'clock' },
@@ -1629,7 +1643,9 @@ workspace_data: ${base64Data}
                 try {
                     // Disconnect from global masterGain, if connected
                     const source = audioNode.mainOutput ? audioNode.mainOutput : audioNode;
-                    source.disconnect(masterGain);
+                    if (masterGain) {
+                        source.disconnect(masterGain);
+                    }
                 } catch (e) {
                     // Ignore errors, the node may not have been connected.
                 }
@@ -3401,35 +3417,53 @@ workspace_data: ${base64Data}
             }
         }
 
-        class MasterGainOutputNode extends WebAudioNode {
+        class OutputNode extends WebAudioNode {
             constructor() {
-                super('Master');
+                super('Output');
                 this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
                 this.addInput('gain_cv', new Classic.Input(voltageSocket, 'Gain CV'));
 
                 this.data.gain = 0.5;
                 this.addControl('gain', new SliderControl('gainSlider', 'Gain', 0, 1, 0.01, this.data.gain, (val) => {
                     this.data.gain = val;
-                    if (masterGain && !this.data.mute) {
-                        masterGain.gain.setTargetAtTime(val, audioContext.currentTime, 0.01);
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode && !this.data.mute) {
+                        audioNode.gain.setTargetAtTime(val, audioContext.currentTime, 0.01);
                     }
                 }));
 
                 this.data.mute = this.data.mute !== undefined ? this.data.mute : false;
                 this.addControl('mute', new ToggleControl('muteToggle', 'Mute', this.data.mute, (val) => {
                     this.data.mute = val;
-                    if (masterGain) {
-                        masterGain.gain.setTargetAtTime(val ? 0 : this.data.gain, audioContext.currentTime, 0.01);
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) {
+                        audioNode.gain.setTargetAtTime(val ? 0 : this.data.gain, audioContext.currentTime, 0.01);
                     }
                 }));
             }
 
             build() {
-                // This node doesn't create a new audio node, it controls the global masterGain
+                const audioNode = audioContext.createGain();
+                audioNode.gain.value = this.data.mute ? 0 : this.data.gain;
                 if (masterGain) {
-                    masterGain.gain.setTargetAtTime(this.data.mute ? 0 : this.data.gain, audioContext.currentTime, 0.01);
+                    try {
+                        audioNode.connect(masterGain);
+                    } catch (e) {
+                        console.warn("Could not connect Output node to masterGain during build:", e);
+                    }
                 }
-                return masterGain; // Return the existing masterGain
+                return audioNode;
+            }
+
+            start() {
+                const audioNode = reteAudioNodes.get(this.id);
+                if (audioNode && masterGain) {
+                    try {
+                        audioNode.connect(masterGain);
+                    } catch (e) {
+                        // Already connected or other error
+                    }
+                }
             }
         }
 
@@ -3834,7 +3868,7 @@ workspace_data: ${base64Data}
                 this.tickListeners = [];
                 this.tickCount = 0;
 
-                // Master gain for the Arpeggiator output
+                // Main output gain for the Arpeggiator output
                 this.mainOutput = this.audioContext.createGain();
                 this.mainOutput.gain.value = 0.5; // Default volume for arpeggiator
 
@@ -4604,7 +4638,7 @@ workspace_data: ${base64Data}
                 this.sequenceEvents = null;
                 this.midiListeners = [];
 
-                // Master gain for the Sequencer output
+                // Main output gain for the Sequencer output
                 this.mainOutput = this.audioContext.createGain();
                 this.mainOutput.gain.value = 0.5; // Default volume for sequencer
 
@@ -6583,8 +6617,8 @@ workspace_data: ${base64Data}
             clearEditorBtn.disabled = false; // Enable clear button after adding node
         });
 
-        addMasterGainOutputNodeBtn.addEventListener('click', async () => {
-            const node = new MasterGainOutputNode();
+        addOutputNodeBtn.addEventListener('click', async () => {
+            const node = new OutputNode();
             const existingNodesCount = editor.getNodes().length;
             node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
             await editor.addNode(node);
@@ -6799,7 +6833,7 @@ workspace_data: ${base64Data}
         NodeRegistry.register('Wave Player', WavePlayerNode);
         NodeRegistry.register('Chord Generator', ChordGeneratorNode);
         NodeRegistry.register('VCA', VCANode);
-        NodeRegistry.register('Master', MasterGainOutputNode);
+        NodeRegistry.register('Output', OutputNode);
         NodeRegistry.register('Filter', FilterNode);
         NodeRegistry.register('Delay', DelayNode);
         NodeRegistry.register('Ping Pong Delay', PingPongDelayNode);
@@ -6955,7 +6989,7 @@ workspace_data: ${base64Data}
                     ['Wave Player', () => new WavePlayerNode()],
                     ['Chord Generator', () => new ChordGeneratorNode()],
                     ['VCA', () => new VCANode()],
-                    ['Master', () => new MasterGainOutputNode()],
+                    ['Output', () => new OutputNode()],
                     ['Filter', () => new FilterNode()],
                     ['Delay', () => new DelayNode()],
                     ['Ping Pong Delay', () => new PingPongDelayNode()],
@@ -7154,13 +7188,6 @@ workspace_data: ${base64Data}
                     autoSave();
                 }
                 if (context.type === 'nodecreate' && context.data instanceof WebAudioNode) {
-                    if (context.data.label === 'Master') {
-                        const existingMaster = editor.getNodes().find(n => n.label === 'Master');
-                        if (existingMaster) {
-                            showMessage('Only one Master Output node is allowed.', 'error');
-                            return;
-                        }
-                    }
                     if(!audioContext) {
                         console.warn('AudioContext not active, Nodes will be created when "Start Audio" is clicked.');
                         showMessage(`AudioContext not active, Nodes will be created when "Start Audio" is clicked.`, 'error');

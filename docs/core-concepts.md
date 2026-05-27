@@ -22,7 +22,7 @@ Despite their labels, they all send and receive the same fundamental thing: a "v
 This opens up a world of experimental sound design, just like on a real modular synth. For example, you can:
 
 -   Plug an **Audio Out** from an oscillator into the **Freq CV** input of a filter to create complex FM (Frequency Modulation) tones.
--   Use the **Gate Out** of a clock as an audible click by plugging it into an **Audio In** on a VCA or the Master Output.
+-   Use the **Gate Out** of a clock as an audible click by plugging it into an **Audio In** on a VCA or an Output.
 -   Control a parameter that expects a slow CV signal with a fast-running **Audio** signal to create chaotic, noisy textures.
 
 Think of the labels as helpful guides, not strict rules. Don't be afraid to experiment with unconventional connections—that's where the magic of modular synthesis truly lies.
