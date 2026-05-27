@@ -1639,7 +1639,11 @@ workspace_data: ${base64Data}
             }
             
             // 1. Disconnect everything to rebuild connections from scratch.
-            reteAudioNodes.forEach(audioNode => {
+            reteAudioNodes.forEach((audioNode, id) => {
+                const reteNode = editor.getNode(id);
+                // Do NOT disconnect Output nodes from masterGain, as they are hard-wired summing nodes.
+                if (reteNode && reteNode.label === 'Output') return;
+
                 try {
                     // Disconnect from global masterGain, if connected
                     const source = audioNode.mainOutput ? audioNode.mainOutput : audioNode;
