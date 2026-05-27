@@ -31,8 +31,8 @@ To get started with Audio, simply visit the [Audio website](https://audio.digita
 ### Tutorial: Creating Your First Synthesizer
 
 1.  **Add-a-Tone-Generator-Node**: This will be the sound source for your synthesizer. Click the "Add Node" button and select "Tone Generator".
-2.  **Add-an-Output-Node**: This will be the final output for your audio. Click the "Add Node" button and select "Output".
-3.  **Connect-the-Nodes**: Click and drag from the output of the Tone Generator Node to the input of the Output Node.
+2.  **Add-a-Master-Output-Node**: This will be the final output for your audio. Click the "Add Node" button and select "Master".
+3.  **Connect-the-Nodes**: Click and drag from the output of the Tone Generator Node to the input of the Master Output Node.
 4.  **Play-Your-Synthesizer**: You should now hear a sine wave playing. You can change the frequency and waveform of the Tone Generator Node to create different sounds.
 
 ### Tutorial: Real-Time Collaboration (Multiplayer)
@@ -59,7 +59,7 @@ Audio supports real-time multiplayer, allowing you to collaborate with others on
 *   [Granular Synthesizer](./docs/GranularSynthesizerNode.md)
 *   [LFO](./docs/LFONode.md)
 *   [Manual Gate](./docs/ManualGateNode.md)
-*   [Output](./docs/OutputNode.md)
+*   [Master](./docs/MasterGainOutputNode.md)
 *   [Master Clock](./docs/MasterClockNode.md)
 *   [Microphone Input](./docs/MicrophoneInputNode.md)
 *   [Noise Generator](./docs/NoiseGeneratorNode.md)
