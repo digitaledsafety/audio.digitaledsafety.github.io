@@ -32,7 +32,7 @@ Events are separated by spaces. For example, a classic four-on-the-floor beat wo
 ## Usage
 
 1.  Add a **Drum Machine** node from the "Add Node" menu.
-2.  Connect its **Audio** output to a `VCA` or directly to an `Output` node.
+2.  Connect its **Audio** output to a `VCA` or directly to the `Master` node.
 3.  Enter a sequence like `k s h s` into the "Sequence" text box.
 4.  Press the main "Play" button in the transport controls to start the sequence.
 5.  Adjust the BPM and Note Duration to change the feel of the beat.
