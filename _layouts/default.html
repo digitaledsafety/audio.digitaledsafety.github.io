@@ -351,6 +351,7 @@ layout: none
                                 <button id="addPingPongDelayNodeBtn" class="button button-secondary w-full text-xs">🏓 Ping Pong</button>
                                 <button id="addChorusNodeBtn" class="button button-secondary w-full text-xs">🌀 Chorus</button>
                                 <button id="addPhaserNodeBtn" class="button button-secondary w-full text-xs">💫 Phaser</button>
+                                <button id="addFlangerNodeBtn" class="button button-secondary w-full text-xs">🌀 Flanger</button>
                                 <button id="addBitcrusherNodeBtn" class="button button-secondary w-full text-xs">👾 Bitcrusher</button>
                                 <button id="addVocoderNodeBtn" class="button button-secondary w-full text-xs">🗣️ Vocoder</button>
                                 <button id="addGranularSynthesizerNodeBtn" class="button button-secondary w-full text-xs">✨ Granular</button>
@@ -1470,21 +1471,33 @@ workspace_data: ${base64Data}
                     };
                 },
                 evolvingDrone: () => {
-                    return {
-                        nodes: [
-                            { id: '1', label: 'Noise Generator', data: { gainValue: 0.5 }, position: { x: 50, y: 100 } },
-                            { id: '2', label: 'Filter', data: { frequency: 400, q: 8, filterType: 'bandpass' }, position: { x: 300, y: 100 } },
-                            { id: '3', label: 'LFO', data: { frequency: 0.05, amount: 200, waveform: 'sine' }, position: { x: 50, y: 300 } },
-                            { id: '4', label: 'Reverb', data: { mix: 0.6, duration: 5 }, position: { x: 550, y: 100 } },
-                            { id: '5', label: 'Master', data: { gain: 0.4 }, position: { x: 800, y: 100 } }
-                        ],
-                        connections: [
-                            { id: 'c1', source: '1', sourceOutput: 'audio', target: '2', targetInput: 'audio' },
-                            { id: 'c2', source: '3', sourceOutput: 'cv', target: '2', targetInput: 'freq' },
-                            { id: 'c3', source: '2', sourceOutput: 'audio', target: '4', targetInput: 'audio' },
-                            { id: 'c4', source: '4', sourceOutput: 'audio', target: '5', targetInput: 'audio' }
-                        ]
-                    };
+                    const useFlanger = Math.random() > 0.5;
+                    const nodes = [
+                        { id: '1', label: 'Noise Generator', data: { gainValue: 0.5 }, position: { x: 50, y: 100 } },
+                        { id: '2', label: 'Filter', data: { frequency: 400, q: 8, filterType: 'bandpass' }, position: { x: 300, y: 100 } },
+                        { id: '3', label: 'LFO', data: { frequency: 0.05, amount: 200, waveform: 'sine' }, position: { x: 50, y: 300 } },
+                        { id: '5', label: 'Reverb', data: { mix: 0.6, duration: 5 }, position: { x: 800, y: 100 } },
+                        { id: '6', label: 'Master', data: { gain: 0.4 }, position: { x: 1050, y: 100 } }
+                    ];
+                    const connections = [
+                        { id: 'c1', source: '1', sourceOutput: 'audio', target: '2', targetInput: 'audio' },
+                        { id: 'c2', source: '3', sourceOutput: 'cv', target: '2', targetInput: 'freq' },
+                        { id: 'c3', source: '2', sourceOutput: 'audio', target: '5', targetInput: 'audio' },
+                        { id: 'c4', source: '5', sourceOutput: 'audio', target: '6', targetInput: 'audio' }
+                    ];
+
+                    if (useFlanger) {
+                        nodes.push({ id: '4', label: 'Flanger', data: { mix: 0.5, feedback: 0.8, rate: 0.1 }, position: { x: 550, y: 100 } });
+                        // Redirect filter output to flanger then to reverb
+                        connections.find(c => c.id === 'c3').target = '4';
+                        connections.push({ id: 'c5', source: '4', sourceOutput: 'audio', target: '5', targetInput: 'audio' });
+                    } else {
+                        nodes.push({ id: '4', label: 'Chorus', data: { mix: 0.5, rate: 0.2 }, position: { x: 550, y: 100 } });
+                        connections.find(c => c.id === 'c3').target = '4';
+                        connections.push({ id: 'c5', source: '4', sourceOutput: 'audio', target: '5', targetInput: 'audio' });
+                    }
+
+                    return { nodes, connections };
                 },
                 granularClouds: () => {
                     return {
@@ -1901,6 +1914,8 @@ workspace_data: ${base64Data}
             getAudioParam(targetNode, targetInputKey) {
                 switch (targetInputKey) {
                     case 'freq':
+                        return targetNode.frequency;
+                    case 'rate_cv':
                         return targetNode.frequency;
                     case 'pan_cv':
                         return targetNode.pan;
@@ -3726,6 +3741,10 @@ workspace_data: ${base64Data}
                 this.updateParameter('mix', this.data.mix || 0.5);
             }
 
+            get frequency() {
+                return this.lfo.frequency;
+            }
+
             updateParameter(paramName, value) {
                 this.data[paramName] = value;
                 const now = this.audioContext.currentTime;
@@ -3752,6 +3771,7 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Chorus');
                 this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addInput('rate_cv', new Classic.Input(voltageSocket, 'Rate CV', true));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
                 this.data.rate = 1.5;
@@ -3836,6 +3856,10 @@ workspace_data: ${base64Data}
                 this.updateParameter('mix', this.data.mix || 0.5);
             }
 
+            get frequency() {
+                return this.lfo.frequency;
+            }
+
             updateParameter(paramName, value) {
                 this.data[paramName] = value;
                 const now = this.audioContext.currentTime;
@@ -3864,6 +3888,7 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Phaser');
                 this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addInput('rate_cv', new Classic.Input(voltageSocket, 'Rate CV', true));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
                 this.data.rate = 0.5;
@@ -3904,6 +3929,121 @@ workspace_data: ${base64Data}
 
             build() {
                 return new Phaser(audioContext, this.id, this.data);
+            }
+        }
+
+        class Flanger {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+
+                this.mainInput = this.audioContext.createGain();
+                this.mainOutput = this.audioContext.createGain();
+
+                this.delayNode = this.audioContext.createDelay(0.1);
+                this.feedbackGain = this.audioContext.createGain();
+                this.lfo = this.audioContext.createOscillator();
+                this.lfoGain = this.audioContext.createGain();
+
+                this.lfo.connect(this.lfoGain);
+                this.lfoGain.connect(this.delayNode.delayTime);
+
+                this.dryGain = this.audioContext.createGain();
+                this.wetGain = this.audioContext.createGain();
+
+                this.mainInput.connect(this.dryGain);
+                this.dryGain.connect(this.mainOutput);
+
+                this.mainInput.connect(this.delayNode);
+                this.delayNode.connect(this.wetGain);
+                this.wetGain.connect(this.mainOutput);
+
+                this.delayNode.connect(this.feedbackGain);
+                this.feedbackGain.connect(this.delayNode);
+
+                this.lfo.start();
+
+                this.updateParameter('rate', this.data.rate || 0.2);
+                this.updateParameter('depth', this.data.depth || 0.002);
+                this.updateParameter('delay', this.data.delay || 0.005);
+                this.updateParameter('feedback', this.data.feedback || 0.5);
+                this.updateParameter('mix', this.data.mix || 0.5);
+            }
+
+            get frequency() {
+                return this.lfo.frequency;
+            }
+
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+                const now = this.audioContext.currentTime;
+                if (paramName === 'rate') {
+                    this.lfo.frequency.setTargetAtTime(value, now, 0.01);
+                } else if (paramName === 'depth') {
+                    this.lfoGain.gain.setTargetAtTime(value, now, 0.01);
+                } else if (paramName === 'delay') {
+                    this.delayNode.delayTime.setTargetAtTime(value, now, 0.01);
+                } else if (paramName === 'feedback') {
+                    this.feedbackGain.gain.setTargetAtTime(value, now, 0.01);
+                } else if (paramName === 'mix') {
+                    this.dryGain.gain.setTargetAtTime(1 - value, now, 0.01);
+                    this.wetGain.gain.setTargetAtTime(value, now, 0.01);
+                }
+            }
+            start() {}
+            stop() {
+                try {
+                    this.lfo.stop();
+                } catch(e) {}
+            }
+        }
+
+        class FlangerNode extends WebAudioNode {
+            constructor() {
+                super('Flanger');
+                this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addInput('rate_cv', new Classic.Input(voltageSocket, 'Rate CV', true));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
+
+                this.data.rate = 0.2;
+                this.addControl('rate', new SliderControl('flangerRate', 'Rate (Hz)', 0.01, 10, 0.01, this.data.rate, (val) => {
+                    this.data.rate = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('rate', val);
+                }));
+
+                this.data.depth = 0.002;
+                this.addControl('depth', new SliderControl('flangerDepth', 'Depth (s)', 0, 0.01, 0.0001, this.data.depth, (val) => {
+                    this.data.depth = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('depth', val);
+                }));
+
+                this.data.delay = 0.005;
+                this.addControl('delay', new SliderControl('flangerDelay', 'Delay (s)', 0.001, 0.02, 0.001, this.data.delay, (val) => {
+                    this.data.delay = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('delay', val);
+                }));
+
+                this.data.feedback = 0.5;
+                this.addControl('feedback', new SliderControl('flangerFeedback', 'Feedback', 0, 0.95, 0.01, this.data.feedback, (val) => {
+                    this.data.feedback = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('feedback', val);
+                }));
+
+                this.data.mix = 0.5;
+                this.addControl('mix', new SliderControl('flangerMix', 'Mix', 0, 1, 0.01, this.data.mix, (val) => {
+                    this.data.mix = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('mix', val);
+                }));
+            }
+
+            build() {
+                return new Flanger(audioContext, this.id, this.data);
             }
         }
 
@@ -6711,6 +6851,15 @@ workspace_data: ${base64Data}
             clearEditorBtn.disabled = false;
         });
 
+        const addFlangerNodeBtn = document.getElementById('addFlangerNodeBtn');
+        addFlangerNodeBtn.addEventListener('click', async () => {
+            const node = new FlangerNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false;
+        });
+
         const addChorusNodeBtn = document.getElementById('addChorusNodeBtn');
         addChorusNodeBtn.addEventListener('click', async () => {
             const node = new ChorusNode();
@@ -6895,6 +7044,7 @@ workspace_data: ${base64Data}
         NodeRegistry.register('Ping Pong Delay', PingPongDelayNode);
         NodeRegistry.register('Chorus', ChorusNode);
         NodeRegistry.register('Phaser', PhaserNode);
+        NodeRegistry.register('Flanger', FlangerNode);
         NodeRegistry.register('Distortion', DistortionNode);
         NodeRegistry.register('Compressor', CompressorNode);
         NodeRegistry.register('Reverb', ReverbNode);
