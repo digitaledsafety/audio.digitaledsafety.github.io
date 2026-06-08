@@ -66,11 +66,13 @@ test.describe('Effects Nodes', () => {
     await expect(chorusNode.locator('.input-title:has-text("Rate CV")')).toBeVisible();
 
     // Add Phaser
+    await page.locator('#addNodeToggle').click();
     await page.locator('#addPhaserNodeBtn').click();
     const phaserNode = page.locator('[data-node-label="Phaser"]').first();
     await expect(phaserNode.locator('.input-title:has-text("Rate CV")')).toBeVisible();
 
     // Add Flanger
+    await page.locator('#addNodeToggle').click();
     await page.locator('#addFlangerNodeBtn').click();
     const flangerNode = page.locator('[data-node-label="Flanger"]').first();
     await expect(flangerNode.locator('.input-title:has-text("Rate CV")')).toBeVisible();
