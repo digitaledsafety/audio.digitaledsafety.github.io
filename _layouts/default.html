@@ -1264,8 +1264,8 @@ workspace_data: ${base64Data}
                         console.warn(`Oscillator for node ${id} already stopped or could not be stopped.`, e);
                     }
                 }
-                // Stop arpeggiator, sequencer, drum machine, visualizer
-                if (reteNode && ['Arpeggiator', 'Sequencer', 'Drum Machine', 'Visualizer'].includes(reteNode.label) && audioNode.stop) {
+                // Stop arpeggiator, sequencer, drum machine, visualizer, effects
+                if (reteNode && ['Arpeggiator', 'Sequencer', 'Drum Machine', 'Visualizer', 'Phaser', 'Chorus', 'Flanger', 'Delay', 'Ping Pong Delay'].includes(reteNode.label) && audioNode.stop) {
                     try {
                         audioNode.stop();
                         if (audioNode.hasOwnProperty('started')) {
@@ -3585,6 +3585,69 @@ workspace_data: ${base64Data}
             }
         }
 
+        class Delay {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+
+                this.mainInput = this.audioContext.createGain();
+                this.mainOutput = this.audioContext.createGain();
+
+                this.delayNode = this.audioContext.createDelay(5.0);
+                this.feedbackGain = this.audioContext.createGain();
+
+                this.dryGain = this.audioContext.createGain();
+                this.wetGain = this.audioContext.createGain();
+
+                // Routing
+                this.mainInput.connect(this.dryGain);
+                this.dryGain.connect(this.mainOutput);
+
+                this.mainInput.connect(this.delayNode);
+                this.delayNode.connect(this.feedbackGain);
+                this.feedbackGain.connect(this.delayNode);
+                this.delayNode.connect(this.wetGain);
+                this.wetGain.connect(this.mainOutput);
+
+                this.updateParameter('delayTime', this.data.delayTime || 0.5);
+                this.updateParameter('feedback', this.data.feedback || 0.4);
+                this.updateParameter('mix', this.data.mix || 0.5);
+            }
+
+            get delayTime() {
+                return this.delayNode.delayTime;
+            }
+
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+                const now = this.audioContext.currentTime;
+                if (paramName === 'delayTime') {
+                    this.delayNode.delayTime.setTargetAtTime(value, now, 0.01);
+                } else if (paramName === 'feedback') {
+                    this.feedbackGain.gain.setTargetAtTime(value, now, 0.01);
+                } else if (paramName === 'mix') {
+                    this.dryGain.gain.setTargetAtTime(1 - value, now, 0.01);
+                    this.wetGain.gain.setTargetAtTime(value, now, 0.01);
+                }
+            }
+
+            connect(dest) {
+                this.mainOutput.connect(dest);
+            }
+
+            disconnect(dest) {
+                if (dest) {
+                    this.mainOutput.disconnect(dest);
+                } else {
+                    this.mainOutput.disconnect();
+                }
+            }
+
+            start() {}
+            stop() {}
+        }
+
         class DelayNode extends WebAudioNode {
             constructor() {
                 super('Delay');
@@ -3593,20 +3656,30 @@ workspace_data: ${base64Data}
                 this.addInput('delay_cv', new Classic.Input(voltageSocket, 'Delay CV', true));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
-                this.data.delayTime = 0.5;
+                this.data.delayTime = this.data.delayTime !== undefined ? this.data.delayTime : 0.5;
                 this.addControl('delayTime', new SliderControl('delayTimeSlider', 'Delay Time (s)', 0, 5, 0.01, this.data.delayTime, (val) => {
                     this.data.delayTime = val;
                     const audioNode = reteAudioNodes.get(this.id);
-                    if (audioNode && audioNode.delayTime) {
-                        audioNode.delayTime.setTargetAtTime(val, audioContext.currentTime, 0.01);
-                    }
+                    if (audioNode) audioNode.updateParameter('delayTime', val);
+                }));
+
+                this.data.feedback = this.data.feedback !== undefined ? this.data.feedback : 0.4;
+                this.addControl('feedback', new SliderControl('delayFeedback', 'Feedback', 0, 0.95, 0.01, this.data.feedback, (val) => {
+                    this.data.feedback = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('feedback', val);
+                }));
+
+                this.data.mix = this.data.mix !== undefined ? this.data.mix : 0.5;
+                this.addControl('mix', new SliderControl('delayMix', 'Mix', 0, 1, 0.01, this.data.mix, (val) => {
+                    this.data.mix = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('mix', val);
                 }));
             }
 
             build() {
-                const audioNode = audioContext.createDelay(5.0);
-                audioNode.delayTime.value = this.data.delayTime !== undefined ? this.data.delayTime : 0.5;
-                return audioNode;
+                return new Delay(audioContext, this.id, this.data);
             }
         }
 
