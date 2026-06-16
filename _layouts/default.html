@@ -7469,36 +7469,48 @@ workspace_data: ${base64Data}
 
                         context.data.element.setAttribute('data-node-label', context.data.payload.label);
 
-                        // Remove existing custom controls and React-rendered sockets/controls
+                        // 1. Find and preserve the original Rete.js sockets before they are destroyed/detached
+                        const originalSockets = Array.from(context.data.element.querySelectorAll('.socket[data-socket-key]'));
+
+                        // 2. Clear existing custom UI and React clutter
                         const existingCustom = container.querySelector('.custom-controls');
                         if (existingCustom) container.removeChild(existingCustom);
 
                         ['input', 'output', 'control'].forEach(className => {
-                            const elements = container.getElementsByClassName(className);
-                            while (elements.length > 0) {
-                                elements[0].parentNode.removeChild(elements[0]);
-                            }
+                            const elements = Array.from(container.getElementsByClassName(className));
+                            elements.forEach(el => {
+                                // Important: Only remove if it's not one of our tagged sockets we're trying to preserve
+                                if (!el.hasAttribute('data-socket-key')) {
+                                    el.parentNode.removeChild(el);
+                                }
+                            });
                         });
 
+                        // 3. Build and append the new custom UI
                         const nodeView = new CustomNodeComponent(context.data.payload);
                         container.style.height = "auto";
                         container.appendChild(nodeView.el);
+
+                        // 4. Relocate the original Rete.js sockets into our custom placeholders
+                        originalSockets.forEach(socketEl => {
+                            const key = socketEl.getAttribute('data-socket-key');
+                            const type = socketEl.getAttribute('data-type');
+                            const placeholder = nodeView.el.querySelector(`.socket.${type}[data-socket-key="${key}"]`);
+                            if (placeholder) {
+                                placeholder.parentNode.replaceChild(socketEl, placeholder);
+                            }
+                        });
+
+                        // 5. Notify Rete/Connection plugin that positions have changed
+                        area.update('node', context.data.payload.id);
                     }
                 }
                 if (context.type === 'render' && context.data.type === 'socket') {
-                    const nodeEl = context.data.element.closest('.node');
-                    if (nodeEl) {
-                        const socketType = context.data.side === 'input' ? 'input' : 'output';
-                        const socketKey = context.data.key;
-                        const customSocketEl = nodeEl.querySelector(`.socket.${socketType}[data-socket-key="${socketKey}"]`);
-                        if (customSocketEl) {
-                            context.data.element = customSocketEl;
-                            customSocketEl.classList.add('socket');
-                            customSocketEl.classList.add(socketType);
-                        } else {
-                            console.warn(`Custom socket element not found for ${socketType} ${socketKey}`);
-                        }
-                    }
+                    const socketType = context.data.side === 'input' ? 'input' : 'output';
+                    const socketKey = context.data.key;
+                    context.data.element.setAttribute('data-socket-key', socketKey);
+                    context.data.element.setAttribute('data-type', socketType);
+                    context.data.element.classList.add('socket', socketType);
                 }
                 return context;
             });
