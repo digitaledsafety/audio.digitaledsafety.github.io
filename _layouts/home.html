@@ -7,11 +7,15 @@ layout: none
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Web Audio Workspaces</title>
+    <link rel="icon" type="image/png" href="{{ '/assets/logo.png' | relative_url }}">
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body>
     <div class="container mx-auto px-4 py-8">
-        <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">Web Audio Workspaces</h1>
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-8 flex items-center justify-center gap-4">
+            <img src="{{ '/assets/logo.png' | relative_url }}" alt="Logo" class="w-12 h-12">
+            Web Audio Workspaces
+        </h1>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {% for workspace in site.workspaces %}
             <a href="{{ workspace.url }}" class="block p-6 bg-white rounded-lg border border-gray-200 shadow-md hover:bg-gray-100">

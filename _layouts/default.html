@@ -7,6 +7,7 @@ layout: none
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Audio</title>
+    <link rel="icon" type="image/png" href="{{ '/assets/logo.png' | relative_url }}">
     <link rel="manifest" href="{{ "/manifest.json" | relative_url }}">
     <script src="https://cdn.digitaleducationsafety.org/packages/tailwindcss@3.4.17/tailwindcss.js"></script>
     <base target="_top">
@@ -295,7 +296,11 @@ layout: none
 </head>
 <body>
     <div id="hero-overlay">
-        <h1>Audio<span class="bg-indigo-600 text-white text-sm px-2 py-1 rounded-full ml-4 align-middle font-normal">Beta</span></h1>
+        <h1 class="flex items-center justify-center gap-4">
+            <img src="{{ '/assets/logo.png' | relative_url }}" alt="Logo" class="w-16 h-16">
+            Audio
+            <span class="bg-indigo-600 text-white text-sm px-2 py-1 rounded-full align-middle font-normal">Beta</span>
+        </h1>
         <p>Create, experiment, and share your sound with a powerful node-based synthesizer, right here in your browser.</p>
         <button id="cta-button">Enter the Studio</button>
     </div>
