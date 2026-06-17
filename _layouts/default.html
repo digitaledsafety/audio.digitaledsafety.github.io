@@ -358,6 +358,7 @@ layout: none
                                 <button id="addStereoPannerNodeBtn" class="button button-secondary w-full text-xs">↔️ Stereo Panner</button>
                                 <button id="addDTSEnhancerNodeBtn" class="button button-secondary w-full text-xs">🔊 DTS Enhancer</button>
                                 <button id="addVectorPannerNodeBtn" class="button button-secondary w-full text-xs">🧭 Vector Panner</button>
+                                <button id="addStereoWidenerNodeBtn" class="button button-secondary w-full text-xs">👐 Stereo Widener</button>
                             </div>
                         </div>
 
@@ -373,6 +374,7 @@ layout: none
                                 <button id="addManualGateNodeBtn" class="button button-secondary w-full text-xs">🔳 Manual Gate</button>
                                 <button id="addQuantizerNodeBtn" class="button button-secondary w-full text-xs">🎹 Quantizer</button>
                                 <button id="addBernoulliGateNodeBtn" class="button button-secondary w-full text-xs">🎲 Bernoulli Gate</button>
+                                <button id="addLogicGatesNodeBtn" class="button button-secondary w-full text-xs">🧩 Logic Gates</button>
                                 <button id="addTuringMachineNodeBtn" class="button button-secondary w-full text-xs">🌀 Turing Machine</button>
                                 <button id="addSampleAndHoldNodeBtn" class="button button-secondary w-full text-xs">🧊 S&H</button>
                                 <button id="addRandomVoltageNodeBtn" class="button button-secondary w-full text-xs">🔀 Random Volt</button>
@@ -590,7 +592,9 @@ layout: none
         const addVisualizerNodeBtn = document.getElementById('addVisualizerNodeBtn');
         const addDTSEnhancerNodeBtn = document.getElementById('addDTSEnhancerNodeBtn');
         const addVectorPannerNodeBtn = document.getElementById('addVectorPannerNodeBtn');
+        const addStereoWidenerNodeBtn = document.getElementById('addStereoWidenerNodeBtn');
         const addBernoulliGateNodeBtn = document.getElementById('addBernoulliGateNodeBtn');
+        const addLogicGatesNodeBtn = document.getElementById('addLogicGatesNodeBtn');
         const addTuringMachineNodeBtn = document.getElementById('addTuringMachineNodeBtn');
         const addSampleAndHoldNodeBtn = document.getElementById('addSampleAndHoldNodeBtn');
         const addRandomVoltageNodeBtn = document.getElementById('addRandomVoltageNodeBtn');
@@ -1758,24 +1762,31 @@ workspace_data: ${base64Data}
                 }
 
                 // Event-based (Push) or Polling connections for clocks, triggers, and gates
-                if (targetInputKey === 'clock' || targetInputKey === 'trigger' || targetInputKey === 'gate') {
+                const isEventInput = targetInputKey.includes('clock') || targetInputKey.includes('trigger') || targetInputKey.includes('gate');
+                if (isEventInput) {
                     let connected = false;
 
                     // Try Tick/Trigger binding
-                    if (typeof targetAudioNode.onTick === 'function' && typeof sourceAudioNode.addTickListener === 'function') {
-                        const listener = targetAudioNode.onTick.bind(targetAudioNode);
+                    const tickHandlerName = (targetInputKey === 'clock' || targetInputKey === 'trigger') ? 'onTick' : `onTick_${targetInputKey}`;
+                    const tickHandler = targetAudioNode[tickHandlerName] || targetAudioNode.onTick;
+
+                    if (typeof tickHandler === 'function' && typeof sourceAudioNode.addTickListener === 'function') {
+                        const listener = tickHandler.bind(targetAudioNode);
                         if (!targetAudioNode._tickListeners) targetAudioNode._tickListeners = new Map();
-                        const listenerKey = `${sourceReteNode.id}-${sourceOutputKey}`;
+                        const listenerKey = `${sourceReteNode.id}-${sourceOutputKey}-${targetInputKey}`;
                         targetAudioNode._tickListeners.set(listenerKey, listener);
                         sourceAudioNode.addTickListener(listener, sourceOutputKey);
                         connected = true;
                     }
 
                     // Try Gate binding
-                    if (typeof targetAudioNode.handleGate === 'function' && typeof sourceAudioNode.addGateListener === 'function') {
-                        const listener = targetAudioNode.handleGate.bind(targetAudioNode);
+                    const gateHandlerName = targetInputKey === 'gate' ? 'handleGate' : `handleGate_${targetInputKey}`;
+                    const gateHandler = targetAudioNode[gateHandlerName] || targetAudioNode.handleGate;
+
+                    if (typeof gateHandler === 'function' && typeof sourceAudioNode.addGateListener === 'function') {
+                        const listener = gateHandler.bind(targetAudioNode);
                         if (!targetAudioNode._gateListeners) targetAudioNode._gateListeners = new Map();
-                        const listenerKey = `${sourceReteNode.id}-${sourceOutputKey}`;
+                        const listenerKey = `${sourceReteNode.id}-${sourceOutputKey}-${targetInputKey}`;
                         targetAudioNode._gateListeners.set(listenerKey, listener);
                         sourceAudioNode.addGateListener(listener, sourceOutputKey);
                         connected = true;
@@ -1814,9 +1825,10 @@ workspace_data: ${base64Data}
                 const targetAudioNode = reteAudioNodes.get(targetReteNode.id);
                 if (!sourceAudioNode || !targetAudioNode) return;
 
+                const listenerKey = `${sourceReteNode.id}-${sourceOutputKey}-${targetInputKey}`;
+
                 // PUSH method disconnect
-                if ((targetInputKey === 'clock' || targetInputKey === 'trigger') && sourceAudioNode && typeof sourceAudioNode.removeTickListener === 'function') {
-                    const listenerKey = `${sourceReteNode.id}-${sourceOutputKey}`;
+                if ((targetInputKey.includes('clock') || targetInputKey.includes('trigger')) && sourceAudioNode && typeof sourceAudioNode.removeTickListener === 'function') {
                     if (targetAudioNode._tickListeners && targetAudioNode._tickListeners.has(listenerKey)) {
                         const listener = targetAudioNode._tickListeners.get(listenerKey);
                         sourceAudioNode.removeTickListener(listener, sourceOutputKey);
@@ -1824,8 +1836,7 @@ workspace_data: ${base64Data}
                         return;
                     }
                 }
-                if (targetInputKey === 'gate' && sourceAudioNode && typeof sourceAudioNode.removeGateListener === 'function') {
-                    const listenerKey = `${sourceReteNode.id}-${sourceOutputKey}`;
+                if (targetInputKey.includes('gate') && sourceAudioNode && typeof sourceAudioNode.removeGateListener === 'function') {
                     if (targetAudioNode._gateListeners && targetAudioNode._gateListeners.has(listenerKey)) {
                         const listener = targetAudioNode._gateListeners.get(listenerKey);
                         sourceAudioNode.removeGateListener(listener, sourceOutputKey);
@@ -2841,6 +2852,120 @@ workspace_data: ${base64Data}
             }
         }
 
+        class StereoWidener {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+
+                // Mid-Side Processing
+                // Mid = (L + R) / 2
+                // Side = (L - R) / 2
+                // L_new = Mid + Width * Side
+                // R_new = Mid - Width * Side
+
+                this.splitter = this.audioContext.createChannelSplitter(2);
+                this.merger = this.audioContext.createChannelMerger(2);
+
+                this.midGain = this.audioContext.createGain();
+                this.sideGain = this.audioContext.createGain();
+
+                this.sumL = this.audioContext.createGain();
+                this.sumR = this.audioContext.createGain();
+                this.diffL = this.audioContext.createGain();
+                this.diffR = this.audioContext.createGain();
+
+                this.widthGainNode = this.audioContext.createGain();
+                this.widthGainNode.gain.value = this.data.width !== undefined ? this.data.width : 1.0;
+
+                // L + R
+                this.splitter.connect(this.sumL, 0);
+                this.splitter.connect(this.sumR, 1);
+                this.sumL.connect(this.midGain);
+                this.sumR.connect(this.midGain);
+                this.midGain.gain.value = 0.5;
+
+                // L - R
+                this.splitter.connect(this.diffL, 0);
+                this.splitter.connect(this.diffR, 1);
+                this.diffL.connect(this.sideGain);
+                this.diffR.connect(this.sideGain);
+                this.diffR.gain.value = -1;
+                this.sideGain.gain.value = 0.5;
+
+                this.sideGain.connect(this.widthGainNode);
+
+                // L_new = Mid + Width * Side
+                this.midGain.connect(this.merger, 0, 0);
+                this.widthGainNode.connect(this.merger, 0, 0);
+
+                // R_new = Mid - Width * Side
+                this.widthInverter = this.audioContext.createGain();
+                this.widthInverter.gain.value = -1;
+                this.midGain.connect(this.merger, 0, 1);
+                this.widthGainNode.connect(this.widthInverter);
+                this.widthInverter.connect(this.merger, 0, 1);
+
+                // Mix
+                this.dryGain = this.audioContext.createGain();
+                this.wetGain = this.audioContext.createGain();
+                this.mainInput = this.audioContext.createGain();
+                this.mainOutput = this.audioContext.createGain();
+
+                this.mainInput.connect(this.dryGain);
+                this.mainInput.connect(this.splitter);
+                this.merger.connect(this.wetGain);
+
+                this.dryGain.connect(this.mainOutput);
+                this.wetGain.connect(this.mainOutput);
+
+                this.updateParameter('mix', this.data.mix !== undefined ? this.data.mix : 1.0);
+
+                this.connect = (dest) => this.mainOutput.connect(dest);
+                this.disconnect = (dest) => this.mainOutput.disconnect(dest);
+            }
+
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+                const now = this.audioContext.currentTime;
+                if (paramName === 'width') {
+                    this.widthGainNode.gain.setTargetAtTime(value, now, 0.01);
+                } else if (paramName === 'mix') {
+                    this.dryGain.gain.setTargetAtTime(1 - value, now, 0.01);
+                    this.wetGain.gain.setTargetAtTime(value, now, 0.01);
+                }
+            }
+
+            start() {}
+            stop() {}
+        }
+
+        class StereoWidenerNode extends WebAudioNode {
+            constructor() {
+                super('Stereo Widener');
+                this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
+
+                this.data.width = 1.0;
+                this.addControl('width', new SliderControl('widthSlider', 'Width', 0, 4, 0.01, this.data.width, (val) => {
+                    this.data.width = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('width', val);
+                }));
+
+                this.data.mix = 1.0;
+                this.addControl('mix', new SliderControl('mixSlider', 'Mix', 0, 1, 0.01, this.data.mix, (val) => {
+                    this.data.mix = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('mix', val);
+                }));
+            }
+
+            build() {
+                return new StereoWidener(audioContext, this.id, this.data);
+            }
+        }
+
         class ChordGeneratorNode extends WebAudioNode {
             constructor() {
                 super('Chord Generator');
@@ -3306,6 +3431,84 @@ workspace_data: ${base64Data}
 
             build() {
                 return new BernoulliGate(audioContext, this.id, this.data);
+            }
+        }
+
+        class LogicGates {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+                this.gateA = false;
+                this.gateB = false;
+                this.tickListeners = [];
+
+                this.mainOutput = this.audioContext.createConstantSource();
+                this.mainOutput.start();
+            }
+
+            addTickListener(callback, outputKey) {
+                if (!this.tickListeners.includes(callback)) this.tickListeners.push(callback);
+            }
+
+            removeTickListener(callback, outputKey) {
+                const index = this.tickListeners.indexOf(callback);
+                if (index > -1) this.tickListeners.splice(index, 1);
+            }
+
+            handleGate_gateA(isHigh) {
+                this.gateA = isHigh;
+                this.evaluate();
+            }
+
+            handleGate_gateB(isHigh) {
+                this.gateB = isHigh;
+                this.evaluate();
+            }
+
+            evaluate() {
+                const logic = this.data.logic || 'AND';
+                let result = false;
+                switch (logic) {
+                    case 'AND': result = this.gateA && this.gateB; break;
+                    case 'OR': result = this.gateA || this.gateB; break;
+                    case 'XOR': result = this.gateA !== this.gateB; break;
+                    case 'NAND': result = !(this.gateA && this.gateB); break;
+                }
+
+                const now = this.audioContext.currentTime;
+                this.mainOutput.offset.setTargetAtTime(result ? 1.0 : 0.0, now, 0.001);
+
+                if (result) {
+                    this.tickListeners.forEach(l => l(now, 0.01));
+                }
+            }
+
+            start() {}
+            stop() {}
+            updateParameter(paramName, value) {
+                this.data[paramName] = value;
+                this.evaluate();
+            }
+        }
+
+        class LogicGatesNode extends ModulatorNode {
+            constructor() {
+                super('Logic Gates');
+                this.addInput('gateA', new Classic.Input(voltageSocket, 'Gate A'));
+                this.addInput('gateB', new Classic.Input(voltageSocket, 'Gate B'));
+                this.addOutput('out', new Classic.Output(voltageSocket, 'Out'));
+
+                this.data.logic = 'AND';
+                this.addControl('logic', new SelectControl('logicSelect', 'Logic', ['AND', 'OR', 'XOR', 'NAND'], this.data.logic, (val) => {
+                    this.data.logic = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) audioNode.updateParameter('logic', val);
+                }));
+            }
+
+            build() {
+                return new LogicGates(audioContext, this.id, this.data);
             }
         }
 
@@ -4438,9 +4641,6 @@ workspace_data: ${base64Data}
 
                 const hasClockConnection = editor.getConnections().some(conn => conn.target === this.reteNodeId && conn.targetInput === 'clock');
                 if (hasClockConnection) {
-                    // In external clock mode, the onTick method will handle scheduling.
-                    // This loop just needs to keep running to take over if the clock is disconnected.
-                    this.timeoutId = setTimeout(() => this.schedule(), 100); // Check for clock disconnection periodically
                     return;
                 }
 
@@ -5091,9 +5291,6 @@ workspace_data: ${base64Data}
 
                 const hasClockConnection = editor.getConnections().some(conn => conn.target === this.reteNodeId && conn.targetInput === 'clock');
                 if (hasClockConnection) {
-                    // In external clock mode, the onTick method will handle scheduling.
-                    // This loop just needs to keep running to take over if the clock is disconnected.
-                    this.timeoutId = setTimeout(() => this.schedule(), 100); // Check for clock disconnection periodically
                     return;
                 }
 
@@ -7119,8 +7316,21 @@ workspace_data: ${base64Data}
             clearEditorBtn.disabled = false;
         });
 
+        addStereoWidenerNodeBtn.addEventListener('click', async () => {
+            await editor.addNode(new StereoWidenerNode());
+            clearEditorBtn.disabled = false;
+        });
+
         addBernoulliGateNodeBtn.addEventListener('click', async () => {
             const node = new BernoulliGateNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false;
+        });
+
+        addLogicGatesNodeBtn.addEventListener('click', async () => {
+            const node = new LogicGatesNode();
             const existingNodesCount = editor.getNodes().length;
             node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
             await editor.addNode(node);
@@ -7185,7 +7395,9 @@ workspace_data: ${base64Data}
         NodeRegistry.register('Stereo Panner', StereoPannerNode);
         NodeRegistry.register('DTS Enhancer', DTSEnhancerNode);
         NodeRegistry.register('Vector Panner', VectorPannerNode);
+        NodeRegistry.register('Stereo Widener', StereoWidenerNode);
         NodeRegistry.register('Bernoulli Gate', BernoulliGateNode);
+        NodeRegistry.register('Logic Gates', LogicGatesNode);
         NodeRegistry.register('Turing Machine', TuringMachineNode);
         NodeRegistry.register('Sample & Hold', SampleAndHoldNode);
         NodeRegistry.register('Random Voltage', RandomVoltageNode);
@@ -7336,7 +7548,9 @@ workspace_data: ${base64Data}
                     ['Visualizer', () => new VisualizerNode()],
                     ['DTS Enhancer', () => new DTSEnhancerNode()],
                     ['Vector Panner', () => new VectorPannerNode()],
+                    ['Stereo Widener', () => new StereoWidenerNode()],
                     ['Bernoulli Gate', () => new BernoulliGateNode()],
+                    ['Logic Gates', () => new LogicGatesNode()],
                     ['Turing Machine', () => new TuringMachineNode()],
                     ['Sample & Hold', () => new SampleAndHoldNode()],
                     ['Random Voltage', () => new RandomVoltageNode()],
