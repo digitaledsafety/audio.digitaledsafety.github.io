@@ -1094,126 +1094,6 @@ workspace_data: ${base64Data}
             }
             return impulse;
         }
-
-        class MSWidener {
-            constructor(audioContext) {
-                this.audioContext = audioContext;
-                this.mainInput = this.audioContext.createGain();
-                this.mainOutput = this.audioContext.createGain();
-
-                // M-S Matrixing
-                // Mid = (L + R) / 2
-                // Side = (L - R) / 2
-                this.splitter = this.audioContext.createChannelSplitter(2);
-                this.midGain = this.audioContext.createGain();
-                this.sideGain = this.audioContext.createGain();
-                this.merger = this.audioContext.createChannelMerger(2);
-
-                this.midGain.gain.value = 0.5;
-                this.sideGain.gain.value = 0.5; // Default width
-
-                this.mainInput.connect(this.splitter);
-
-                // Mid sum
-                this.splitter.connect(this.midGain, 0);
-                this.splitter.connect(this.midGain, 1);
-
-                // Side diff
-                this.sideInverter = this.audioContext.createGain();
-                this.sideInverter.gain.value = -1;
-                this.splitter.connect(this.sideGain, 0);
-                this.splitter.connect(this.sideInverter, 1);
-                this.sideInverter.connect(this.sideGain);
-
-                // Re-matrix
-                // L = Mid + Side
-                // R = Mid - Side
-                this.sideReInverter = this.audioContext.createGain();
-                this.sideReInverter.gain.value = -1;
-
-                this.midGain.connect(this.merger, 0, 0);
-                this.midGain.connect(this.merger, 0, 1);
-
-                this.sideGain.connect(this.merger, 0, 0);
-                this.sideGain.connect(this.sideReInverter);
-                this.sideReInverter.connect(this.merger, 0, 1);
-
-                this.merger.connect(this.mainOutput);
-            }
-
-            set width(value) {
-                // value from 0 (mono) to 1 (normal) to 2 (extra wide)
-                this.sideGain.gain.setTargetAtTime(0.5 * value, this.audioContext.currentTime, 0.01);
-            }
-
-            connect(dest) { this.mainOutput.connect(dest); }
-            disconnect() { this.mainOutput.disconnect(); }
-        }
-
-        class MasteringProcessor {
-            constructor(audioContext) {
-                this.audioContext = audioContext;
-                this.mainInput = this.audioContext.createGain();
-                this.masterGain = this.audioContext.createGain();
-                this.mainOutput = this.masterGain;
-
-                // 1. 3-band Crossover
-                this.lowPass = this.audioContext.createBiquadFilter();
-                this.midPass = this.audioContext.createBiquadFilter();
-                this.highPass = this.audioContext.createBiquadFilter();
-
-                this.lowPass.type = 'lowpass';
-                this.lowPass.frequency.value = 200;
-
-                this.midPass.type = 'bandpass';
-                this.midPass.frequency.value = 1000;
-                this.midPass.Q.value = 0.5;
-
-                this.highPass.type = 'highpass';
-                this.highPass.frequency.value = 5000;
-
-                // 2. Multiband Compression
-                this.lowComp = this.audioContext.createDynamicsCompressor();
-                this.midComp = this.audioContext.createDynamicsCompressor();
-                this.highComp = this.audioContext.createDynamicsCompressor();
-
-                this.mainInput.connect(this.lowPass);
-                this.mainInput.connect(this.midPass);
-                this.mainInput.connect(this.highPass);
-
-                this.lowPass.connect(this.lowComp);
-                this.midPass.connect(this.midComp);
-                this.highPass.connect(this.highComp);
-
-                // 3. Summing and Stereo Widening
-                this.summingBus = this.audioContext.createGain();
-                this.lowComp.connect(this.summingBus);
-                this.midComp.connect(this.summingBus);
-                this.highComp.connect(this.summingBus);
-
-                this.widener = new MSWidener(this.audioContext);
-                this.summingBus.connect(this.widener.mainInput);
-
-                // 4. Final Limiter
-                this.limiter = this.audioContext.createDynamicsCompressor();
-                this.limiter.threshold.value = -1.0;
-                this.limiter.knee.value = 0;
-                this.limiter.ratio.value = 20;
-                this.limiter.attack.value = 0.001;
-                this.limiter.release.value = 0.1;
-
-                this.widener.connect(this.limiter);
-                this.limiter.connect(this.masterGain);
-            }
-
-            get gain() { return this.masterGain.gain; }
-
-            connect(dest) { this.masterGain.connect(dest); }
-            disconnect(dest) {
-                if (dest) this.masterGain.disconnect(dest);
-                else this.masterGain.disconnect();
-            }
-        }
         
         // --- Web Audio API Management ---
 
@@ -1261,7 +1141,7 @@ workspace_data: ${base64Data}
                 await audioContext.resume();
             }
 
-            masterGain = new MasteringProcessor(audioContext);
+            masterGain = audioContext.createGain();
             analyser = audioContext.createAnalyser();
             analyser.fftSize = 2048;
             masterGain.connect(analyser);
@@ -1421,14 +1301,13 @@ workspace_data: ${base64Data}
                     }
                 }
                 
-                // Disconnect each main audio node from the graph
+                // Disconnect each main audio node from the graph (for Arpeggiator, this would be its master gain)
                 try {
-                    if (audioNode) {
-                        if (audioNode.mainOutput) {
-                            audioNode.mainOutput.disconnect();
-                        } else if (typeof audioNode.disconnect === 'function') {
-                            audioNode.disconnect();
-                        }
+                    // For Arpeggiator, we disconnect its master output. Other nodes are direct Web Audio nodes.
+                    if (audioNode.mainOutput) { // Arpeggiator has a mainOutput
+                        audioNode.mainOutput.disconnect();
+                    } else if (audioNode.disconnect) { // Regular Web Audio nodes
+                        audioNode.disconnect();
                     }
                 } catch (e) {
                     console.warn("Error disconnecting audio node:", e);
@@ -3900,28 +3779,13 @@ workspace_data: ${base64Data}
                         masterGain.gain.setTargetAtTime(val ? 0 : this.data.gain, audioContext.currentTime, 0.01);
                     }
                 }));
-
-                this.data.width = this.data.width !== undefined ? this.data.width : 1.0;
-                this.addControl('width', new SliderControl('widthSlider', 'Stereo Width', 0, 2, 0.01, this.data.width, (val) => {
-                    this.data.width = val;
-                    if (masterGain && masterGain.widener) {
-                        masterGain.widener.width = val;
-                    }
-                }));
             }
 
             build() {
-                if (reteAudioNodes.has(this.id)) {
-                    return reteAudioNodes.get(this.id);
-                }
                 // This node doesn't create a new audio node, it controls the global masterGain
                 if (masterGain) {
                     masterGain.gain.setTargetAtTime(this.data.mute ? 0 : this.data.gain, audioContext.currentTime, 0.01);
-                    if (masterGain.widener) {
-                        masterGain.widener.width = this.data.width;
-                    }
                 }
-                reteAudioNodes.set(this.id, masterGain);
                 return masterGain; // Return the existing masterGain
             }
         }
@@ -5014,21 +4878,12 @@ workspace_data: ${base64Data}
                 this.nextStepTime = 0;
                 this.midiListeners = []; // Kept for consistency, might not be used
                 this.tickCount = 0;
-                this.nextTriggerTick = 0;
 
                 this.mainOutput = this.audioContext.createGain();
                 this.mainOutput.gain.value = 0.8; // Drums can be loud
 
-                // Pre-generate noise buffer for performance
-                const bufferSize = this.audioContext.sampleRate * 2;
-                this.noiseBuffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
-                const output = this.noiseBuffer.getChannelData(0);
-                for (let i = 0; i < bufferSize; i++) {
-                    output[i] = Math.random() * 2 - 1;
-                }
-
                 // Note map for drum sounds
-                const drumNoteMap = { 'k': 60, 's': 62, 'h': 64, 'o': 65, 'c': 66 };
+                const drumNoteMap = { 'k': 60, 's': 62, 'h': 64 }; // Using midi numbers as placeholders
                 this.parser = new MiniNotationParser(drumNoteMap);
                 this.sequenceEvents = this.parseSequence();
                 this.tickListeners = [];
@@ -5056,40 +4911,29 @@ workspace_data: ${base64Data}
             }
 
             onTick(tickTime, tickDuration, tickIndex) {
-                if (tickIndex === 0) {
-                    this.nextTriggerTick = 0;
-                    this.currentStep = 0;
-                }
+                const baseTicks = NOTE_DURATION_TICKS[this.data.noteDuration] || 24;
+                const event = this.sequenceEvents[this.currentStep];
+                const representativeEvent = Array.isArray(event) ? event[0] : event;
 
-                while (tickIndex >= this.nextTriggerTick) {
-                    const event = this.sequenceEvents[this.currentStep];
-                    const representativeEvent = Array.isArray(event) ? event[0] : event;
-
-                    if (!representativeEvent) {
-                        this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
-                        this.nextTriggerTick += (NOTE_DURATION_TICKS[this.data.noteDuration] || 24);
-                        continue;
-                    }
-
-                    const baseTicks = NOTE_DURATION_TICKS[this.data.noteDuration] || 24;
-                    const ticksForThisStep = baseTicks * (1 / Math.max(0.001, representativeEvent.speed)) * representativeEvent.duration;
-                    const stepDuration = tickDuration * ticksForThisStep;
-
-                    if (Array.isArray(event)) {
-                        for (const note of event) {
-                            if (note.noteName && Math.random() < (note.probability !== undefined ? note.probability : 1.0)) {
-                                this.scheduleNote(note.noteName, stepDuration * note.elongation, tickTime);
+                if (representativeEvent) {
+                    const ticksForThisStep = baseTicks * (1 / representativeEvent.speed) * representativeEvent.duration;
+                    if (tickIndex % ticksForThisStep === 0) {
+                        const stepDuration = tickDuration * ticksForThisStep;
+                        if (Array.isArray(event)) {
+                            for (const note of event) {
+                                if (note.noteName && Math.random() < (note.probability !== undefined ? note.probability : 1.0)) {
+                                    this.scheduleNote(note.noteName, stepDuration * note.elongation, tickTime);
+                                }
+                            }
+                        } else {
+                            if (event.noteName && Math.random() < (event.probability !== undefined ? event.probability : 1.0)) {
+                                this.scheduleNote(event.noteName, stepDuration * event.elongation, tickTime);
                             }
                         }
-                    } else {
-                        if (event.noteName && Math.random() < (event.probability !== undefined ? event.probability : 1.0)) {
-                            this.scheduleNote(event.noteName, stepDuration * event.elongation, tickTime);
-                        }
+                        this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
                     }
-
-                    this.nextTriggerTick += ticksForThisStep;
-                    this.currentStep = (this.currentStep + 1) % this.sequenceEvents.length;
                 }
+                this.tickCount++;
             }
 
             parseSequence() {
@@ -5114,7 +4958,12 @@ workspace_data: ${base64Data}
 
             createSnare(now) {
                 const noise = this.audioContext.createBufferSource();
-                noise.buffer = this.noiseBuffer;
+                const noiseBuffer = this.audioContext.createBuffer(1, this.audioContext.sampleRate * 0.2, this.audioContext.sampleRate);
+                const output = noiseBuffer.getChannelData(0);
+                for (let i = 0; i < noiseBuffer.length; i++) {
+                    output[i] = Math.random() * 2 - 1;
+                }
+                noise.buffer = noiseBuffer;
 
                 const noiseFilter = this.audioContext.createBiquadFilter();
                 noiseFilter.type = 'highpass';
@@ -5123,7 +4972,7 @@ workspace_data: ${base64Data}
 
                 const noiseEnvelope = this.audioContext.createGain();
                 noiseFilter.connect(noiseEnvelope);
-                noiseEnvelope.connect(this.adsrGain);
+                noiseEnvelope.connect(this.mainOutput);
 
                 noiseEnvelope.gain.setValueAtTime(1, now);
                 noiseEnvelope.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
@@ -5136,7 +4985,7 @@ workspace_data: ${base64Data}
                 osc.type = 'triangle';
                 osc.frequency.value = 180;
                 osc.connect(oscEnvelope);
-                oscEnvelope.connect(this.adsrGain);
+                oscEnvelope.connect(this.mainOutput);
                 oscEnvelope.gain.setValueAtTime(0.5, now);
                 oscEnvelope.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
                 osc.start(now);
@@ -5145,7 +4994,12 @@ workspace_data: ${base64Data}
 
             createHiHat(now) {
                 const noise = this.audioContext.createBufferSource();
-                noise.buffer = this.noiseBuffer;
+                const noiseBuffer = this.audioContext.createBuffer(1, this.audioContext.sampleRate * 0.1, this.audioContext.sampleRate);
+                const output = noiseBuffer.getChannelData(0);
+                for (let i = 0; i < noiseBuffer.length; i++) {
+                    output[i] = Math.random() * 2 - 1;
+                }
+                noise.buffer = noiseBuffer;
 
                 const noiseFilter = this.audioContext.createBiquadFilter();
                 noiseFilter.type = 'highpass';
@@ -5154,69 +5008,17 @@ workspace_data: ${base64Data}
 
                 const noiseEnvelope = this.audioContext.createGain();
                 noiseFilter.connect(noiseEnvelope);
-                noiseEnvelope.connect(this.adsrGain);
+                noiseEnvelope.connect(this.mainOutput);
                 noiseEnvelope.gain.setValueAtTime(1, now);
                 noiseEnvelope.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
                 noise.start(now);
                 noise.stop(now + 0.05);
             }
 
-            createOpenHiHat(now) {
-                const noise = this.audioContext.createBufferSource();
-                noise.buffer = this.noiseBuffer;
-
-                const noiseFilter = this.audioContext.createBiquadFilter();
-                noiseFilter.type = 'highpass';
-                noiseFilter.frequency.value = 7000;
-                noise.connect(noiseFilter);
-
-                const noiseEnvelope = this.audioContext.createGain();
-                noiseFilter.connect(noiseEnvelope);
-                noiseEnvelope.connect(this.adsrGain);
-                noiseEnvelope.gain.setValueAtTime(1, now);
-                noiseEnvelope.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-                noise.start(now);
-                noise.stop(now + 0.3);
-            }
-
-            createClap(now) {
-                const noise = this.audioContext.createBufferSource();
-                noise.buffer = this.noiseBuffer;
-
-                const noiseFilter = this.audioContext.createBiquadFilter();
-                noiseFilter.type = 'bandpass';
-                noiseFilter.frequency.value = 1200;
-                noiseFilter.Q.value = 1;
-                noise.connect(noiseFilter);
-
-                const noiseEnvelope = this.audioContext.createGain();
-                noiseFilter.connect(noiseEnvelope);
-                noiseEnvelope.connect(this.adsrGain);
-
-                // Clap is series of quick impulses
-                for (let i = 0; i < 3; i++) {
-                    noiseEnvelope.gain.setValueAtTime(1, now + i * 0.01);
-                    noiseEnvelope.gain.exponentialRampToValueAtTime(0.1, now + (i + 1) * 0.01);
-                }
-                noiseEnvelope.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-
-                noise.start(now);
-                noise.stop(now + 0.2);
-            }
 
             scheduleNote(noteName, durationSeconds, startTime) {
                 if (!this.audioContext) return;
                 const now = startTime || this.audioContext.currentTime;
-
-                // Create a temporary gain node for this note's envelope if ADSR is enabled
-                this.adsrGain = this.audioContext.createGain();
-                this.adsrGain.connect(this.mainOutput);
-
-                if (this.data.showEnvelope) {
-                    applyADSR(this.adsrGain, this.data, durationSeconds, this.audioContext, 0.3, now);
-                } else {
-                    this.adsrGain.gain.setValueAtTime(0.3, now);
-                }
 
                 const normalizedNote = typeof noteName === 'string' ? noteName.toLowerCase() : noteName;
                 switch (normalizedNote) {
@@ -5228,12 +5030,6 @@ workspace_data: ${base64Data}
                         break;
                     case 'h':
                         this.createHiHat(now);
-                        break;
-                    case 'o':
-                        this.createOpenHiHat(now);
-                        break;
-                    case 'c':
-                        this.createClap(now);
                         break;
                 }
             }
@@ -5760,23 +5556,6 @@ workspace_data: ${base64Data}
                 this.controls.release.hidden = true;
             }
 
-            onDataLoaded() {
-                const showRand = !!this.data.showRandomSettings;
-                this.controls.randomizeMode.hidden = !showRand;
-                this.controls.chordType.hidden = !showRand || (this.data.randomizeMode === 'Scale');
-                this.controls.scaleType.hidden = !showRand || (this.data.randomizeMode === 'Chord');
-                this.controls.rootNote.hidden = !showRand;
-                this.controls.octaveRange.hidden = !showRand;
-                this.controls.arpeggioPattern.hidden = !showRand;
-                this.controls.randomize.hidden = !showRand;
-
-                const showEnv = !!this.data.showEnvelope;
-                this.controls.attack.hidden = !showEnv;
-                this.controls.decay.hidden = !showEnv;
-                this.controls.sustain.hidden = !showEnv;
-                this.controls.release.hidden = !showEnv;
-            }
-
             randomize() {
                 const audioNode = reteAudioNodes.get(this.id);
                 if (audioNode) {
@@ -5789,12 +5568,7 @@ workspace_data: ${base64Data}
             }
 
             build() {
-                if (reteAudioNodes.has(this.id)) {
-                    return reteAudioNodes.get(this.id);
-                }
-                const audioNode = new Sequencer(audioContext, this.id, this.data);
-                reteAudioNodes.set(this.id, audioNode);
-                return audioNode;
+                return new Sequencer(audioContext, this.id, this.data);
             }
 
             start() {
@@ -5847,60 +5621,10 @@ workspace_data: ${base64Data}
                         area.update('node', this.id);
                     }
                 }));
-
-                // ADSR Controls
-                this.data.showEnvelope = this.data.showEnvelope || false;
-                this.data.attack = this.data.attack || 0.01;
-                this.data.decay = this.data.decay || 0.1;
-                this.data.sustain = this.data.sustain || 0.5;
-                this.data.release = this.data.release || 0.1;
-
-                this.addControl('envelopeToggle', new ButtonControl('dmEnvelopeToggle', 'Envelope', () => {
-                    this.data.showEnvelope = !this.data.showEnvelope;
-                    const show = this.data.showEnvelope;
-                    this.controls.attack.hidden = !show;
-                    this.controls.decay.hidden = !show;
-                    this.controls.sustain.hidden = !show;
-                    this.controls.release.hidden = !show;
-                    area.update('node', this.id);
-                }));
-
-                this.addControl('attack', new SliderControl('dmAttack', 'Attack (s)', 0.01, 2, 0.01, this.data.attack, (val) => {
-                    this.data.attack = val;
-                }));
-                this.controls.attack.hidden = !this.data.showEnvelope;
-
-                this.addControl('decay', new SliderControl('dmDecay', 'Decay (s)', 0.01, 2, 0.01, this.data.decay, (val) => {
-                    this.data.decay = val;
-                }));
-                this.controls.decay.hidden = !this.data.showEnvelope;
-
-                this.addControl('sustain', new SliderControl('dmSustain', 'Sustain', 0, 1, 0.01, this.data.sustain, (val) => {
-                    this.data.sustain = val;
-                }));
-                this.controls.sustain.hidden = !this.data.showEnvelope;
-
-                this.addControl('release', new SliderControl('dmRelease', 'Release (s)', 0.01, 5, 0.01, this.data.release, (val) => {
-                    this.data.release = val;
-                }));
-                this.controls.release.hidden = !this.data.showEnvelope;
-            }
-
-            onDataLoaded() {
-                const show = !!this.data.showEnvelope;
-                this.controls.attack.hidden = !show;
-                this.controls.decay.hidden = !show;
-                this.controls.sustain.hidden = !show;
-                this.controls.release.hidden = !show;
             }
 
             build() {
-                if (reteAudioNodes.has(this.id)) {
-                    return reteAudioNodes.get(this.id);
-                }
-                const audioNode = new DrumMachine(audioContext, this.id, this.data);
-                reteAudioNodes.set(this.id, audioNode);
-                return audioNode;
+                return new DrumMachine(audioContext, this.id, this.data);
             }
 
             start() {
