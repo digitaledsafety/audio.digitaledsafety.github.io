@@ -378,6 +378,7 @@ layout: none
                                 <button id="addTuringMachineNodeBtn" class="button button-secondary w-full text-xs">🌀 Turing Machine</button>
                                 <button id="addSampleAndHoldNodeBtn" class="button button-secondary w-full text-xs">🧊 S&H</button>
                                 <button id="addRandomVoltageNodeBtn" class="button button-secondary w-full text-xs">🔀 Random Volt</button>
+                                <button id="addClockDividerNodeBtn" class="button button-secondary w-full text-xs">🕒 Clock Div</button>
                             </div>
                         </div>
 
@@ -391,6 +392,7 @@ layout: none
                                 <button id="addAttenuverterNodeBtn" class="button button-secondary w-full text-xs">🔄 Attenuverter</button>
                                 <button id="addMasterClockNodeBtn" class="button button-secondary w-full text-xs">⏱️ Master Clock</button>
                                 <button id="addMasterGainOutputNodeBtn" class="button button-secondary w-full text-xs">🔊 Master</button>
+                                <button id="addSignalInverterNodeBtn" class="button button-secondary w-full text-xs">🔄 Inverter</button>
                             </div>
                         </div>
                     </div>
@@ -598,6 +600,8 @@ layout: none
         const addTuringMachineNodeBtn = document.getElementById('addTuringMachineNodeBtn');
         const addSampleAndHoldNodeBtn = document.getElementById('addSampleAndHoldNodeBtn');
         const addRandomVoltageNodeBtn = document.getElementById('addRandomVoltageNodeBtn');
+        const addClockDividerNodeBtn = document.getElementById('addClockDividerNodeBtn');
+        const addSignalInverterNodeBtn = document.getElementById('addSignalInverterNodeBtn');
         const clearEditorBtn = document.getElementById('clearEditorBtn');
         const reteContainer = document.getElementById('rete-container');
         const messageBox = document.getElementById('messageBox');
@@ -3474,6 +3478,9 @@ workspace_data: ${base64Data}
                     case 'OR': result = this.gateA || this.gateB; break;
                     case 'XOR': result = this.gateA !== this.gateB; break;
                     case 'NAND': result = !(this.gateA && this.gateB); break;
+                    case 'NOR': result = !(this.gateA || this.gateB); break;
+                    case 'XNOR': result = this.gateA === this.gateB; break;
+                    case 'NOT (A)': result = !this.gateA; break;
                 }
 
                 const now = this.audioContext.currentTime;
@@ -3500,7 +3507,7 @@ workspace_data: ${base64Data}
                 this.addOutput('out', new Classic.Output(voltageSocket, 'Out'));
 
                 this.data.logic = 'AND';
-                this.addControl('logic', new SelectControl('logicSelect', 'Logic', ['AND', 'OR', 'XOR', 'NAND'], this.data.logic, (val) => {
+                this.addControl('logic', new SelectControl('logicSelect', 'Logic', ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR', 'NOT (A)'], this.data.logic, (val) => {
                     this.data.logic = val;
                     const audioNode = reteAudioNodes.get(this.id);
                     if (audioNode) audioNode.updateParameter('logic', val);
@@ -3509,6 +3516,108 @@ workspace_data: ${base64Data}
 
             build() {
                 return new LogicGates(audioContext, this.id, this.data);
+            }
+        }
+
+        class ClockDivider {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+                this.tickListeners = { div2: [], div4: [], div8: [], div16: [] };
+
+                this.div2Output = this.audioContext.createConstantSource();
+                this.div2Output.start();
+                this.div4Output = this.audioContext.createConstantSource();
+                this.div4Output.start();
+                this.div8Output = this.audioContext.createConstantSource();
+                this.div8Output.start();
+                this.div16Output = this.audioContext.createConstantSource();
+                this.div16Output.start();
+            }
+
+            addTickListener(callback, outputKey) {
+                if (this.tickListeners[outputKey] && !this.tickListeners[outputKey].includes(callback)) {
+                    this.tickListeners[outputKey].push(callback);
+                }
+            }
+
+            removeTickListener(callback, outputKey) {
+                if (this.tickListeners[outputKey]) {
+                    const index = this.tickListeners[outputKey].indexOf(callback);
+                    if (index > -1) this.tickListeners[outputKey].splice(index, 1);
+                }
+            }
+
+            onTick(tickTime, tickDuration, tickIndex) {
+                // tickIndex is absolute pulses from Master Clock (96 PPQN)
+                // Assuming we want to divide the "main beat" (every 96 ticks)
+                // But typically clock dividers divide the incoming clock pulses.
+                // If it's connected to Master Clock, it receives pulses every tick.
+
+                if (tickIndex % 2 === 0) {
+                    this.tickListeners.div2.forEach(l => l(tickTime, tickDuration, tickIndex / 2));
+                    firePulse(this.div2Output, tickTime);
+                }
+                if (tickIndex % 4 === 0) {
+                    this.tickListeners.div4.forEach(l => l(tickTime, tickDuration, tickIndex / 4));
+                    firePulse(this.div4Output, tickTime);
+                }
+                if (tickIndex % 8 === 0) {
+                    this.tickListeners.div8.forEach(l => l(tickTime, tickDuration, tickIndex / 8));
+                    firePulse(this.div8Output, tickTime);
+                }
+                if (tickIndex % 16 === 0) {
+                    this.tickListeners.div16.forEach(l => l(tickTime, tickDuration, tickIndex / 16));
+                    firePulse(this.div16Output, tickTime);
+                }
+            }
+
+            start() {}
+            stop() {}
+            updateParameter() {}
+        }
+
+        class ClockDividerNode extends GeneratorNode {
+            constructor() {
+                super('Clock Divider');
+                this.addInput('clock', new Classic.Input(voltageSocket, 'Clock In'));
+                this.addOutput('div2', new Classic.Output(voltageSocket, '/2'));
+                this.addOutput('div4', new Classic.Output(voltageSocket, '/4'));
+                this.addOutput('div8', new Classic.Output(voltageSocket, '/8'));
+                this.addOutput('div16', new Classic.Output(voltageSocket, '/16'));
+            }
+
+            build() {
+                return new ClockDivider(audioContext, this.id, this.data);
+            }
+        }
+
+        class SignalInverter {
+            constructor(audioContext, reteNodeId, data) {
+                this.audioContext = audioContext;
+                this.reteNodeId = reteNodeId;
+                this.data = data;
+
+                this.mainInput = this.audioContext.createGain();
+                this.mainInput.gain.value = -1;
+                this.mainOutput = this.mainInput;
+            }
+
+            start() {}
+            stop() {}
+            updateParameter() {}
+        }
+
+        class SignalInverterNode extends WebAudioNode {
+            constructor() {
+                super('Signal Inverter');
+                this.addInput('audio', new Classic.Input(voltageSocket, 'Signal In', true));
+                this.addOutput('audio', new Classic.Output(voltageSocket, 'Signal Out'));
+            }
+
+            build() {
+                return new SignalInverter(audioContext, this.id, this.data);
             }
         }
 
@@ -7361,6 +7470,22 @@ workspace_data: ${base64Data}
             clearEditorBtn.disabled = false;
         });
 
+        addClockDividerNodeBtn.addEventListener('click', async () => {
+            const node = new ClockDividerNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false;
+        });
+
+        addSignalInverterNodeBtn.addEventListener('click', async () => {
+            const node = new SignalInverterNode();
+            const existingNodesCount = editor.getNodes().length;
+            node.position = { x: 50 + (existingNodesCount % 5) * 220, y: 50 + Math.floor(existingNodesCount / 5) * 200 };
+            await editor.addNode(node);
+            clearEditorBtn.disabled = false;
+        });
+
         // Initialize editor on window load
         NodeRegistry.register('Tone Generator', ToneGeneratorNode);
         NodeRegistry.register('Noise Generator', NoiseGeneratorNode);
@@ -7401,6 +7526,8 @@ workspace_data: ${base64Data}
         NodeRegistry.register('Turing Machine', TuringMachineNode);
         NodeRegistry.register('Sample & Hold', SampleAndHoldNode);
         NodeRegistry.register('Random Voltage', RandomVoltageNode);
+        NodeRegistry.register('Clock Divider', ClockDividerNode);
+        NodeRegistry.register('Signal Inverter', SignalInverterNode);
 
         window.onload = async () => {
             // Rete.js v2: Define schemes
@@ -7554,6 +7681,8 @@ workspace_data: ${base64Data}
                     ['Turing Machine', () => new TuringMachineNode()],
                     ['Sample & Hold', () => new SampleAndHoldNode()],
                     ['Random Voltage', () => new RandomVoltageNode()],
+                    ['Clock Divider', () => new ClockDividerNode()],
+                    ['Signal Inverter', () => new SignalInverterNode()],
 
                 ])
             });
@@ -7822,7 +7951,13 @@ workspace_data: ${base64Data}
                     showMessage('Connection created.', 'info');
                 } else if (context.type === 'connectionremove') {
                     const connection = context.data;
+                    const sourceReteNode = editor.getNode(connection.source);
                     const targetReteNode = editor.getNode(connection.target);
+
+                    // Explicitly disconnect the connection being removed
+                    const strategy = (connection.targetInput === 'midi') ? new MidiConnectionStrategy() : new VoltageConnectionStrategy();
+                    strategy.disconnect(sourceReteNode, targetReteNode, connection.targetInput, connection.sourceOutput);
+
                     if (connection.targetInput === 'clock' && targetReteNode.label === 'LFO') {
                         targetReteNode.data.sync = false;
                         targetReteNode.controls.frequency.hidden = false;
