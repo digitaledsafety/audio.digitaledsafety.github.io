@@ -1944,6 +1944,8 @@ workspace_data: ${base64Data}
                         return targetNode.Q;
                     case 'delay_cv':
                         return targetNode.delayTime;
+                    case 'width_cv':
+                        return targetNode.widthGainNode ? targetNode.widthGainNode.gain : null;
                     case 'gain_cv':
                         return targetNode.gain;
                     case 'transpose_cv':
@@ -2948,6 +2950,7 @@ workspace_data: ${base64Data}
             constructor() {
                 super('Stereo Widener');
                 this.addInput('audio', new Classic.Input(voltageSocket, 'Audio In', true));
+                this.addInput('width_cv', new Classic.Input(voltageSocket, 'Width CV', true));
                 this.addOutput('audio', new Classic.Output(voltageSocket, 'Audio Out'));
 
                 this.data.width = 1.0;
@@ -3177,6 +3180,8 @@ workspace_data: ${base64Data}
                 const draw = () => {
                     this.animationId = requestAnimationFrame(draw);
 
+                    if (this.data.frozen) return;
+
                     const canvas = canvasControl.canvas;
                     const ctx = canvasControl.ctx;
                     const width = canvas.width;
@@ -3189,18 +3194,30 @@ workspace_data: ${base64Data}
 
                     if (mode === 'Oscilloscope') {
                         this.analyser.getByteTimeDomainData(this.dataArray);
+
+                        // --- Zero-Crossing Trigger ---
+                        let offset = 0;
+                        for (let i = 0; i < this.bufferLength - 1; i++) {
+                            // Find where the signal crosses from < 128 to >= 128
+                            if (this.dataArray[i] < 128 && this.dataArray[i+1] >= 128) {
+                                offset = i;
+                                break;
+                            }
+                        }
+
                         ctx.lineWidth = 2;
                         ctx.strokeStyle = 'rgb(0, 255, 0)';
                         ctx.beginPath();
 
-                        const sliceWidth = width * 1.0 / this.bufferLength;
+                        const remainingLength = this.bufferLength - offset;
+                        const sliceWidth = width * 1.0 / remainingLength;
                         let x = 0;
 
-                        for (let i = 0; i < this.bufferLength; i++) {
+                        for (let i = offset; i < this.bufferLength; i++) {
                             const v = this.dataArray[i] / 128.0;
                             const y = v * height / 2;
 
-                            if (i === 0) {
+                            if (i === offset) {
                                 ctx.moveTo(x, y);
                             } else {
                                 ctx.lineTo(x, y);
@@ -3258,6 +3275,17 @@ workspace_data: ${base64Data}
                     if (audioNode && audioNode.updateParameter) {
                         audioNode.updateParameter('mode', val);
                     }
+                }));
+
+                this.data.frozen = false;
+                this.addControl('frozen', new ButtonControl('vizFreeze', 'Freeze', () => {
+                    this.data.frozen = !this.data.frozen;
+                    this.controls.frozen.label = this.data.frozen ? 'Resume' : 'Freeze';
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) {
+                        audioNode.updateParameter('frozen', this.data.frozen);
+                    }
+                    area.update('node', this.id);
                 }));
 
                 this.canvasControl = new CanvasControl('visualizerCanvas');
@@ -5983,6 +6011,15 @@ workspace_data: ${base64Data}
                         setDistortionCurve(audioNode.waveShaper, this.data.amount, this.data.drive);
                     }
                 }));
+
+                this.data.mix = 1.0;
+                this.addControl('mix', new SliderControl('distortionMix', 'Mix', 0, 1, 0.01, this.data.mix, (val) => {
+                    this.data.mix = val;
+                    const audioNode = reteAudioNodes.get(this.id);
+                    if (audioNode) {
+                        audioNode.updateParameter('mix', val);
+                    }
+                }));
             }
 
             build() {
@@ -5995,11 +6032,36 @@ workspace_data: ${base64Data}
 
                 waveShaper.connect(toneFilter);
 
+                const dryGain = audioContext.createGain();
+                const wetGain = audioContext.createGain();
+                const inputNode = audioContext.createGain();
+                const outputNode = audioContext.createGain();
+
+                const mix = this.data.mix !== undefined ? this.data.mix : 1.0;
+                dryGain.gain.value = 1 - mix;
+                wetGain.gain.value = mix;
+
+                inputNode.connect(dryGain);
+                inputNode.connect(waveShaper);
+                toneFilter.connect(wetGain);
+
+                dryGain.connect(outputNode);
+                wetGain.connect(outputNode);
+
                 const audioNode = {
-                    mainInput: waveShaper,
-                    mainOutput: toneFilter,
+                    mainInput: inputNode,
+                    mainOutput: outputNode,
                     waveShaper: waveShaper,
                     toneFilter: toneFilter,
+                    dryGain: dryGain,
+                    wetGain: wetGain,
+                    updateParameter: function(paramName, value) {
+                        if (paramName === 'mix') {
+                            const now = audioContext.currentTime;
+                            this.dryGain.gain.setTargetAtTime(1 - value, now, 0.01);
+                            this.wetGain.gain.setTargetAtTime(value, now, 0.01);
+                        }
+                    },
                     connect: function(destination) {
                         this.mainOutput.connect(destination);
                     },
